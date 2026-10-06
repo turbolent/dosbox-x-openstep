@@ -41,7 +41,11 @@
 #include "timer.h"
 #include "config.h"
 #include "control.h"
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 #include "shiftjis.h"
 #include "../ints/int10.h"
 #include "pc98_cg.h"
@@ -54,7 +58,9 @@
 #include "../libs/zmbv/zmbv.h"
 #endif
 
+#if C_DIRECT3D && defined(C_SDL2)
 #include "../output/output_direct3d11.h"
+#endif
 /* #include "../output/output_metal.h" */ // Includes Objective-C code
 #if C_METAL
 void metal_init();
@@ -70,7 +76,7 @@ void OUTPUT_Metal_CheckSourceResolution();
 /* do not issue CPU-side I/O here -- this code emulates functions that the GDC itself carries out, not on the CPU */
 #include "cpu_io_is_forbidden.h"
 
-static constexpr unsigned int MCH_RAW_SNAPSHOT = 0xFFFF;
+static const unsigned int MCH_RAW_SNAPSHOT = 0xFFFF;
 
 bool ega200 = false;
 bool mcga_double_scan = false;
@@ -125,16 +131,16 @@ enum {
 };
 
 struct rawscreenshot {
-	unsigned char*		image = NULL;
-	unsigned int		image_stride = 0;
-	unsigned int		image_width = 0,image_height = 0;
-	unsigned int		image_bpp = 0;
-	unsigned char*		image_palette = NULL;
-	unsigned char*		image_palette2 = NULL;
-	unsigned int		image_palette_size = 0;
-	unsigned int		image_palette2_size = 0;
-	unsigned int		render_y = 0;
-	bool			capturing = false;
+	unsigned char*		image;
+	unsigned int		image_stride;
+	unsigned int		image_width,image_height;
+	unsigned int		image_bpp;
+	unsigned char*		image_palette;
+	unsigned char*		image_palette2;
+	unsigned int		image_palette_size;
+	unsigned int		image_palette2_size;
+	unsigned int		render_y;
+	bool			capturing;
 
 	void free(void);
 	void allocate(unsigned int w,unsigned int h,unsigned int bpp);
@@ -144,7 +150,9 @@ struct rawscreenshot {
 	~rawscreenshot();
 };
 
-rawscreenshot::rawscreenshot() {
+rawscreenshot::rawscreenshot() : image(NULL), image_stride(0), image_width(0),
+	image_height(0), image_bpp(0), image_palette(NULL), image_palette2(NULL),
+	image_palette_size(0), image_palette2_size(0), render_y(0), capturing(false) {
 }
 
 rawscreenshot::~rawscreenshot() {
@@ -199,14 +207,15 @@ void rawscreenshot::allocpalette2(unsigned int count) {
 static rawscreenshot rawshot; // raw image data, translated palette
 
 struct debugline_event {
-	unsigned int	colorline = 0;
-	int		event = -1;
-	unsigned int	x = 0;
-	uint8_t		w = 0;
-	uint8_t		trow = 0;
-	size_t		tline = 0;
-	bool		done = false;
+	unsigned int	colorline;
+	int		event;
+	unsigned int	x;
+	uint8_t		w;
+	uint8_t		trow;
+	size_t		tline;
+	bool		done;
 	std::vector<std::string> text;
+	debugline_event() : colorline(0), event(-1), x(0), w(0), trow(0), tline(0), done(false) {}
 
 	int drawwidth(void) const {
 		return w;
@@ -2736,7 +2745,7 @@ bool isDBCSLB(uint8_t chr) {
 }
 #endif
 
-std::vector<std::pair<int,int>> jtbs = {}, dbox = {};
+std::vector<std::pair<int,int> > jtbs, dbox;
 struct first_equal {
     const int value;
     first_equal(int v):value(v) {}
@@ -3783,15 +3792,16 @@ void VGA_DrawDebugLine(uint8_t *line,unsigned int w);
 
 /* BIOS logo overlay */
 struct BIOSlogo_t {
-	unsigned char*		bmp = NULL;
-	unsigned int		x = 0,y = 0;
-	unsigned int		width = 0,height = 0;
-	unsigned char*		palette = NULL; /* 256 colors (NOTE: Except for VGA and PC-98, not all 256 colors available!) */
-	VGA_Line_Handler	DrawLine = NULL;
-	bool			visible = false;
-	bool			vsync_enable = false;
+	unsigned char*		bmp;
+	unsigned int		x,y;
+	unsigned int		width,height;
+	unsigned char*		palette; /* 256 colors (NOTE: Except for VGA and PC-98, not all 256 colors available!) */
+	VGA_Line_Handler	DrawLine;
+	bool			visible;
+	bool			vsync_enable;
 
-	BIOSlogo_t() {
+	BIOSlogo_t() : bmp(NULL), x(0), y(0), width(0), height(0),
+		palette(NULL), DrawLine(NULL), visible(false), vsync_enable(false) {
 	}
 	~BIOSlogo_t() {
 		free();
@@ -4583,7 +4593,7 @@ void VGA_DebugAddEvent(debugline_event &ev) {
 		}
 	}
 
-	debugline_events.push_back(std::move(ev));
+	debugline_events.push_back(ev);
 }
 
 void VGA_DebugAddEvent_VGASplit(void) {
@@ -4785,8 +4795,7 @@ void VGA_DrawDebugLine(uint8_t *line,unsigned int w) {
 				if (dw <= 16) return;
 				for (unsigned int c=0;c < 16;c++) {
 					const unsigned int idx = vga.dac.combine[c]; /* vga_dac.cpp considers color select */
-					const unsigned int color = SDL_MapRGB(
-							sdl.surface->format,
+					const unsigned int color = GFX_GetRGB(
 							((vga.dac.rgb[idx].red << dacshift) & 0xFF),
 							((vga.dac.rgb[idx].green << dacshift) & 0xFF),
 							((vga.dac.rgb[idx].blue << dacshift) & 0xFF));
@@ -4851,8 +4860,8 @@ void VGA_DrawDebugLine(uint8_t *line,unsigned int w) {
 
 	bool allclear = true;
 
-	for (auto i=debugline_events.begin();i!=debugline_events.end();i++) {
-		auto &ev = *i;
+	for (std::vector<debugline_event>::iterator i=debugline_events.begin();i!=debugline_events.end();i++) {
+		debugline_event &ev = *i;
 		if (!ev.done && ev.tline == 0 && ev.trow == 0) {
 			if (vga.draw.bpp == 8) {
 				for (unsigned int x=minw;x < w && x < ev.x;x++) line[x] = ev.colorline;
@@ -4865,8 +4874,8 @@ void VGA_DrawDebugLine(uint8_t *line,unsigned int w) {
 		}
 	}
 
-	for (auto i=debugline_events.begin();i!=debugline_events.end();i++) {
-		auto &ev = *i;
+	for (std::vector<debugline_event>::iterator i=debugline_events.begin();i!=debugline_events.end();i++) {
+		debugline_event &ev = *i;
 		if (!ev.done) {
 			if (ev.tline < ev.text.size()) {
 				if (ev.trow < 8) {
@@ -5552,8 +5561,7 @@ void VGA_sof_debug_video_info(void) {
 			VGA_debug_screen_func->rect(x-1,y+(4*4),x+(4*64),y+(4*4)+1,dkgray);
 			for (unsigned int c=0;c < 256;c++) {
 				const int bx = x+((c&63)*4),by = y+((c>>6)*4);
-				const unsigned int color = SDL_MapRGB(
-					sdl.surface->format,
+				const unsigned int color = GFX_GetRGB(
 					((vga.dac.rgb[c].red << dacshift) & 0xFF),
 					((vga.dac.rgb[c].green << dacshift) & 0xFF),
 					((vga.dac.rgb[c].blue << dacshift) & 0xFF));
@@ -5636,8 +5644,7 @@ void VGA_sof_debug_video_info(void) {
 					VGA_debug_screen_func->rect(x-1,y+7,x+(8*16),y+8,dkgray);
 					for (unsigned int c=0;c < 16;c++) {
 						const unsigned int idx = vga.attr.palette[c]&0x3F;
-						const unsigned int color = SDL_MapRGB(
-								sdl.surface->format,
+						const unsigned int color = GFX_GetRGB(
 								((vga.dac.rgb[idx].red << dacshift) & 0xFF),
 								((vga.dac.rgb[idx].green << dacshift) & 0xFF),
 								((vga.dac.rgb[idx].blue << dacshift) & 0xFF));
@@ -5661,8 +5668,7 @@ void VGA_sof_debug_video_info(void) {
 					VGA_debug_screen_func->rect(x-1,y+7,x+(8*16),y+8,dkgray);
 					for (unsigned int c=0;c < 16;c++) {
 						const unsigned int idx = vga.dac.combine[c]; /* vga_dac.cpp considers color select */
-						const unsigned int color = SDL_MapRGB(
-								sdl.surface->format,
+						const unsigned int color = GFX_GetRGB(
 								((vga.dac.rgb[idx].red << dacshift) & 0xFF),
 								((vga.dac.rgb[idx].green << dacshift) & 0xFF),
 								((vga.dac.rgb[idx].blue << dacshift) & 0xFF));
@@ -6077,7 +6083,7 @@ void WriteARawImage(rawscreenshot &rawimg,rawscreenshot &rawpal,const char *ext)
 		}
 	}
 	/* Finish writing */
-	png_write_end(png_ptr, nullptr);
+	png_write_end(png_ptr, NULL);
 	/* If a second palette was provided, write it */
 	if (rawpal.image_palette2 != NULL) png_write_chunk(png_ptr, (png_const_bytep)("rPAL"), rawpal.image_palette2, rawpal.image_palette2_size*3);
 	/*Destroy PNG structs*/
@@ -6762,7 +6768,7 @@ static void VGA_VerticalTimer(Bitu /*val*/) {
 						// Convert box characters to Unicode (incomplete for now)
 						(*draw).chr = ' ';
 						uint8_t val = *charram/0x100+31;
-						for (auto it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it) {
+						for (std::map<int, int>::iterator it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it) {
 							if (it->second == val) {
 								dos.loaded_codepage = 437;
 								char text[3];
@@ -8405,7 +8411,7 @@ void VGA_SetupDrawing(Bitu /*val*/) {
 		if (vga.dosboxig.dar_width != 0 || vga.dosboxig.dar_height != 0)
 			screenratio = (double)vga.dosboxig.dar_width / (double)vga.dosboxig.dar_height;
 	}
-	// override screenratio for certain cases:
+	// DBX_OVERRIDE screenratio for certain cases:
 	else if (!IS_PC98_ARCH) {
 		if (vratio == 1.6) screenratio = 4.0 / 3.0;
 		else if (vratio == 0.8) screenratio = 4.0 / 3.0;

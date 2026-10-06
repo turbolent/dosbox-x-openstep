@@ -27,7 +27,11 @@
 #include "render.h"
 #include "jfont.h"
 #include "bitop.h"
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>

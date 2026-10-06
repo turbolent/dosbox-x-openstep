@@ -17,7 +17,6 @@
  */
 
 #include <algorithm>
-#include <array>
 
 #include "dosbox.h"
 #include "logging.h"
@@ -54,7 +53,8 @@ void DOS_Mem_MCBdump(void) {
 	if (mcb_segment == 0) return;
 
 	LOG_MSG("DOS MCB dump:\n");
-	for (auto mcb : DOS_MCB(mcb_segment)) {
+	for (DOS_MCB::Iterator mcb_it = DOS_MCB(mcb_segment).begin(); mcb_it != DOS_MCB::Iterator(0); ++mcb_it) {
+        DOS_MCB mcb = *mcb_it;
 		final_mcb = mcb;
 		final_mcb_segment = mcb.GetSeg();
 
@@ -132,7 +132,8 @@ void DOS_FreeProcessMemory(uint16_t pspseg) {
 	uint16_t mcb_segment=dos.firstMCB;
 	Bitu counter = 0;
 
-	for (auto mcb : DOS_MCB(mcb_segment)) {
+	for (DOS_MCB::Iterator mcb_it = DOS_MCB(mcb_segment).begin(); mcb_it != DOS_MCB::Iterator(0); ++mcb_it) {
+        DOS_MCB mcb = *mcb_it;
 		if(counter++ > 10000000) DOS_Mem_E_Exit("DOS_FreeProcessMemory: DOS MCB list corrupted.");
 		if (GCC_UNLIKELY(!mcb.isValid())) DOS_Mem_E_Exit("Corrupt MCB chain");
 		if (mcb.GetPSPSeg()==pspseg) {
@@ -142,7 +143,8 @@ void DOS_FreeProcessMemory(uint16_t pspseg) {
 
 	uint16_t umb_start=dos_infoblock.GetStartOfUMBChain();
 	if (umb_start==UMB_START_SEG) {
-		for (auto umb_mcb : DOS_MCB(umb_start)) {
+		for (DOS_MCB::Iterator umb_mcb_it = DOS_MCB(umb_start).begin(); umb_mcb_it != DOS_MCB::Iterator(0); ++umb_mcb_it) {
+        DOS_MCB umb_mcb = *umb_mcb_it;
 			if (!umb_mcb.isValid())
 				break;
 			if (umb_mcb.GetPSPSeg()==pspseg) {
@@ -190,10 +192,11 @@ void DOS_zeromem(uint16_t seg,uint16_t para) {
 static uint16_t GetMaximumMCBFreeSize(uint16_t mcb_segment)
 {
 	uint16_t largestSize = 0;
-	for (const auto mcb : DOS_MCB(mcb_segment)) {
+	for (DOS_MCB::Iterator mcb_it = DOS_MCB(mcb_segment).begin(); mcb_it != DOS_MCB::Iterator(0); ++mcb_it) {
+        DOS_MCB mcb = *mcb_it;
 		if (!mcb.isValid())
 			break;
-		const auto size = mcb.GetSize();
+		const uint16_t size = mcb.GetSize();
 		if (mcb.GetPSPSeg()==MCB_FREE) largestSize = (std::max)(largestSize, size);
 	}
 	return largestSize;
@@ -203,7 +206,7 @@ uint16_t DOS_GetMaximumFreeSize(uint16_t minBlocks)
 {
 	if (memAllocStrategy & 0xc0)
 	{
-		auto umbFreeSize = GetMaximumMCBFreeSize(dos_infoblock.GetStartOfUMBChain());
+		uint16_t umbFreeSize = GetMaximumMCBFreeSize(dos_infoblock.GetStartOfUMBChain());
 		if (memAllocStrategy & 0x40 || umbFreeSize >= minBlocks) return umbFreeSize;
 	}
 	return GetMaximumMCBFreeSize(dos.firstMCB);
@@ -230,8 +233,8 @@ bool DOS_AllocateMemory(uint16_t * segment,uint16_t * blocks) {
 	DOS_MCB mcb_next(0);
 	std::string psp_name = psp_mcb.GetFileName();
 	if (umb_start==UMB_START_SEG && (dos.loaded_codepage == 936 || dos.loaded_codepage == 950 || dos.loaded_codepage == 951)) {
-		static constexpr std::array<const char*, 4> blacklisted {"KNL", "LIMD", "PY", "RDFNT"};
-		for (auto prog : blacklisted) if (psp_name == prog) return false;
+		static const char *const blacklisted[] = {"KNL", "LIMD", "PY", "RDFNT"};
+		for (size_t pi = 0; pi < sizeof(blacklisted)/sizeof(blacklisted[0]); ++pi) if (psp_name == blacklisted[pi]) return false;
 	}
 	uint16_t found_seg=0,found_seg_size=0;
 	for (;;) {
@@ -534,7 +537,8 @@ void DOS_BuildUMBChain(bool umb_active,bool /*ems_active*/) {
 		/* Scan MCB-chain for last block */
 		DOS_MCB mcb(dos.firstMCB);
 		uint16_t mcb_segment=dos.firstMCB;
-		for (const auto current_mcb : DOS_MCB(dos.firstMCB)) {
+		for (DOS_MCB::Iterator current_mcb_it = DOS_MCB(dos.firstMCB).begin(); current_mcb_it != DOS_MCB::Iterator(0); ++current_mcb_it) {
+        DOS_MCB current_mcb = *current_mcb_it;
 			mcb = current_mcb;
 			mcb_segment = current_mcb.GetSeg();
 		}
@@ -563,11 +567,11 @@ bool DOS_LinkUMBsToMemChain(uint16_t linkstate) {
 		if (umb_start!=0xffff) LOG(LOG_DOSMISC,LOG_ERROR)("Corrupt UMB chain: %x",umb_start);
 		return false;
 	} else if (dos.loaded_codepage == 936 || dos.loaded_codepage == 950 || dos.loaded_codepage == 951) {
-		static constexpr std::array<const char*, 6> blacklisted {"KNL", "LIMD", "PY", "RDFNT", "HAN16E", "HAN16V"};
+		static const char *const blacklisted[] = {"KNL", "LIMD", "PY", "RDFNT", "HAN16E", "HAN16V"};
 		std::string psp_name;
 		DOS_MCB psp_mcb(dos.psp()-1);
 		psp_name = psp_mcb.GetFileName();
-		for (auto prog : blacklisted) if (psp_name == prog) return false;
+		for (size_t pi = 0; pi < sizeof(blacklisted)/sizeof(blacklisted[0]); ++pi) if (psp_name == blacklisted[pi]) return false;
 	}
 
 	if ((linkstate&1)==(dos_infoblock.GetUMBChainState()&1)) return true;
@@ -576,7 +580,8 @@ bool DOS_LinkUMBsToMemChain(uint16_t linkstate) {
 	uint16_t mcb_segment=dos.firstMCB;
 	uint16_t prev_mcb_segment=dos.firstMCB;
 	DOS_MCB mcb(mcb_segment);
-	for (const auto current_mcb : DOS_MCB(dos.firstMCB)) {
+	for (DOS_MCB::Iterator current_mcb_it = DOS_MCB(dos.firstMCB).begin(); current_mcb_it != DOS_MCB::Iterator(0); ++current_mcb_it) {
+        DOS_MCB current_mcb = *current_mcb_it;
 		mcb = current_mcb;
 		mcb_segment = current_mcb.GetSeg();
 		if ((mcb_segment == umb_start) || current_mcb.isLastMCB())

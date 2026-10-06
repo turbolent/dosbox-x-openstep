@@ -209,7 +209,7 @@ static const uint16_t emu8k_reverb_hall2[28] = {
     0xA404, 0xA504, 0x842A, 0x852A, 0x842A, 0x852A, 0x8429,
     0x8529, 0x8429, 0x8529, 0x8428, 0x8528, 0x8428, 0x8528
 };
-static_assert(sizeof(emu8k_reverb_hall2) == 28 * sizeof(uint16_t), "Hall 2 INIT image");
+DBX_STATIC_ASSERT(sizeof(emu8k_reverb_hall2) == 28 * sizeof(uint16_t), "Hall 2 INIT image");
 
 static void
 emu8k_reverb_set_comb(emu8k_reverb_combfilter_t *comb, emu8k_reverb_combfilter_t *comb_r, uint16_t val)

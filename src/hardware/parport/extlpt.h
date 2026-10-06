@@ -42,7 +42,7 @@ public:
 };
 
 // Factories. portnr is 0-based, for log messages. serverMode makes DOSBox-X
-// create the endpoint and wait for the peer. Return nullptr (after LOG_MSG) on
+// create the endpoint and wait for the peer. Return NULL (after LOG_MSG) on
 // failure. An empty path selects a platform default.
 LPTTransport *CreatePipeTransport(int portnr, const std::string &path, bool serverMode);
 #if C_MODEM
@@ -62,17 +62,17 @@ public:
 	bool InstallationSuccessful;        // check after constructing. If
 										 // something was wrong, delete it right away.
 private:
-	bool Putchar(uint8_t) override;
+	bool Putchar(uint8_t) DBX_OVERRIDE;
 
-	Bitu Read_PR() override;
-	Bitu Read_COM() override;
-	Bitu Read_SR() override;
+	Bitu Read_PR() DBX_OVERRIDE;
+	Bitu Read_COM() DBX_OVERRIDE;
+	Bitu Read_SR() DBX_OVERRIDE;
 
-	void Write_PR(Bitu) override;
-	void Write_CON(Bitu) override;
-	void Write_IOSEL(Bitu) override;
+	void Write_PR(Bitu) DBX_OVERRIDE;
+	void Write_CON(Bitu) DBX_OVERRIDE;
+	void Write_IOSEL(Bitu) DBX_OVERRIDE;
 
-	void handleUpperEvent(uint16_t type) override;
+	void handleUpperEvent(uint16_t type) DBX_OVERRIDE;
 
 	bool Transact(uint8_t opcode, uint8_t port_offset, uint8_t value, uint8_t &outValue);
 	bool ShouldForwardWrite(uint8_t &lastVal, bool &haveLast, uint8_t newVal,
@@ -81,7 +81,7 @@ private:
 	// OP_HELLO/version exchange, once, before any register access.
 	bool DoHandshake();
 
-	LPTTransport *transport = nullptr;
+	LPTTransport *transport = NULL;
 
 	uint8_t nextSeq;
 	bool externalResponsePending = false;

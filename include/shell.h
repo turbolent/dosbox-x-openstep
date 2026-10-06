@@ -22,11 +22,15 @@
 
 #include "programs.h"
 
+#if C_OPENSTEP
+#define SDL_STRING "OPENSTEP"
+#else
 #include <SDL.h>
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 #define SDL_STRING "SDL2"
 #else
 #define SDL_STRING "SDL1"
+#endif
 #endif
 
 #define CMD_MAXLINE 4096
@@ -46,21 +50,7 @@ extern DOS_Shell * first_shell;
 // The first shell owns the parent PSP for externally initiated DOS commands.
 uint16_t DOS_ShellGetPSP();
 
-const std::map<int, std::string> langcp_map {
-	{437, "en_US"},
-	//{850, "de_DE"},
-    {852, "hu_HU"},
-    {857, "tr_TR"},
-	{858, "es_ES"},
-	{859, "fr_FR"},
-	{860, "pt_BR"},
-	{866, "ru_RU"},
-	{932, "ja_JP"},
-	{936, "zh_CN"},
-	{949, "ko_KR"},
-	{950, "zh_TW"},
-	{951, "zh_TW"},
-};
+extern const std::map<int, std::string> langcp_map;
 
 class BatchFile {
 public:
@@ -94,7 +84,7 @@ private:
         typedef _Type second_argument_type;
         typedef bool result_type;
 
-        constexpr bool operator()(const _Type& _Left, const _Type& _Right) const {
+        DBX_CONSTEXPR bool operator()(const _Type& _Left, const _Type& _Right) const {
             return strcasecmp(_Left.c_str(), _Right.c_str()) < 0;
         }
     };
@@ -110,7 +100,7 @@ private:
 
 public:
 
-	bool free_your_own_psp = false; /* set to true if created directly, will not terminate through INT 21h, and therefore normal PSP and memory free will not happen */
+	bool free_your_own_psp; /* set to true if created directly, will not terminate through INT 21h, and therefore normal PSP and memory free will not happen */
 
 	DOS_Shell();
 	virtual ~DOS_Shell();
@@ -122,7 +112,7 @@ public:
 	void Prepare(void);
     /*! \brief      Program entry point, when the command is run
      */
-	void Run(void) override;
+	void Run(void) DBX_OVERRIDE;
 
     /*! \brief      Alternate execution if /C switch is given
      */
@@ -373,7 +363,7 @@ public:
 	bool lfnfor;
     /* Status */
     bool input_eof;                     //! STDIN has hit EOF
-    bool config_shell = false;
+    bool config_shell;
 };
 
 #if !defined(OSFREE)
@@ -384,7 +374,7 @@ public:
 
     /*! \brief      Program entry point, when the command is run
      */
-	void Run(void) override;
+	void Run(void) DBX_OVERRIDE;
 };
 #endif
 
@@ -400,10 +390,10 @@ struct SHELL_Cmd {
  * as well if the line set a variable */
 class AutoexecObject{
 private:
-	bool installed = false;
+	bool installed;
 	std::string buf;
 public:
-	AutoexecObject() {};
+	AutoexecObject() : installed(false) {};
 	void Install(std::string const &in);
 	void InstallBefore(std::string const &in);
 	void Uninstall();

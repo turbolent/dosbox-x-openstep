@@ -116,107 +116,72 @@ bool DOS_ExtDevice::WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t *
 	return false;
 }
 
-bool DOS_ExtDevice::Read(uint8_t * data,uint16_t * size) {
-	PhysPt bufptr = (dos.dcp << 4) + 32;
-
-	if (dos.dcp_size_seg <= 2) return false;
-
-	unsigned int batch_size = (dos.dcp_size_seg - 2) << 4;
-	unsigned int todo = *size;
-	unsigned int done = 0;
-	unsigned int rd;
+bool DOS_ExtDevice::Read(uint8_t *data, uint16_t *size) {
+    if (dos.dcp_size_seg <= 2) return false;
+    const PhysPt bufptr = (dos.dcp << 4) + 32;
+    unsigned batch_size = (dos.dcp_size_seg - 2) << 4;
 #if !defined(OSFREE)
-	if (extdev_read_limit && batch_size > extdev_read_limit)
-		batch_size = extdev_read_limit;
+    if (extdev_read_limit && batch_size > extdev_read_limit) batch_size = extdev_read_limit;
 #endif
-	const auto inproc = [bufptr, &todo, &done, &rd, &data, this](const unsigned int batch_size) {
-		rd = 0;
+    unsigned todo = *size, done = 0;
+    while (todo) {
+        const unsigned requested = todo < batch_size ? todo : batch_size;
 
-		if (CallRWIODeviceFunction(DEVFUNC_READ, 26, dos.dcp + 2/*2 paras = 32 bytes*/, 0, batch_size) & 0x8000/*error*/)
-			return;
-
-		rd = real_readw(dos.dcp, 18);/*how much was read?*/
-		if (rd > batch_size) {
-			LOG(LOG_MISC,LOG_DEBUG)("Device driver read too much data!");
-			rd = 0;
-			return;
-		}
-		for (unsigned int c=0;c < rd;c++) data[c] = mem_readb(bufptr+c);
-		todo -= rd;
-		data += rd;
-		done += rd;
-	};
-
-	while (todo >= batch_size) {
-		inproc(batch_size);
-		if (rd != batch_size) {
-			*size = done;
-			return false;
-		}
-	}
-
-	if (todo != 0) {
-		inproc(todo);
-		if (rd != todo) {
-			*size = done;
-			return false;
-		}
-	}
-
-	*size = done;
-	return true;
+        if (CallRWIODeviceFunction(DEVFUNC_READ, 26, dos.dcp + 2, 0, requested) & 0x8000) {
+            *size = done;
+            return false;
+        }
+        const unsigned transferred = real_readw(dos.dcp, 18);
+        if (transferred > requested) {
+            LOG(LOG_MISC,LOG_DEBUG)("Device driver reported too much data!");
+            *size = done;
+            return false;
+        }
+        for (unsigned c = 0; c < transferred; ++c) data[c] = mem_readb(bufptr+c);
+        data += transferred;
+        todo -= transferred;
+        done += transferred;
+        if (transferred != requested) {
+            *size = done;
+            return false;
+        }
+    }
+    *size = done;
+    return true;
 }
 
-bool DOS_ExtDevice::Write(const uint8_t * data,uint16_t * size) {
-	PhysPt bufptr = (dos.dcp << 4) + 32;
-
-	if (dos.dcp_size_seg <= 2) return false;
-
-	unsigned int batch_size = (dos.dcp_size_seg - 2) << 4;
-	unsigned int todo = *size;
-	unsigned int done = 0;
-	unsigned int wd;
+bool DOS_ExtDevice::Write(const uint8_t *data, uint16_t *size) {
+    if (dos.dcp_size_seg <= 2) return false;
+    const PhysPt bufptr = (dos.dcp << 4) + 32;
+    unsigned batch_size = (dos.dcp_size_seg - 2) << 4;
 #if !defined(OSFREE)
-	if (extdev_write_limit && batch_size > extdev_write_limit)
-		batch_size = extdev_write_limit;
+    if (extdev_write_limit && batch_size > extdev_write_limit) batch_size = extdev_write_limit;
 #endif
-	const auto inproc = [bufptr, &todo, &done, &wd, &data, this](const unsigned int batch_size) {
-		wd = 0;
+    unsigned todo = *size, done = 0;
+    while (todo) {
+        const unsigned requested = todo < batch_size ? todo : batch_size;
+        for (unsigned c = 0; c < requested; ++c) mem_writeb(bufptr+c, data[c]);
+        if (CallRWIODeviceFunction(DEVFUNC_WRITE, 26, dos.dcp + 2, 0, requested) & 0x8000) {
+            *size = done;
+            return false;
+        }
+        const unsigned transferred = real_readw(dos.dcp, 18);
+        if (transferred > requested) {
+            LOG(LOG_MISC,LOG_DEBUG)("Device driver reported too much data!");
+            *size = done;
+            return false;
+        }
 
-		for (unsigned int c=0;c < batch_size;c++) mem_writeb(bufptr+c,data[c]);
-		if (CallRWIODeviceFunction(DEVFUNC_WRITE, 26, dos.dcp + 2/*2 paras = 32 bytes*/, 0, batch_size) & 0x8000/*error*/)
-			return;
-
-		wd = real_readw(dos.dcp, 18);/*how much was written?*/
-		if (wd > batch_size) {
-			LOG(LOG_MISC,LOG_DEBUG)("Device driver wrote too much data!");
-			wd = 0;
-			return;
-		}
-		todo -= wd;
-		data += wd;
-		done += wd;
-	};
-
-	while (todo >= batch_size) {
-		inproc(batch_size);
-		if (wd != batch_size) {
-			*size = done;
-			return false;
-		}
-	}
-
-	if (todo != 0) {
-		inproc(todo);
-		if (wd != todo) {
-			*size = done;
-			return false;
-		}
-	}
-
-	*size = done;
-	return true;
-
+        data += transferred;
+        todo -= transferred;
+        done += transferred;
+        if (transferred != requested) {
+            *size = done;
+            return false;
+        }
+    }
+    *size = done;
+    return true;
 }
 
 bool DOS_ExtDevice::Close() {
@@ -316,28 +281,28 @@ static void DOS_CheckOpenExtDevice(const char *name) {
 class device_NUL : public DOS_Device {
 public:
 	device_NUL() { SetName("NUL"); };
-	bool Read(uint8_t * data,uint16_t * size) override {
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE {
         (void)data; // UNUSED
 		*size = 0; //Return success and no data read.
 //		LOG(LOG_IOCTL,LOG_NORMAL)("%s:READ",GetName());
 		return true;
 	}
-	bool Write(const uint8_t * data,uint16_t * size) override {
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE {
         (void)data; // UNUSED
         (void)size; // UNUSED
 //		LOG(LOG_IOCTL,LOG_NORMAL)("%s:WRITE",GetName());
 		return true;
 	}
-	bool Seek(uint32_t * pos,uint32_t type) override {
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE {
         (void)type;
         (void)pos;
 //		LOG(LOG_IOCTL,LOG_NORMAL)("%s:SEEK",GetName());
 		return true;
 	}
-	bool Close() override { return true; }
-	uint16_t GetInformation(void) override { return DeviceInfoFlags::Device | DeviceInfoFlags::Nul; }
-	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
-	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool Close() DBX_OVERRIDE { return true; }
+	uint16_t GetInformation(void) DBX_OVERRIDE { return DeviceInfoFlags::Device | DeviceInfoFlags::Nul; }
+	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
 };
 
 #if !defined(OSFREE)
@@ -346,13 +311,13 @@ public:
 	device_PRN() {
 		SetName("PRN");
 	}
-	bool Read(uint8_t * data,uint16_t * size) override {
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE {
         (void)data; // UNUSED
         (void)size; // UNUSED
 		DOS_SetError(DOSERR_ACCESS_DENIED);
 		return false;
 	}
-	bool Write(const uint8_t * data,uint16_t * size) override {
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE {
 		for(int i = 0; i < 9; i++) {
 			// look up a parallel port
 			if(parallelPortObjects[i] != NULL) {
@@ -365,15 +330,15 @@ public:
 		}
 		return false;
 	}
-	bool Seek(uint32_t * pos,uint32_t type) override {
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE {
         (void)type; // UNUSED
 		*pos = 0;
 		return true;
 	}
-	uint16_t GetInformation(void) override {
+	uint16_t GetInformation(void) DBX_OVERRIDE {
 		return DeviceInfoFlags::Device | DeviceInfoFlags::Binary;
 	}
-	bool Close() override {
+	bool Close() DBX_OVERRIDE {
 		return false;
 	}
 };
@@ -595,7 +560,7 @@ public:
 		strcpy(tmpAscii, "#clip$.asc");
 		strcpy(tmpUnicode, "#clip$.txt");
 	}
-	bool Read(uint8_t * data,uint16_t * size) override {
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE {
 		if(control->SecureMode()||!(dos_clipboard_device_access==2||dos_clipboard_device_access==4)) {
 			*size = 0;
 			return true;
@@ -616,7 +581,7 @@ public:
 		}
 		return true;
 	}
-	bool Write(const uint8_t * data,uint16_t * size) override {
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE {
 		if(control->SecureMode()||!(dos_clipboard_device_access==3||dos_clipboard_device_access==4)) {
 			DOS_SetError(DOSERR_ACCESS_DENIED);
 			return false;
@@ -650,7 +615,7 @@ public:
 			}
 		return true;
 	}
-	bool Seek(uint32_t * pos,uint32_t type) override {
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE {
 		if(control->SecureMode()||!(dos_clipboard_device_access==2||dos_clipboard_device_access==4)) {
 			*pos = 0;
 			return true;
@@ -688,7 +653,7 @@ public:
 		fPointer = newPos;
 		return true;
 	}
-	bool Close() override {
+	bool Close() DBX_OVERRIDE {
 		if(control->SecureMode()||dos_clipboard_device_access<2)
 			return false;
 		clipSize = 0;																	// Reset clipboard read
@@ -702,7 +667,7 @@ public:
 		CommitData();
 		return true;
 	}
-	uint16_t GetInformation(void) override {
+	uint16_t GetInformation(void) DBX_OVERRIDE {
 		return DeviceInfoFlags::Device | DeviceInfoFlags::EofOnInput | DeviceInfoFlags::Binary;
 	}
 };
@@ -760,8 +725,9 @@ uint8_t DOS_Device::GetStatus(bool input_flag) {
 	return (info & DeviceInfoFlags::EofOnInput) ? 0x00 : 0xff;
 }
 
-DOS_File::DOS_File(const DOS_File& orig) : flags(orig.flags), open(orig.open), attr(orig.attr),
-time(orig.time), date(orig.date), refCtr(orig.refCtr), hdrive(orig.hdrive) {
+DOS_File::DOS_File(const DOS_File& orig) : name(NULL), drive(0),
+flags(orig.flags), neverclose(false), open(orig.open), attr(orig.attr),
+time(orig.time), date(orig.date), refCtr(orig.refCtr), newtime(false), hdrive(orig.hdrive) {
 	if(orig.name) {
 		name=new char [strlen(orig.name) + 1];strcpy(name,orig.name);
 	}
@@ -779,7 +745,7 @@ DOS_File& DOS_File::operator= (const DOS_File& orig) {
         drive = orig.drive;
         newtime = orig.newtime;
         if (name) {
-            delete[] name; name = nullptr;
+            delete[] name; name = NULL;
         }
         if (orig.name) {
             name = new char[strlen(orig.name) + 1]; strcpy(name, orig.name);
@@ -843,7 +809,7 @@ uint8_t DOS_FindDevice(char const * name) {
 					} else {
 						LOG(LOG_MISC,LOG_DEBUG)("Remove external device driver '%s', no longer in the device chain",name);
 						delete Devices[index];
-						Devices[index] = nullptr;
+						Devices[index] = NULL;
 						break;
 					}
 				}
@@ -921,7 +887,7 @@ void DOS_DelDevice(DOS_Device * dev) {
 			if (!strcmp(Devices[i]->name, dev->name)) {
 //				LOG_MSG("DOS_DelDevice() %s (%p)",dev->name,(void*)dev);
 				delete Devices[i];
-				Devices[i] = nullptr;
+				Devices[i] = NULL;
 				return;
 			}
 		}

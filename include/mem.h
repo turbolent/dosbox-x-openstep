@@ -73,7 +73,7 @@ MemHandle                   MEM_NextHandleAt(MemHandle handle,Bitu where);
 
 uint32_t                    MEM_HardwareAllocate(const char *name,uint32_t sz);
 
-static constexpr bool build_memlimit_32bit(void) {
+static inline DBX_CONSTEXPR bool build_memlimit_32bit(void) {
 	return sizeof(void*) < 8;
 }
 
@@ -288,32 +288,32 @@ void mem_strcpy(LinearPt dest,LinearPt src);
 
 /* The following functions are all shortcuts to the above functions using physical addressing */
 
-static inline constexpr LinearPt PhysMake(const uint16_t seg,const uint16_t off) {
+static inline DBX_CONSTEXPR LinearPt PhysMake(const uint16_t seg,const uint16_t off) {
     return ((LinearPt)seg << 4U) + (LinearPt)off;
 }
 
-static inline constexpr uint16_t RealSeg(const RealPt pt) {
+static inline DBX_CONSTEXPR uint16_t RealSeg(const RealPt pt) {
     return (uint16_t)(pt >> 16U);
 }
 
-static inline constexpr uint16_t RealOff(const RealPt pt) {
+static inline DBX_CONSTEXPR uint16_t RealOff(const RealPt pt) {
     return (uint16_t)(pt & 0xffffu);
 }
 
-static inline constexpr LinearPt Real2Phys(const RealPt pt) {
+static inline DBX_CONSTEXPR LinearPt Real2Phys(const RealPt pt) {
     return (((LinearPt)RealSeg(pt) << 4U) + (LinearPt)RealOff(pt));
 }
 
-static inline constexpr RealPt RealMake(const uint16_t seg,const uint16_t off) {
+static inline DBX_CONSTEXPR RealPt RealMake(const uint16_t seg,const uint16_t off) {
     return (((RealPt)seg << 16U) + (RealPt)off);
 }
 
 /* convert physical address to 4:16 real pointer (example: 0xABCDE -> 0xA000:0xBCDE) */
-static inline constexpr RealPt PhysToReal416(const LinearPt phys) {
+static inline DBX_CONSTEXPR RealPt PhysToReal416(const LinearPt phys) {
     return RealMake((uint16_t)((phys >> 4U) & 0xF000U),(uint16_t)(phys & 0xFFFFU));
 }
 
-static inline constexpr LinearPt RealVecAddress(const uint8_t vec) {
+static inline DBX_CONSTEXPR LinearPt RealVecAddress(const uint8_t vec) {
     return ((unsigned int)vec << 2U);
 }
 

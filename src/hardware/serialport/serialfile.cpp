@@ -29,7 +29,7 @@
 #endif
 
 void ResolvePath(std::string& in);
-CSerialFile::CSerialFile(Bitu id,CommandLine* cmd,bool sq):CSerial(id, cmd) {
+CSerialFile::CSerialFile(Bitu id,CommandLine* cmd,bool sq):CSerial(id, cmd), fp(NULL), timeout(0), lastUsedTick(0) {
 	CSerial::Init_Registers();
 	// DSR+CTS on to make sure the DOS COM device will not get stuck waiting for them
 	setRI(false);

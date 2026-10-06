@@ -390,18 +390,18 @@ class ISAPnPDevice {
                 void write_IO_Port(const uint16_t min_port,const uint16_t max_port,const uint8_t count,const uint8_t alignment=1,const bool full16bitdecode=true);
                 void write_End_Dependent_Functions();
         public:
-                unsigned char       CSN = 0;
-                unsigned char       logical_device = 0;
+                unsigned char       CSN;
+                unsigned char       logical_device;
                 unsigned char       ident[9]; /* 72-bit vendor + serial + checksum identity */
-                unsigned char       ident_bp = 0;   /* bit position of identity read */
-                unsigned char       ident_2nd = 0;
-                unsigned char       resource_ident = 0;
-                unsigned char*      resource_data = NULL;
-                size_t              resource_data_len = 0;
-                unsigned int        resource_data_pos = 0;
-                size_t              alloc_write = 0;
-                unsigned char*      alloc_res = NULL;
-                size_t              alloc_sz = 0;
+                unsigned char       ident_bp;   /* bit position of identity read */
+                unsigned char       ident_2nd;
+                unsigned char       resource_ident;
+                unsigned char*      resource_data;
+                size_t              resource_data_len;
+                unsigned int        resource_data_pos;
+                size_t              alloc_write;
+                unsigned char*      alloc_res;
+                size_t              alloc_sz;
 };
 
 extern bool ACPI_enabled;

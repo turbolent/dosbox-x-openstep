@@ -36,7 +36,7 @@
 #include "sys/time.h"
 #endif
 
-static struct {
+static struct CMOSState {
     uint8_t regs[0x40];
     bool nmi;
     bool bcd;
@@ -48,18 +48,22 @@ static struct {
         float delay;
         bool acknowledged;
     } timer;
-    struct {
-        uint8_t sec = 0,min = 0,hour = 0;
-        uint8_t weekday = 1,day = 1,month = 1;
-        uint16_t year = 1980;
+    struct ClockState {
+        uint8_t sec,min,hour;
+        uint8_t weekday,day,month;
+        uint16_t year;
+        ClockState() : sec(0), min(0), hour(0), weekday(1), day(1), month(1), year(1980) {}
     } clock;
-    struct {
-        uint8_t sec = 0,min = 0,hour = 0;
+    struct AlarmState {
+        uint8_t sec,min,hour;
+        AlarmState() : sec(0), min(0), hour(0) {}
     } alarm;
-    time_t clock_time_t = 0;
+    time_t clock_time_t;
     struct {
         double ended;
     } last;
+    CMOSState() : regs(), nmi(false), bcd(false), ampm(false), lock(false),
+        reg(0), timer(), clock_time_t(0), last() {}
 } cmos;
 
 const uint8_t BIOS_DATE_months[] = {

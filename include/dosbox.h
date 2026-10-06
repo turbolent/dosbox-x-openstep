@@ -32,6 +32,7 @@
 
 #include "clockdomain.h"
 #include "config.h"
+#include "compiler_compat.h"
 
 /* HACK: To make SDL3 porting easier, define SDL2 to prevent SDL1 code from compiling */
 #if defined(C_SDL3) && !defined(C_SDL2)
@@ -264,6 +265,7 @@ extern int boothax;
 /* C++11 user-defined literal, to help with byte units */
 typedef unsigned long long bytecount_t;
 
+#if __cplusplus >= 201103L || defined(_MSC_VER)
 static inline constexpr bytecount_t operator""_bytes(const bytecount_t x) {
     return x;
 }
@@ -291,34 +293,35 @@ static inline constexpr bytecount_t operator""_gibibytes(const bytecount_t x) {
 static inline constexpr bytecount_t operator""_tebibytes(const bytecount_t x) {
     return x << bytecount_t(40u);
 }
+#endif
 
 /* and the same, for variables */
 
-static inline constexpr bytecount_t _bytes(const bytecount_t x) {
+static inline DBX_CONSTEXPR bytecount_t _bytes(const bytecount_t x) {
     return x;
 }
 
-static inline constexpr bytecount_t _parabytes(const bytecount_t x) { /* AKA bytes per segment increment in real mode */
+static inline DBX_CONSTEXPR bytecount_t _parabytes(const bytecount_t x) { /* AKA bytes per segment increment in real mode */
     return x << bytecount_t(4u);
 }
 
-static inline constexpr bytecount_t _kibibytes(const bytecount_t x) {
+static inline DBX_CONSTEXPR bytecount_t _kibibytes(const bytecount_t x) {
     return x << bytecount_t(10u);
 }
 
-static inline constexpr bytecount_t _pagebytes(const bytecount_t x) { /* bytes per 4KB page in protected mode */
+static inline DBX_CONSTEXPR bytecount_t _pagebytes(const bytecount_t x) { /* bytes per 4KB page in protected mode */
     return x << bytecount_t(12u);
 }
 
-static inline constexpr bytecount_t _mibibytes(const bytecount_t x) {
+static inline DBX_CONSTEXPR bytecount_t _mibibytes(const bytecount_t x) {
     return x << bytecount_t(20u);
 }
 
-static inline constexpr bytecount_t _gibibytes(const bytecount_t x) {
+static inline DBX_CONSTEXPR bytecount_t _gibibytes(const bytecount_t x) {
     return x << bytecount_t(30u);
 }
 
-static inline constexpr bytecount_t _tebibytes(const bytecount_t x) {
+static inline DBX_CONSTEXPR bytecount_t _tebibytes(const bytecount_t x) {
     return x << bytecount_t(40u);
 }
 
@@ -370,7 +373,7 @@ public:
     //initialization: register relevant components on program startup
     struct Component
     {
-        virtual ~Component() noexcept = default;
+        virtual ~Component() DBX_NOEXCEPT {}
         virtual void getBytes(std::ostream& stream) = 0;
         virtual void setBytes(std::istream& stream) = 0;
     };
@@ -420,14 +423,16 @@ public:
     }
 
 protected:
-    void getBytes(std::ostream& stream) override
+    void getBytes(std::ostream& stream) DBX_OVERRIDE
     {
-        for (auto& x : podRef) { WriteGlobalPOD(stream, x); }
+        for (std::vector<POD>::iterator i = podRef.begin(); i != podRef.end(); ++i)
+            WriteGlobalPOD(stream, *i);
     }
 
-    void setBytes(std::istream& stream) override
+    void setBytes(std::istream& stream) DBX_OVERRIDE
     {
-        for (auto& x : podRef) { ReadGlobalPOD(stream, x); }
+        for (std::vector<POD>::iterator i = podRef.begin(); i != podRef.end(); ++i)
+            ReadGlobalPOD(stream, *i);
     }
 
 
@@ -500,4 +505,3 @@ int mkdir_p(const char *pathname, mode_t mode);
 
 extern duk_context *js_heap;
 #endif
-

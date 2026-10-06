@@ -19,19 +19,23 @@
 #ifndef DOSBOX_FPU_TYPES_H
 #define DOSBOX_FPU_TYPES_H
 
+#include "compiler_compat.h"
 #include <cstddef>
 #include <cstdint>
 
-enum class FPUTag
+namespace FPUTag { enum Type
 {
 	Valid   = 0,
 	Zero    = 1,
 	Special = 2,
 	Empty   = 3
-};
+}; }
 
+
+#if !defined(C_OPENSTEP)
 #pragma pack(push,1)
-union alignas(8) FPU_Reg_64 {
+#endif
+union DBX_ALIGNAS(8) FPU_Reg_64 {
 	struct {
 		uint64_t	mantissa:52;		// [51:0]
 		uint64_t	exponent:11;		// [62:52]
@@ -39,19 +43,26 @@ union alignas(8) FPU_Reg_64 {
 	} f;
 	double			v;
 	uint64_t		raw;
-	static const FPU_Reg_64 QNaN;
 
-	static_assert( sizeof(f) == 8, "FPU_Reg_64 error" );
-	static_assert( sizeof(v) == 8, "FPU_Reg_64 error" );
-	static_assert( sizeof(raw) == 8, "FPU_Reg_64 error" );
 };
-static_assert( sizeof(FPU_Reg_64) == 8, "FPU_Reg_64 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_64*)0)->f) == 8, "FPU_Reg_64 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_64*)0)->v) == 8, "FPU_Reg_64 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_64*)0)->raw) == 8, "FPU_Reg_64 error" );
+DBX_STATIC_ASSERT( sizeof(FPU_Reg_64) == 8, "FPU_Reg_64 error" );
+
+#if !defined(C_OPENSTEP)
 #pragma pack(pop)
+#endif
+
+extern const FPU_Reg_64 FPU_QNaN_64;
 
 #define FPU_Reg_64_exponent_bias	(1023)
 
+
+#if !defined(C_OPENSTEP)
 #pragma pack(push,1)
-union alignas(4) FPU_Reg_32 {
+#endif
+union DBX_ALIGNAS(4) FPU_Reg_32 {
 	struct {
 		uint32_t	mantissa:23;		// [22:0]
 		uint32_t	exponent:8;		// [30:23]
@@ -60,97 +71,80 @@ union alignas(4) FPU_Reg_32 {
 	float			v;
 	uint32_t		raw;
 
-	static_assert( sizeof(f) == 4, "FPU_Reg_32 error" );
-	static_assert( sizeof(v) == 4, "FPU_Reg_32 error" );
-	static_assert( sizeof(raw) == 4, "FPU_Reg_32 error" );
 };
-static_assert( sizeof(FPU_Reg_32) == 4, "FPU_Reg_32 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_32*)0)->f) == 4, "FPU_Reg_32 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_32*)0)->v) == 4, "FPU_Reg_32 error" );
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_32*)0)->raw) == 4, "FPU_Reg_32 error" );
+DBX_STATIC_ASSERT( sizeof(FPU_Reg_32) == 4, "FPU_Reg_32 error" );
+
+#if !defined(C_OPENSTEP)
 #pragma pack(pop)
+#endif
 
 #define FPU_Reg_32_exponent_bias	(127)
 
+
+#if !defined(C_OPENSTEP)
 #pragma pack(push,1)
-union alignas(16) MMX_reg {
+#endif
+union DBX_ALIGNAS(16) MMX_reg {
 
 	uint64_t q;
 
 #ifndef WORDS_BIGENDIAN
-	struct fpu_t {
+	struct DBX_PACKED fpu_t {
 		uint64_t m;
 		uint16_t e;
 	} fpu;
-	static_assert(sizeof(fpu) == 10, "MMX packing error");
-	static_assert(offsetof(fpu_t,m) == 0, "MMX packing error");
-	static_assert(offsetof(fpu_t,e) == 8, "MMX packing error");
 
 	struct {
 		uint32_t d0,d1;
 	} ud;
-	static_assert(sizeof(ud) == 8, "MMX packing error");
 
 	struct {
 		int32_t d0,d1;
 	} sd;
-	static_assert(sizeof(sd) == 8, "MMX packing error");
 
 	struct uw_t {
 		uint16_t w0,w1,w2,w3;
 	} uw;
-	static_assert(sizeof(uw) == 8, "MMX packing error");
 
 	uint8_t uba[8];
 	uint16_t uwa[4];
 	uint32_t uda[2];
-	static_assert(sizeof(uba) == 8, "MMX packing error");
-	static_assert(sizeof(uwa) == 8, "MMX packing error");
-	static_assert(sizeof(uda) == 8, "MMX packing error");
-	static_assert(offsetof(uw_t,w0) == 0, "MMX packing error");
-	static_assert(offsetof(uw_t,w1) == 2, "MMX packing error");
-	static_assert(offsetof(uw_t,w2) == 4, "MMX packing error");
-	static_assert(offsetof(uw_t,w3) == 6, "MMX packing error");
 
 	struct {
 		int16_t w0,w1,w2,w3;
 	} sw;
-	static_assert(sizeof(sw) == 8, "MMX packing error");
 
 	struct {
 		uint8_t b0,b1,b2,b3,b4,b5,b6,b7;
 	} ub;
-	static_assert(sizeof(ub) == 8, "MMX packing error");
 
 	struct {
 		int8_t b0,b1,b2,b3,b4,b5,b6,b7;
 	} sb;
-	static_assert(sizeof(sb) == 8, "MMX packing error");
 
-	struct alignas(4) { /* MMX registers can contain single precision float if the program uses AMD 3DNow! instructions */
+	struct DBX_ALIGNAS(4) { /* MMX registers can contain single precision float if the program uses AMD 3DNow! instructions */
 		FPU_Reg_32 f0,f1;
 	} f32;
-	static_assert(sizeof(f32) == 8, "MMX packing error");
 #else
-	struct fpu_t {
+	struct DBX_PACKED fpu_t {
 		uint64_t m;
 		uint16_t e;
 	} fpu;
-	static_assert(sizeof(fpu) == 10, "MMX packing error");
-	static_assert(offsetof(fpu_t,m) == 0, "MMX packing error");
-	static_assert(offsetof(fpu_t,e) == 8, "MMX packing error");
 
 	struct {
 		uint32_t d1,d0;
 	} ud;
-	static_assert(sizeof(ud) == 8, "MMX packing error");
 
 	struct {
 		int32_t d1,d0;
 	} sd;
-	static_assert(sizeof(sd) == 8, "MMX packing error");
 
 	struct {
 		uint16_t w3,w2,w1,w0;
 	} uw;
-	static_assert(sizeof(uw) == 8, "MMX packing error");
 
 	uint8_t uba[8];
 	uint16_t uwa[4];
@@ -159,30 +153,56 @@ union alignas(16) MMX_reg {
 	struct {
 		uint16_t w3,w2,w1,w0;
 	} sw;
-	static_assert(sizeof(sw) == 8, "MMX packing error");
 
 	struct {
 		uint8_t b7,b6,b5,b4,b3,b2,b1,b0;
 	} ub;
-	static_assert(sizeof(ub) == 8, "MMX packing error");
 
 	struct {
 		uint8_t b7,b6,b5,b4,b3,b2,b1,b0;
 	} sb;
-	static_assert(sizeof(sb) == 8, "MMX packing error");
 
 	struct { /* MMX registers can contain single precision float if the program uses AMD 3DNow! instructions */
 		FPU_Reg_32 f1,f0;
 	} f32;
-	static_assert(sizeof(f32) == 8, "MMX packing error");
+#endif
+};
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->fpu) == 10, "MMX packing error");
+DBX_STATIC_ASSERT(offsetof(MMX_reg::fpu_t,m) == 0, "MMX packing error");
+DBX_STATIC_ASSERT(offsetof(MMX_reg::fpu_t,e) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->ud) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->sd) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->uw) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->uba) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->uwa) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->uda) == 8, "MMX packing error");
+#ifndef WORDS_BIGENDIAN
+DBX_STATIC_ASSERT(offsetof(MMX_reg::uw_t,w0) == 0, "MMX packing error");
+#endif
+#ifndef WORDS_BIGENDIAN
+DBX_STATIC_ASSERT(offsetof(MMX_reg::uw_t,w1) == 2, "MMX packing error");
+#endif
+#ifndef WORDS_BIGENDIAN
+DBX_STATIC_ASSERT(offsetof(MMX_reg::uw_t,w2) == 4, "MMX packing error");
+#endif
+#ifndef WORDS_BIGENDIAN
+DBX_STATIC_ASSERT(offsetof(MMX_reg::uw_t,w3) == 6, "MMX packing error");
+#endif
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->sw) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->ub) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->sb) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(((MMX_reg*)0)->f32) == 8, "MMX packing error");
+DBX_STATIC_ASSERT(sizeof(MMX_reg) == 16, "MMX packing error");
+
+#if !defined(C_OPENSTEP)
+#pragma pack(pop)
 #endif
 
-};
-static_assert(sizeof(MMX_reg) == 16, "MMX packing error");
-#pragma pack(pop)
 
+#if !defined(C_OPENSTEP)
 #pragma pack(push,1)
-union alignas(16) XMM_Reg {
+#endif
+union DBX_ALIGNAS(16) XMM_Reg {
 	FPU_Reg_32		f32[4];
 	FPU_Reg_64		f64[2];
 
@@ -196,30 +216,36 @@ union alignas(16) XMM_Reg {
 	uint32_t		u32[4];
 	uint64_t		u64[2];
 
-	static_assert( sizeof(u8)  == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(u16) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(u32) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(u64) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(i8)  == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(i16) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(i32) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(i64) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(f32) == 16 /* 128-bit */, "XMM reg struct error" );
-	static_assert( sizeof(f64) == 16 /* 128-bit */, "XMM reg struct error" );
 };
-static_assert( sizeof(XMM_Reg)     == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->u8)  == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->u16) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->u32) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->u64) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->i8)  == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->i16) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->i32) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->i64) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->f32) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(((XMM_Reg*)0)->f64) == 16 /* 128-bit */, "XMM reg struct error" );
+DBX_STATIC_ASSERT( sizeof(XMM_Reg)     == 16 /* 128-bit */, "XMM reg struct error" );
+
+#if !defined(C_OPENSTEP)
 #pragma pack(pop)
+#endif
 
 extern MMX_reg * reg_mmx[8];
 extern MMX_reg * lookupRMregMM[256];
 
+
+#if !defined(C_OPENSTEP)
 #pragma pack(push,1)
-union alignas(16) FPU_Reg_80
+#endif
+union DBX_ALIGNAS(16) FPU_Reg_80
 {
 // TODO: The configure script needs to use "long double" on x86/x86_64 and verify sizeof(long double) == 10,
 //       else undef a macro to let the code emulate long double 80-bit IEEE. Also needs to determine host
 //       byte order here so host long double matches our struct.
-	struct f_t {
+	struct DBX_PACKED f_t {
 		uint64_t	mantissa;		// [63:0]
 		uint16_t	exponent:15;	// [78:64]
 		uint16_t	sign:1;			// [79:79]
@@ -227,24 +253,28 @@ union alignas(16) FPU_Reg_80
 #if defined(HAS_LONG_DOUBLE)
 	long double		v;			// [79:0]
 #endif
-	struct raw_t {
+	struct DBX_PACKED raw_t {
 		uint64_t	l;
 		uint16_t	h;
 	} raw;
-	static const FPU_Reg_80 QNaN;
 
 	MMX_reg reg_mmx;
-	static_assert( sizeof(reg_mmx) == 16, "FPU_Reg_80 error" );
 
-	static_assert( offsetof(f_t,mantissa) == 0, "oops" );
-	static_assert( offsetof(raw_t,l) == 0, "oops" );
-	static_assert( offsetof(raw_t,h) == 8, "oops" );
-	static_assert( offsetof(MMX_reg,q) == 0, "oops" );
 };
-static_assert( sizeof(FPU_Reg_80) == 16, "FPU_Reg_80 error" );/*NTS: GCC can and often will define long double as 16 bytes or at least align by 16 bytes*/
+DBX_STATIC_ASSERT( sizeof(((FPU_Reg_80*)0)->reg_mmx) == 16, "FPU_Reg_80 error" );
+DBX_STATIC_ASSERT( offsetof(FPU_Reg_80::f_t,mantissa) == 0, "oops" );
+DBX_STATIC_ASSERT( offsetof(FPU_Reg_80::raw_t,l) == 0, "oops" );
+DBX_STATIC_ASSERT( offsetof(FPU_Reg_80::raw_t,h) == 8, "oops" );
+DBX_STATIC_ASSERT( offsetof(MMX_reg,q) == 0, "oops" );
+DBX_STATIC_ASSERT( sizeof(FPU_Reg_80) == 16, "FPU_Reg_80 error" );/*NTS: GCC can and often will define long double as 16 bytes or at least align by 16 bytes*/
 // ^ Remember that in 80-bit extended, the mantissa contains both the fraction and integer bit. There is no
 //   "implied bit" like 32-bit and 64-bit formats.
+
+#if !defined(C_OPENSTEP)
 #pragma pack(pop)
+#endif
+
+extern const FPU_Reg_80 FPU_QNaN_80;
 
 #define FPU_Reg_80_exponent_bias	(16383)
 
@@ -290,7 +320,7 @@ static inline bool IsInfinity(const FPU_Reg_64& reg)
 
 static inline bool IsInfinity(const FPU_Reg_80& reg)
 {
-    constexpr uint64_t integer_bit = 0x8000'0000'0000'0000ULL;
+    const uint64_t integer_bit = 0x8000000000000000ULL;
     return reg.f.exponent == 0x7FFFU && reg.f.mantissa == integer_bit;
 }
 
@@ -306,7 +336,7 @@ static inline bool IsNaN(const FPU_Reg_64& reg)
 
 static inline bool IsNaN(const FPU_Reg_80& reg)
 {
-    constexpr uint64_t integer_bit = 0x8000'0000'0000'0000ULL;
+    const uint64_t integer_bit = 0x8000000000000000ULL;
     return reg.f.exponent == 0x7FFFU && reg.f.mantissa != integer_bit;
 }
 
@@ -338,30 +368,30 @@ static inline bool IsNormal(const FPU_Reg_64& reg)
 
 static inline bool IsNormal(const FPU_Reg_80& reg)
 {
-    constexpr uint64_t integer_bit = 0x8000'0000'0000'0000ULL;
+    const uint64_t integer_bit = 0x8000000000000000ULL;
     return reg.f.exponent != 0 && reg.f.exponent != 0x7FFFU &&
            (reg.f.mantissa & integer_bit) != 0;
 }
 
 static inline bool IsSNaN(const FPU_Reg_32& reg)
 {
-    constexpr uint32_t quiet_nan_bit = 0x0040'0000U;
+    const uint32_t quiet_nan_bit = 0x00400000U;
     return reg.f.exponent == 0xFFU && reg.f.mantissa != 0 &&
            (reg.f.mantissa & quiet_nan_bit) == 0;
 }
 
 static inline bool IsSNaN(const FPU_Reg_64& reg)
 {
-    constexpr uint64_t quiet_nan_bit = 0x0008'0000'0000'0000ULL;
+    const uint64_t quiet_nan_bit = 0x0008000000000000ULL;
     return reg.f.exponent == 0x7FFU && reg.f.mantissa != 0 &&
            (reg.f.mantissa & quiet_nan_bit) == 0;
 }
 
 static inline bool IsSNaN(const FPU_Reg_80& reg)
 {
-    constexpr uint64_t integer_bit = 0x8000'0000'0000'0000ULL;
-    constexpr uint64_t quiet_nan_bit = 0x4000'0000'0000'0000ULL;
-    constexpr uint64_t payload_mask = 0x3FFF'FFFF'FFFF'FFFFULL;
+    const uint64_t integer_bit = 0x8000000000000000ULL;
+    const uint64_t quiet_nan_bit = 0x4000000000000000ULL;
+    const uint64_t payload_mask = 0x3FFFFFFFFFFFFFFFULL;
     return reg.f.exponent == 0x7FFFU &&
            (reg.f.mantissa & (integer_bit | quiet_nan_bit)) == integer_bit &&
            (reg.f.mantissa & payload_mask) != 0;
@@ -392,7 +422,7 @@ struct FPU_P_Reg {
     uint16_t d1;
     uint32_t d2;
 };
-static_assert( sizeof(FPU_P_Reg) == 16, "FPU_P_Reg error" );
+DBX_STATIC_ASSERT( sizeof(FPU_P_Reg) == 16, "FPU_P_Reg error" );
 
 // memory barrier macro. to ensure that reads/stores to one half of the FPU reg struct
 // do not overlap with reads/stores from the other half. things can go wrong if the

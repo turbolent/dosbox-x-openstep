@@ -33,7 +33,7 @@
 #include "control.h"
 #include "pc98_cg.h"
 #include "pc98_gdc.h"
-#include "zipfile.h"
+
 #include "src/ints/int10.h"
 
 unsigned char pc98_pegc_mmio[0x200] = {0}; /* PC-98 memory-mapped PEGC registers at E0000h */
@@ -94,31 +94,31 @@ void VGAMEM_USEC_write_delay() {
 template <class baseLFBHandler> class VGA_SlowLFBHandler : public baseLFBHandler {
 	public:
 		VGA_SlowLFBHandler() : baseLFBHandler(PFLAG_NOCODE) {}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			VGAMEM_USEC_write_delay();
 			vga_vram_write_trigger_update();
 			PageHandler_HostPtWriteB(this,addr,val);
 		}
-		void writew(PhysPt addr,uint16_t val) override {
+		void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 			VGAMEM_USEC_write_delay();
 			vga_vram_write_trigger_update();
 			PageHandler_HostPtWriteW(this,addr,val);
 		}
-		void writed(PhysPt addr,uint32_t val) override {
+		void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 			VGAMEM_USEC_write_delay();
 			vga_vram_write_trigger_update();
 			PageHandler_HostPtWriteD(this,addr,val);
 		}
 
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			VGAMEM_USEC_read_delay();
 			return PageHandler_HostPtReadB(this,addr);
 		}
-		uint16_t readw(PhysPt addr) override {
+		uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 			VGAMEM_USEC_read_delay();
 			return PageHandler_HostPtReadW(this,addr);
 		}
-		uint32_t readd(PhysPt addr) override {
+		uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 			VGAMEM_USEC_read_delay();
 			return PageHandler_HostPtReadD(this,addr);
 		}
@@ -406,10 +406,10 @@ public:
 	static INLINE PhysPt map(const PhysPt addr) {
 		return chain4remap((PAGING_GetPhysicalAddress(addr)&vgapages.mask)+(PhysPt)vga.svga.bank_read_full)&vga.mem.memmask;
 	}
-	template <typename T=uint8_t> static INLINE T do_read_aligned(const PhysPt a) {
+	template <typename T> static INLINE T do_read_aligned(const PhysPt a) {
 		return *((T*)(&vga.mem.linear[a]));
 	}
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (withinplanes<T>(a)) /* aligned, do a fast typecast read */
 			return do_read_aligned<T>(map(a));
 		else if (sizeof(T) == 4) /* not aligned, split 32-bit to two 16-bit */
@@ -419,11 +419,11 @@ public:
 		else
 			return 0xFF; /* should not happen, byte I/O is always aligned */
 	}
-	template <typename T=uint8_t> static INLINE void do_write_aligned(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write_aligned(const PhysPt a,const T v) {
 		vga_vram_write_trigger_update();
 		*((T*)(&vga.mem.linear[a])) = v;
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (withinplanes<T>(a)) /* aligned, do a fast typecast write */
 			do_write_aligned<T>(map(a),v);
 		else if (sizeof(T) == 4) /* not aligned, split 32-bit to two 16-bit */
@@ -432,22 +432,22 @@ public:
 			{ do_write<uint8_t>(a,uint8_t(v)); do_write<uint8_t>(a+1,uint8_t(v >> (T)8u)); }
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -482,7 +482,7 @@ public:
 	}
 
 	/* Your C++ compiler can probably optimize this down to just the optimal calls to based on type T... at least GCC does! */
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* 16-bit to two 8-bit */
@@ -490,7 +490,7 @@ public:
 		else
 			return (T)readHandler8(map(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -499,22 +499,22 @@ public:
 			writeHandler8(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -538,7 +538,7 @@ public:
 	}
 
 	/* Your C++ compiler can probably optimize this down to just the optimal calls to based on type T... at least GCC does! */
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* 16-bit to two 8-bit */
@@ -546,7 +546,7 @@ public:
 		else
 			return (T)readHandler8(map(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -555,22 +555,22 @@ public:
 			writeHandler8(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -591,7 +591,7 @@ public:
 	}
 
 	/* Your C++ compiler can probably optimize this down to just the optimal calls to based on type T... at least GCC does! */
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* 16-bit to two 8-bit */
@@ -599,7 +599,7 @@ public:
 		else
 			return (T)readHandler8(map(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -608,22 +608,22 @@ public:
 			writeHandler8(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -647,7 +647,7 @@ public:
 			(((uint32_t*)vga.mem.linear)[addr] & vga.config.full_not_map_mask) + (ExpandTable[val] & vga.config.full_map_mask);
 	}
 
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -656,13 +656,13 @@ public:
 			writeHandler8(map(a),v);
 	}
 
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -674,12 +674,12 @@ public:
 	VGA_CGATEXT_PageHandler() {
 		flags=PFLAG_NOCODE;
 	}
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		addr = PAGING_GetPhysicalAddress(addr) & 0x3FFF;
 		return vga.tandy.mem_base[addr];
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		vga_vram_write_trigger_update();
 		VGAMEM_USEC_write_delay();
 		addr = PAGING_GetPhysicalAddress(addr) & 0x3FFF;
@@ -704,12 +704,12 @@ public:
 	VGA_MCGATEXT_PageHandler() {
 		flags=PFLAG_NOCODE;
 	}
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		addr = PAGING_GetPhysicalAddress(addr) & 0xFFFF;
 		VGAMEM_USEC_read_delay();
 		return vga.tandy.mem_base[addr];
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		vga_vram_write_trigger_update();
 		VGAMEM_USEC_write_delay();
 		addr = PAGING_GetPhysicalAddress(addr) & 0xFFFF;
@@ -741,7 +741,9 @@ extern uint16_t pc98_egc_shift_length;
  * probably faster to execute. It makes it hard to make sense
  * of the code though. */
 struct pc98_egc_shifter {
-	pc98_egc_shifter() : decrement(false), remain(0x10), srcbit(0), dstbit(0) { }
+	pc98_egc_shifter() : decrement(false), remain(0x10), srcbit(0), dstbit(0),
+		o_srcbit(0), o_dstbit(0), buffer(), bufi(0), bufo(0),
+		shft8load(0), shft8bitr(0), shft8bitl(0) { }
 
 	void reinit(void) { /* from global vars set by guest */
 		decrement = pc98_egc_shift_descend;
@@ -772,15 +774,15 @@ struct pc98_egc_shifter {
 	uint16_t            remain;
 	uint16_t            srcbit;
 	uint16_t            dstbit;
-	uint16_t            o_srcbit = 0;
-	uint16_t            o_dstbit = 0;
+	uint16_t            o_srcbit;
+	uint16_t            o_dstbit;
 
-	uint8_t             buffer[512] = {}; /* 4096/8 = 512 */
-	uint16_t            bufi = 0, bufo = 0;
+	uint8_t             buffer[512]; /* 4096/8 = 512 */
+	uint16_t            bufi, bufo;
 
-	uint8_t             shft8load = 0;
-	uint8_t             shft8bitr = 0;
-	uint8_t             shft8bitl = 0;
+	uint8_t             shft8load;
+	uint8_t             shft8bitr;
+	uint8_t             shft8bitl;
 
 	std::string debug_status(void) {
 		char tmp[512];
@@ -1578,7 +1580,7 @@ void pc98_mem_msw_write(unsigned char which,unsigned char val) {
 class VGA_PC98_TEXT_PageHandler : public PageHandler {
 	public:
 		VGA_PC98_TEXT_PageHandler() : PageHandler(PFLAG_NOCODE) {}
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			addr = PAGING_GetPhysicalAddress(addr) & 0x3FFFu;
 
 			if (addr >= 0x3FE0u)
@@ -1588,7 +1590,7 @@ class VGA_PC98_TEXT_PageHandler : public PageHandler {
 
 			return VRAM98_TEXT[addr];
 		}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			addr = PAGING_GetPhysicalAddress(addr) & 0x3FFFu;
 			vga_vram_write_trigger_update();
 
@@ -1624,7 +1626,7 @@ extern uint8_t a1_font_char_offset;
 class VGA_PC98_CG_PageHandler : public PageHandler {
 	public:
 		VGA_PC98_CG_PageHandler() : PageHandler(PFLAG_NOCODE) {}
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			/* uses the low 12 bits and therefore does not need PAGING_GetPhysicalAddress() */
 			uint8_t high = a1_font_load_addr & 0xff;
 			if ((high >= 0x09 && high <= 0x0b) || (high >= 0x0c && high <= 0x0f) || (high >= 0x56 && high <= 0x5f)) {
@@ -1636,7 +1638,7 @@ class VGA_PC98_CG_PageHandler : public PageHandler {
 
 			return pc98_font_char_read(a1_font_load_addr,(addr >> 1) & 0xF,addr & 1);
 		}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			/* uses the low 12 bits and therefore does not need PAGING_GetPhysicalAddress() */
 			vga_cg_write_trigger_update();
 			if ((a1_font_load_addr & 0x007E) == 0x0056 && (a1_font_load_addr & 0xFF00) != 0x0000)
@@ -1650,10 +1652,10 @@ class VGA_PC98_CG_PageHandler : public PageHandler {
 class VGA_PC98_256MMIO_PageHandler : public PageHandler {
 	public:
 		VGA_PC98_256MMIO_PageHandler() : PageHandler(PFLAG_NOCODE) {}
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			return pc98_pegc_mmio_read(PAGING_GetPhysicalAddress(addr) & 0x7FFFu);
 		}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			pc98_pegc_mmio_write(PAGING_GetPhysicalAddress(addr) & 0x7FFFu,val);
 		}
 };
@@ -1666,25 +1668,25 @@ class VGA_PC98_256MMIO_PageHandler : public PageHandler {
 class VGA_PC98_256Planar_PageHandler : public PageHandler {
 	public:
 		VGA_PC98_256Planar_PageHandler() : PageHandler(PFLAG_NOCODE) {}
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			(void)addr;
 
 			// LOG_MSG("PEGC 256-color planar warning: Readb from %lxh",(unsigned long)addr);
 			return (uint8_t)(~0);
 		}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			(void)addr;
 			(void)val;
 
 			// LOG_MSG("PEGC 256-color planar warning: Writeb to %lxh val %02xh",(unsigned long)addr,(unsigned int)val);
 		}
-		uint16_t readw(PhysPt addr) override {
+		uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 			(void)addr;
 
 			// LOG_MSG("PEGC 256-color planar warning: Readw from %lxh",(unsigned long)addr);
 			return (uint16_t)(~0);
 		}
-		void writew(PhysPt addr,uint16_t val) override {
+		void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 			(void)addr;
 			(void)val;
 
@@ -1697,10 +1699,10 @@ class VGA_PC98_256Planar_PageHandler : public PageHandler {
 template <const unsigned int bank> class VGA_PC98_256BANK_PageHandler : public PageHandler {
 	public:
 		VGA_PC98_256BANK_PageHandler() : PageHandler(PFLAG_NOCODE) {}
-		uint8_t readb(PhysPt addr) override {
+		uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 			return pc98_vram_256bank_from_window(bank)[PAGING_GetPhysicalAddress(addr) & 0x7FFFu];
 		}
-		void writeb(PhysPt addr,uint8_t val) override {
+		void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 			vga_vram_write_trigger_update();
 			pc98_vram_256bank_from_window(bank)[PAGING_GetPhysicalAddress(addr) & 0x7FFFu] = val;
 		}
@@ -2006,11 +2008,11 @@ public:
 	}
 
 	/* byte-wise */
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		return readc<uint8_t>( PAGING_GetPhysicalAddress(addr) );
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay();
 		vga_vram_write_trigger_update();
 		writec<uint8_t>( PAGING_GetPhysicalAddress(addr), val );
@@ -2018,7 +2020,7 @@ public:
 
 	/* word-wise.
 	 * in the style of the 8086, non-word-aligned I/O is split into byte I/O */
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		addr = PAGING_GetPhysicalAddress(addr);
 		if (!(addr & 1)) /* if WORD aligned */
@@ -2028,7 +2030,7 @@ public:
 				((unsigned int)readc<uint8_t>(addr+1U) << 8u);
 		}
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay();
 		vga_vram_write_trigger_update();
 		addr = PAGING_GetPhysicalAddress(addr);
@@ -2045,10 +2047,10 @@ class VGA_PC98_LFB_Handler : public PageHandler { // with slow adapter
 public:
 	VGA_PC98_LFB_Handler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE|PFLAG_NOCODE) {}
 	VGA_PC98_LFB_Handler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		return &vga.mem.linear[(phys_page&0x7F)*4096 + PC98_VRAM_GRAPHICS_OFFSET]; /* 512KB mapping */
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		return &vga.mem.linear[(phys_page&0x7F)*4096 + PC98_VRAM_GRAPHICS_OFFSET]; /* 512KB mapping */
 	}
 };
@@ -2057,11 +2059,11 @@ class VGA_Map_Handler : public PageHandler { // with slow adapter
 public:
 	VGA_Map_Handler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE|PFLAG_NOCODE) {}
 	VGA_Map_Handler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		phys_page-=vgapages.base;
 		return &vga.mem.linear[(vga.svga.bank_read_full+phys_page*4096)&vga.mem.memmask];
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		phys_page-=vgapages.base;
 		return &vga.mem.linear[(vga.svga.bank_write_full+phys_page*4096)&vga.mem.memmask];
 	}
@@ -2080,12 +2082,12 @@ public:
 	// Olivetti M24 / AT&T 6300 has 32KB of refresh RAM (needed for 640x400); plain CGA has 16KB
 	// aliased twice across the B8000-BFFFF window. Masking to 16KB on the M24 would fold banks 2-3
 	// of the 640x400 image onto banks 0-1, losing half the picture.
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		delay();
 		const PhysPt mask = (machine==MCH_OLIVETTI || machine==MCH_3270PC) ? 0x7FFFu : 0x3FFFu;
 		return vga.tandy.mem_base[(PAGING_GetPhysicalAddress(addr) - 0xb8000) & mask];
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		delay();
 		vga_vram_write_trigger_update();
 		const PhysPt mask = (machine==MCH_OLIVETTI || machine==MCH_3270PC) ? 0x7FFFu : 0x3FFFu;
@@ -2098,12 +2100,12 @@ class VGA_LFB_Handler : public PageHandler { // with slow adapter
 public:
 	VGA_LFB_Handler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE|PFLAG_NOCODE) {}
 	VGA_LFB_Handler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt( PageNum phys_page ) override {
+	HostPt GetHostReadPt( PageNum phys_page ) DBX_OVERRIDE {
 		phys_page -= vga.lfb.page;
 		phys_page &= vga.mem.memmask >> 12u;
 		return &vga.mem.linear[(phys_page*4096)&vga.mem.memmask];
 	}
-	HostPt GetHostWritePt( PageNum phys_page ) override {
+	HostPt GetHostWritePt( PageNum phys_page ) DBX_OVERRIDE {
 		return GetHostReadPt( phys_page );
 	}
 };
@@ -2114,33 +2116,33 @@ extern Bitu XGA_Read(Bitu port, Bitu len);
 class VGA_MMIO_Handler : public PageHandler {
 public:
 	VGA_MMIO_Handler() : PageHandler(PFLAG_NOCODE) {}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		XGA_Write(port, val, 1);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		XGA_Write(port, val, 2);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		XGA_Write(port, val, 4);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		return (uint8_t)XGA_Read(port, 1);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		return (uint16_t)XGA_Read(port, 2);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay();
 		Bitu port = PAGING_GetPhysicalAddress(addr) & 0xffff;
 		return (uint32_t)XGA_Read(port, 4);
@@ -2151,7 +2153,7 @@ class VGA_TANDY_PageHandler : public PageHandler { // with slow adapter
 public:
 	VGA_TANDY_PageHandler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE) {}
 	VGA_TANDY_PageHandler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		// Odd banks are limited to 16kB and repeated
 		if (vga.tandy.mem_bank & 1) 
 			phys_page&=0x03;
@@ -2159,7 +2161,7 @@ public:
 			phys_page&=0x07;
 		return vga.tandy.mem_base + (phys_page * 4096);
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		return GetHostReadPt( phys_page );
 	}
 };
@@ -2169,14 +2171,14 @@ class VGA_PCJR_Handler : public PageHandler { // with slow adapter
 public:
 	VGA_PCJR_Handler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE) {}
 	VGA_PCJR_Handler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		phys_page-=0xb8;
 		// The 16kB map area is repeated in the 32kB range
 		// On CGA CPU A14 is not decoded so it repeats there too
 		phys_page&=0x03;
 		return vga.tandy.mem_base + (phys_page * 4096);
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		return GetHostReadPt( phys_page );
 	}
 };
@@ -2200,18 +2202,18 @@ public:
 	static INLINE PhysPt mapread(const PhysPt addr) {
 		return map(addr) + (vga.amstrad.read_plane * 0x4000u);
 	}
-	template <typename T=uint8_t> static INLINE T do_read_aligned(const PhysPt a) {
+	template <typename T> static INLINE T do_read_aligned(const PhysPt a) {
 		return *((T*)(&vga.tandy.mem_base[a]));
 	}
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* not aligned, split 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* not aligned, split 16-bit to two 8-bit */
 			return (uint16_t)do_read<uint8_t>(a) + ((uint16_t)do_read<uint8_t>(a+1) << (uint32_t)8u);
 		else
-			return (T)do_read_aligned(mapread(a));
+			return (T)do_read_aligned<uint8_t>(mapread(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write_aligned(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write_aligned(const PhysPt a,const T v) {
 		vga_vram_write_trigger_update();
 		const uint8_t plane = (vga.mode==M_AMSTRAD) ? vga.amstrad.write_plane : 0x01; // 0x0F?
 		if (plane & 0x08) *((T*)(&vga.tandy.mem_base[a+0xC000u])) = v;
@@ -2219,7 +2221,7 @@ public:
 		if (plane & 0x02) *((T*)(&vga.tandy.mem_base[a+0x4000u])) = v;
 		if (plane & 0x01) *((T*)(&vga.tandy.mem_base[a        ])) = v;
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* not aligned, split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* not aligned, split 16-bit to two 8-bit */
@@ -2228,22 +2230,22 @@ public:
 			do_write_aligned(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -2252,12 +2254,12 @@ class VGA_HERC_Handler : public PageHandler { // with slow adapter
 public:
 	VGA_HERC_Handler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE) {}
 	VGA_HERC_Handler(const unsigned int fl) : PageHandler(fl) {}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		(void)phys_page;//UNUSED
 		// The 4kB map area is repeated in the 32kB range
 		return &vga.mem.linear[0];
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		return GetHostReadPt( phys_page );
 	}
 };
@@ -2265,11 +2267,11 @@ public:
 class VGA_Empty_Handler : public PageHandler {
 public:
 	VGA_Empty_Handler() : PageHandler(PFLAG_NOCODE) {}
-	uint8_t readb(PhysPt /*addr*/) override {
+	uint8_t readb(PhysPt /*addr*/) DBX_OVERRIDE {
 //		LOG(LOG_VGA, LOG_NORMAL ) ( "Read from empty memory space at %x", addr );
 		return 0xff;
 	} 
-	void writeb(PhysPt /*addr*/,uint8_t /*val*/) override {
+	void writeb(PhysPt /*addr*/,uint8_t /*val*/) DBX_OVERRIDE {
 //		LOG(LOG_VGA, LOG_NORMAL ) ( "Write %x to empty memory space at %x", val, addr );
 	}
 };
@@ -2304,7 +2306,7 @@ public:
 	}
 
 	/* Your C++ compiler can probably optimize this down to just the optimal calls to based on type T... at least GCC does! */
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* 16-bit to two 8-bit */
@@ -2312,7 +2314,7 @@ public:
 		else
 			return (T)readHandler(map(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -2321,22 +2323,22 @@ public:
 			writeHandler(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };
@@ -2416,7 +2418,7 @@ public:
 	}
 
 	/* Your C++ compiler can probably optimize this down to just the optimal calls to based on type T... at least GCC does! */
-	template <typename T=uint8_t> static INLINE T do_read(const PhysPt a) {
+	template <typename T> static INLINE T do_read(const PhysPt a) {
 		if (sizeof(T) == 4) /* 32-bit to two 16-bit */
 			return (uint32_t)do_read<uint16_t>(a) + ((uint32_t)do_read<uint16_t>(a+2) << (uint32_t)16u);
 		else if (sizeof(T) == 2) /* 16-bit to two 8-bit */
@@ -2424,7 +2426,7 @@ public:
 		else
 			return (T)readHandler(map(a));
 	}
-	template <typename T=uint8_t> static INLINE void do_write(const PhysPt a,const T v) {
+	template <typename T> static INLINE void do_write(const PhysPt a,const T v) {
 		if (sizeof(T) == 4) /* split 32-bit to two 16-bit */
 			{ do_write<uint16_t>(a,uint16_t(v)); do_write<uint16_t>(a+2,uint16_t(v >> (T)16u)); }
 		else if (sizeof(T) == 2) /* split 16-bit to two 8-bit */
@@ -2433,22 +2435,22 @@ public:
 			writeHandler(map(a),v);
 	}
 
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint8_t>(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint16_t>(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		VGAMEM_USEC_read_delay(); return do_read<uint32_t>(addr);
 	}
-	void writeb(PhysPt addr, uint8_t val) override {
+	void writeb(PhysPt addr, uint8_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint8_t>(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint16_t>(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		VGAMEM_USEC_write_delay(); do_write<uint32_t>(addr,val);
 	}
 };

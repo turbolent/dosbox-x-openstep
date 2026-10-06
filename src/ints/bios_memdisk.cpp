@@ -41,7 +41,7 @@
 */
 
 // Create a hard drive image of a specified size; automatically select c/h/s
-imageDiskMemory::imageDiskMemory(uint32_t imgSizeK) : imageDisk(ID_MEMORY) {
+imageDiskMemory::imageDiskMemory(uint32_t imgSizeK) : imageDisk(ID_MEMORY), total_sectors(0), underlyingImage(NULL) {
 	//notes:
 	//  this code always returns HARD DRIVES with 512 byte sectors
 	//  the code will round up in case it cannot make an exact match
@@ -109,16 +109,16 @@ imageDiskMemory::imageDiskMemory(uint32_t imgSizeK) : imageDisk(ID_MEMORY) {
 	diskParams.rootentries = 512;
 	diskParams.biosval = 0;
 	diskParams.sectcluster = 1;
-	init(diskParams, true, nullptr);
+	init(diskParams, true, NULL);
 }
 
 // Create a floppy image of a specified geometry
-imageDiskMemory::imageDiskMemory(const diskGeo& floppyGeometry) : imageDisk(ID_MEMORY) {
-	init(floppyGeometry, false, nullptr);
+imageDiskMemory::imageDiskMemory(const diskGeo& floppyGeometry) : imageDisk(ID_MEMORY), total_sectors(0), underlyingImage(NULL) {
+	init(floppyGeometry, false, NULL);
 }
 
 // Create a hard drive image of a specified geometry
-imageDiskMemory::imageDiskMemory(uint16_t cylinders, uint16_t heads, uint16_t sectors, uint16_t sector_size) : imageDisk(ID_MEMORY) {
+imageDiskMemory::imageDiskMemory(uint16_t cylinders, uint16_t heads, uint16_t sectors, uint16_t sector_size) : imageDisk(ID_MEMORY), total_sectors(0), underlyingImage(NULL) {
 	diskGeo diskParams;
 	diskParams.secttrack = sectors;
 	diskParams.cylcount = cylinders;
@@ -130,11 +130,11 @@ imageDiskMemory::imageDiskMemory(uint16_t cylinders, uint16_t heads, uint16_t se
 	diskParams.rootentries = 512;
 	diskParams.biosval = 0;
 	diskParams.sectcluster = 1;
-	init(diskParams, true, nullptr);
+	init(diskParams, true, NULL);
 }
 
 // Create a copy-on-write memory image of an existing image
-imageDiskMemory::imageDiskMemory(imageDisk* underlyingImage) : imageDisk(ID_MEMORY) {
+imageDiskMemory::imageDiskMemory(imageDisk* underlyingImage) : imageDisk(ID_MEMORY), total_sectors(0), underlyingImage(NULL) {
 	diskGeo diskParams;
 	uint32_t heads, cylinders, sectors, bytesPerSector;
 	underlyingImage->Get_Geometry(&heads, &cylinders, &sectors, &bytesPerSector);
@@ -160,12 +160,12 @@ void imageDiskMemory::init(diskGeo diskParams, bool isHardDrive, imageDisk* unde
 
 	//calculate the total number of sectors on the drive, and check for overflows
 	uint64_t absoluteSectors = (uint64_t)diskParams.cylcount * (uint64_t)diskParams.headscyl;
-	if (absoluteSectors > 0x100000000u) {
+	if (absoluteSectors > UINT64_C(0x100000000)) {
 		LOG_MSG("Image size too large in imageDiskMemory constructor.\n");
 		return;
 	}
 	absoluteSectors *= (uint64_t)diskParams.secttrack;
-	if (absoluteSectors > 0x100000000u) {
+	if (absoluteSectors > UINT64_C(0x100000000)) {
 		LOG_MSG("Image size too large in imageDiskMemory constructor.\n");
 		return;
 	}
@@ -177,7 +177,7 @@ void imageDiskMemory::init(diskGeo diskParams, bool isHardDrive, imageDisk* unde
 
 	//calculate total size of the drive in kilobytes, and check for overflow
 	uint64_t diskSizeK = ((uint64_t)diskParams.headscyl * (uint64_t)diskParams.cylcount * (uint64_t)diskParams.secttrack * (uint64_t)diskParams.bytespersect + (uint64_t)1023) / (uint64_t)1024;
-	if (diskSizeK >= 0x100000000u)
+	if (diskSizeK >= UINT64_C(0x100000000))
 	{
 		LOG_MSG("Image size too large in imageDiskMemory constructor.\n");
 		return;
@@ -229,7 +229,7 @@ imageDiskMemory::~imageDiskMemory() {
 	//release the memory map
 	free(ChunkMap);
 	//reset internal variables
-	ChunkMap = nullptr;
+	ChunkMap = NULL;
 	total_sectors = 0;
 	active = false;
 }

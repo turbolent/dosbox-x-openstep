@@ -57,7 +57,8 @@ public:
 private:
 	static struct DriveInfo {
 		std::vector<DOS_Drive*> disks;
-		uint32_t currentDisk = 0;
+		uint32_t currentDisk;
+        DriveInfo() : currentDisk(0) {}
 	} driveInfos[DOS_DRIVES];
 	
 	static int currentDrive;
@@ -66,45 +67,45 @@ private:
 class localDrive : public DOS_Drive {
 public:
 	localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, std::vector<std::string> &options);
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
 	virtual FILE *GetSystemFilePtr(char const * const name, char const * const type); 
 	virtual bool GetSystemFilename(char* sysName, char const * const dosName); 
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool TestDir(const char * dir) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) override;
-	bool FindNext(DOS_DTA & dta) override;
-	bool SetFileAttr(const char * name,uint16_t attr) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool TestDir(const char * dir) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA & dta) DBX_OVERRIDE;
+	bool SetFileAttr(const char * name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
 	std::string GetHostName(const char * name);
-	unsigned long GetCompressedSize(char* name) override;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
 	virtual unsigned long GetSerial();
 #endif
-	bool Rename(const char * oldname,const char * newname) override;
-	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) override;
-    bool AllocationInfo64(uint32_t* _bytes_sector, uint32_t* _sectors_cluster, uint64_t* _total_clusters, uint64_t* _free_clusters) override;
-	bool FileExists(const char* name) override;
-	bool FileStat(const char* name, FileStat_Block * const stat_block) override;
-	uint8_t GetMediaByte(void) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
-	char const * GetLabel() override {return dirCache.GetLabel();};
-	void SetLabel(const char *label, bool iscdrom, bool updatable) override { dirCache.SetLabel(label,iscdrom,updatable); };
-	void *opendir(const char *name) override;
-	void closedir(void *handle) override;
-	bool read_directory_first(void *handle, char* entry_name, char* entry_sname, bool& is_directory) override;
-	bool read_directory_next(void *handle, char* entry_name, char* entry_sname, bool& is_directory) override;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) DBX_OVERRIDE;
+    bool AllocationInfo64(uint32_t* _bytes_sector, uint32_t* _sectors_cluster, uint64_t* _total_clusters, uint64_t* _free_clusters) DBX_OVERRIDE;
+	bool FileExists(const char* name) DBX_OVERRIDE;
+	bool FileStat(const char* name, FileStat_Block * const stat_block) DBX_OVERRIDE;
+	uint8_t GetMediaByte(void) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
+	char const * GetLabel() DBX_OVERRIDE {return dirCache.GetLabel();};
+	void SetLabel(const char *label, bool iscdrom, bool updatable) DBX_OVERRIDE { dirCache.SetLabel(label,iscdrom,updatable); };
+	void *opendir(const char *name) DBX_OVERRIDE;
+	void closedir(void *handle) DBX_OVERRIDE;
+	bool read_directory_first(void *handle, char* entry_name, char* entry_sname, bool& is_directory) DBX_OVERRIDE;
+	bool read_directory_next(void *handle, char* entry_name, char* entry_sname, bool& is_directory) DBX_OVERRIDE;
 	virtual void remove_special_file_from_disk(const char* dosname, const char* operation);
 	virtual std::string create_filename_of_special_operation(const char* dosname, const char* operation, bool expand);
 	virtual bool add_special_file_to_disk(const char* dosname, const char* operation, uint16_t value, bool isdir);
-	void EmptyCache(void) override { dirCache.EmptyCache(); };
-	void MediaChange() override {};
+	void EmptyCache(void) DBX_OVERRIDE { dirCache.EmptyCache(); };
+	void MediaChange() DBX_OVERRIDE {};
 	const char* getBasedir() const {return basedir;};
 	struct {
 		uint16_t bytes_sector;
@@ -114,7 +115,7 @@ public:
 		uint8_t mediaid;
 		unsigned long initfree;
 	} allocation;
-	int remote = -1;
+	int remote;
 
 private:
 	const std::string special_prefix_local;
@@ -125,7 +126,7 @@ protected:
 	friend void DOS_Shell::CMD_SUBST(char* args); 	
 	struct {
 		char srch_dir[CROSS_LEN];
-    } srchInfo[MAX_OPENDIRS] = {};
+    } srchInfo[MAX_OPENDIRS];
 };
 
 #if !defined(OSFREE)
@@ -136,36 +137,36 @@ private:
 
 public:
 	physfsDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options);
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool TestDir(const char * dir) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) override;
-	bool FindNext(DOS_DTA & dta) override;
-	bool Rename(const char * oldname,const char * newname) override;
-	bool SetFileAttr(const char * name,uint16_t attr) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
-	unsigned long GetCompressedSize(char* name) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool TestDir(const char * dir) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA & dta) DBX_OVERRIDE;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool SetFileAttr(const char * name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
-	unsigned long GetSerial() override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
+	unsigned long GetSerial() DBX_OVERRIDE;
 #endif
-	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) override;
-	bool FileExists(const char* name) override;
-	bool FileStat(const char* name, FileStat_Block * const stat_block) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	void *opendir(const char *dir) override;
-	void closedir(void *handle) override;
-	bool read_directory_first(void *handle, char* entry_name, char* entry_sname, bool& is_directory) override;
-	bool read_directory_next(void *handle, char* entry_name, char* entry_sname, bool& is_directory) override;
-	const char *GetInfo(void) override;
+	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) DBX_OVERRIDE;
+	bool FileExists(const char* name) DBX_OVERRIDE;
+	bool FileStat(const char* name, FileStat_Block * const stat_block) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	void *opendir(const char *dir) DBX_OVERRIDE;
+	void closedir(void *handle) DBX_OVERRIDE;
+	bool read_directory_first(void *handle, char* entry_name, char* entry_sname, bool& is_directory) DBX_OVERRIDE;
+	bool read_directory_next(void *handle, char* entry_name, char* entry_sname, bool& is_directory) DBX_OVERRIDE;
+	const char *GetInfo(void) DBX_OVERRIDE;
 	virtual const char *getOverlaydir(void);
 	virtual bool setOverlaydir(const char * name);
-	Bits UnMount() override;
+	Bits UnMount() DBX_OVERRIDE;
 	virtual ~physfsDrive(void);
 
 protected:
@@ -301,30 +302,30 @@ struct FAT_BootSector {
     uint8_t  extra[SECTOR_SIZE_MAX - 512];
 #endif
 } GCC_ATTRIBUTE(packed);
-static_assert(offsetof(FAT_BootSector,bpb.v20) == 0x00B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v30) == 0x00B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v331) == 0x00B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v40) == 0x00B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v) == 0x00B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v20.BPB_TotSec16) == 0x013,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v30.BPB_TotSec16) == 0x013,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec16) == 0x013,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec16) == 0x013,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v.BPB_TotSec16) == 0x013,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec32) == 0x020,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v30.BPB_HiddSec) == 0x01C,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec32) == 0x020,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v40.BPB_VolLab) == 0x02B,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v710_32.BS_FilSysType) == 0x052,"Oops");
-static_assert(sizeof(FAT_BootSector) == SECTOR_SIZE_MAX,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec32) == 0x020,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec32) == 0x020,"Oops");
-static_assert(offsetof(FAT_BootSector,bpb.v710_32.BPB_TotSec32) == 0x020,"Oops");
-static_assert(sizeof(FAT_BootSector::bpb.v20) == 0x00D,"Oops");
-static_assert(sizeof(FAT_BootSector::bpb.v30) == 0x015,"Oops");
-static_assert(sizeof(FAT_BootSector::bpb.v331) == 0x019,"Oops");
-static_assert(sizeof(FAT_BootSector::bpb.v40) == 0x033,"Oops");
-static_assert(sizeof(FAT_BootSector::bpb.v710_32) == 0x04F,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v20) == 0x00B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v30) == 0x00B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v331) == 0x00B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v40) == 0x00B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v) == 0x00B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v20.BPB_TotSec16) == 0x013,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v30.BPB_TotSec16) == 0x013,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec16) == 0x013,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec16) == 0x013,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v.BPB_TotSec16) == 0x013,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec32) == 0x020,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v30.BPB_HiddSec) == 0x01C,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec32) == 0x020,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v40.BPB_VolLab) == 0x02B,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v710_32.BS_FilSysType) == 0x052,"Oops");
+DBX_STATIC_ASSERT(sizeof(FAT_BootSector) == SECTOR_SIZE_MAX,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v331.BPB_TotSec32) == 0x020,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v40.BPB_TotSec32) == 0x020,"Oops");
+DBX_STATIC_ASSERT(offsetof(FAT_BootSector,bpb.v710_32.BPB_TotSec32) == 0x020,"Oops");
+DBX_STATIC_ASSERT(sizeof(((FAT_BootSector*)0)->bpb.v20) == 0x00D,"Oops");
+DBX_STATIC_ASSERT(sizeof(((FAT_BootSector*)0)->bpb.v30) == 0x015,"Oops");
+DBX_STATIC_ASSERT(sizeof(((FAT_BootSector*)0)->bpb.v331) == 0x019,"Oops");
+DBX_STATIC_ASSERT(sizeof(((FAT_BootSector*)0)->bpb.v40) == 0x033,"Oops");
+DBX_STATIC_ASSERT(sizeof(((FAT_BootSector*)0)->bpb.v710_32) == 0x04F,"Oops");
 
 struct direntry {
 	uint8_t entryname[11];
@@ -360,8 +361,8 @@ struct direntry_lfn {
     uint16_t LDIR_FstClusLO;          /* 0x1A zero (loFirstClust) */
     uint16_t LDIR_Name3[2];           /* 0x1C next 2 chars */
 } GCC_ATTRIBUTE(packed);
-static_assert(sizeof(direntry_lfn) == 0x20,"Oops");
-static_assert(offsetof(direntry_lfn,LDIR_Name3) == 0x1C,"Oops");
+DBX_STATIC_ASSERT(sizeof(direntry_lfn) == 0x20,"Oops");
+DBX_STATIC_ASSERT(offsetof(direntry_lfn,LDIR_Name3) == 0x1C,"Oops");
 #endif
 
 #define MAX_DIRENTS_PER_SECTOR (SECTOR_SIZE_MAX / sizeof(direntry))
@@ -378,35 +379,36 @@ public:
 	fatDrive(imageDisk *sourceLoadedDisk, std::vector<std::string> &options);
 	void fatDriveInit(const char *sysFilename, uint32_t bytesector, uint32_t cylsector, uint32_t headscyl, uint32_t cylinders, uint64_t filesize, const std::vector<std::string> &options);
 	~fatDrive();
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool TestDir(const char * dir) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) override;
-	bool FindNext(DOS_DTA & dta) override;
-	bool SetFileAttr(const char * name,uint16_t attr) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
-	unsigned long GetCompressedSize(char* name) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool TestDir(const char * dir) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA & dta) DBX_OVERRIDE;
+	bool SetFileAttr(const char * name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
 #endif
 	virtual unsigned long GetSerial();
-	bool Rename(const char * oldname,const char * newname) override;
-	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) override;
-	bool AllocationInfo32(uint32_t * _bytes_sector,uint32_t * _sectors_cluster,uint32_t * _total_clusters,uint32_t * _free_clusters) override;
-	bool FileExists(const char* name) override;
-	bool FileStat(const char* name, FileStat_Block * const stat_block) override;
-	uint8_t GetMediaByte(void) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) DBX_OVERRIDE;
+	bool AllocationInfo32(uint32_t * _bytes_sector,uint32_t * _sectors_cluster,uint32_t * _total_clusters,uint32_t * _free_clusters) DBX_OVERRIDE;
+	bool FileExists(const char* name) DBX_OVERRIDE;
+	bool FileStat(const char* name, FileStat_Block * const stat_block) DBX_OVERRIDE;
+	uint8_t GetMediaByte(void) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
 public:
 	struct clusterChainMemory {
-		uint32_t	current_cluster_no = 0;
-		uint32_t	current_cluster_index = 0;
+		uint32_t	current_cluster_no;
+		uint32_t	current_cluster_index;
+        clusterChainMemory() : current_cluster_no(0), current_cluster_index(0) {}
 
 		void clear(void);
 	};
@@ -426,9 +428,9 @@ public:
 	bool directoryChange(uint32_t dirClustNumber, const direntry *useEntry, int32_t entNum);
 	const FAT_BootSector::bpb_union_t &GetBPB(void);
 	void SetBPB(const FAT_BootSector::bpb_union_t &bpb);
-	imageDisk *loadedDisk = NULL;
-	uint8_t req_ver_major = 0,req_ver_minor = 0;
-	bool created_successfully = true;
+	imageDisk *loadedDisk;
+	uint8_t req_ver_major,req_ver_minor;
+	bool created_successfully;
 	uint32_t partSectOff;
 	struct {
 		uint32_t bytesector;
@@ -436,12 +438,12 @@ public:
 		uint32_t headscyl;
 		uint32_t cylinders;
 		int mounttype;
-	} opts = {0, 0, 0, 0, -1};
+	} opts;
 	struct {
 		unsigned char CDROM_drive;
 		unsigned long cdrom_sector_offset;
 		unsigned char floppy_emu_type;
-	} el = {0, 0, 0};
+	} el;
 
 private:
 	bool iseofFAT(const uint32_t cv) const;
@@ -458,7 +460,7 @@ private:
 	friend void DOS_Shell::CMD_SUBST(char* args); 	
 	struct {
 		char srch_dir[CROSS_LEN];
-	} srchInfo[MAX_OPENDIRS] = {};
+	} srchInfo[MAX_OPENDIRS];
 
 	/* directory entry range of LFN entries after FindNextInternal(), needed by
 	 * filesystem code such as RemoveDir() which needs to delete the dirent AND
@@ -477,7 +479,7 @@ private:
 		bool empty(void) const {
 			return dirPos_start == dirPos_end;
 		}
-	} lfnRange = {0,0};
+	} lfnRange;
 
 	struct {
 		uint16_t bytes_sector;
@@ -485,24 +487,24 @@ private:
 		uint16_t total_clusters;
 		uint16_t free_clusters;
 		uint8_t mediaid;
-	} allocation = {};
+	} allocation;
 
-	FAT_BootSector::bpb_union_t BPB = {}; // BPB in effect (translated from on-disk BPB as needed)
-	bool absolute = false;
-	uint8_t fattype = 0;
-	uint32_t CountOfClusters = 0;
-	uint32_t partSectSize = 0;
-	uint32_t firstDataSector = 0;
-	uint32_t firstRootDirSect = 0;
-	uint32_t physToLogAdj = 0; // Some PC-98 HDI images have larger logical than physical bytes/sector and the partition is not a multiple of it, so this is needed
-	uint32_t searchFreeCluster = 0;
-	bool findFirstFCB = false; /* FindFirst was called to scan by FCB */
-	int partition_index = -1;
+	FAT_BootSector::bpb_union_t BPB; // BPB in effect (translated from on-disk BPB as needed)
+	bool absolute;
+	uint8_t fattype;
+	uint32_t CountOfClusters;
+	uint32_t partSectSize;
+	uint32_t firstDataSector;
+	uint32_t firstRootDirSect;
+	uint32_t physToLogAdj; // Some PC-98 HDI images have larger logical than physical bytes/sector and the partition is not a multiple of it, so this is needed
+	uint32_t searchFreeCluster;
+	bool findFirstFCB; /* FindFirst was called to scan by FCB */
+	int partition_index;
 
-	uint32_t cwdDirCluster = 0;
+	uint32_t cwdDirCluster;
 
-	uint8_t fatSectBuffer[SECTOR_SIZE_MAX * 2] = {};
-	uint32_t curFatSect = 0;
+	uint8_t fatSectBuffer[SECTOR_SIZE_MAX * 2];
+	uint32_t curFatSect;
 
 	DOS_Drive_Cache labelCache;
 public:
@@ -514,17 +516,17 @@ public:
 	virtual uint8_t Read_AbsoluteSector(uint32_t sectnum, void * data);
 	virtual uint8_t Write_AbsoluteSector(uint32_t sectnum, void * data);
 	virtual uint32_t getSectSize(void);
-	uint32_t sector_size = 0;
+	uint32_t sector_size;
 
 	// INT 25h/INT 26h
-	uint32_t GetSectorCount(void) override;
-	uint32_t GetSectorSize(void) override;
-	uint8_t Read_AbsoluteSector_INT25(uint32_t sectnum, void * data) override;
-	uint8_t Write_AbsoluteSector_INT25(uint32_t sectnum, void * data) override;
-	void UpdateDPB(unsigned char dos_drive) override;
+	uint32_t GetSectorCount(void) DBX_OVERRIDE;
+	uint32_t GetSectorSize(void) DBX_OVERRIDE;
+	uint8_t Read_AbsoluteSector_INT25(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	uint8_t Write_AbsoluteSector_INT25(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	void UpdateDPB(unsigned char dos_drive) DBX_OVERRIDE;
 
-	char const * GetLabel() override {return labelCache.GetLabel();};
-	void SetLabel(const char *label, bool iscdrom, bool updatable) override;
+	char const * GetLabel() DBX_OVERRIDE {return labelCache.GetLabel();};
+	void SetLabel(const char *label, bool iscdrom, bool updatable) DBX_OVERRIDE;
 	virtual void UpdateBootVolumeLabel(const char *label);
 	virtual uint32_t GetPartitionOffset(void);
 	virtual uint32_t GetFirstClusterOffset(void);
@@ -532,10 +534,10 @@ public:
 
 	void checkDiskChange(void);
 
-	unsigned char bios_disk = 0;
-	bool unformatted = false;
+	unsigned char bios_disk;
+	bool unformatted;
 #else
-	imageDisk *loadedDisk = NULL;
+	imageDisk *loadedDisk;
 	static constexpr bool unformatted = true;
 	fatDrive() = delete;
 #endif
@@ -548,26 +550,26 @@ class cdromDrive : public localDrive
 {
 public:
 	cdromDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options);
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool Rename(const char * oldname,const char * newname) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
-	unsigned long GetCompressedSize(char* name) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
-	unsigned long GetSerial() override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
+	unsigned long GetSerial() DBX_OVERRIDE;
 #endif
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) override;
-	void SetDir(const char* path) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) DBX_OVERRIDE;
+	void SetDir(const char* path) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
 private:
-	uint8_t subUnit = 0;	char driveLetter = '\0';
+	uint8_t subUnit;	char driveLetter;
 };
 #endif
 
@@ -576,19 +578,19 @@ class physfscdromDrive : public physfsDrive
 {
 public:
 	physfscdromDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options);
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool Rename(const char * oldname,const char * newname) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) override;
-	void SetDir(const char* path) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
-	const char *GetInfo(void) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst=false) DBX_OVERRIDE;
+	void SetDir(const char* path) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
+	const char *GetInfo(void) DBX_OVERRIDE;
 private:
 	uint8_t subUnit;
 	char driveLetter;
@@ -689,7 +691,7 @@ static inline uint16_t UDF_crc_itu_t_byte(uint16_t crc, const uint8_t data)
 ////////////////////////////////////
 
 #if !defined(OSFREE)
-using UDF_blob_base = std::vector<uint8_t>;
+typedef std::vector<uint8_t> UDF_blob_base;
 
 class UDF_blob : public UDF_blob_base {
         public:
@@ -715,14 +717,14 @@ class UDF_blob : public UDF_blob_base {
 
 #if !defined(OSFREE)
 struct UDFTagId { /* ECMA-167 7.2.1 */
-	uint16_t				TagIdentifier = 0;					/*   @0 +   2 uint16_t */
-	uint16_t				DescriptorVersion = 0;					/*   @2 +   2 uint16_t */
-	uint8_t					TagChecksum = 0;					/*   @4 +   1 uint8_t */
-	uint8_t					Reserved = 0;						/*   @5 +   1 uint8_t */
-	uint16_t				TagSerialNumber = 0;					/*   @6 +   2 uint16_t */
-	uint16_t				DescriptorCRC = 0;					/*   @8 +   2 uint16_t */
-	uint16_t				DescriptorCRCLength = 0;				/*  @10 +   2 uint16_t */
-	uint32_t				TagLocation = 0;					/*  @12 +   4 uint32_t */
+	uint16_t				TagIdentifier;					/*   @0 +   2 uint16_t */
+	uint16_t				DescriptorVersion;					/*   @2 +   2 uint16_t */
+	uint8_t					TagChecksum;					/*   @4 +   1 uint8_t */
+	uint8_t					Reserved;						/*   @5 +   1 uint8_t */
+	uint16_t				TagSerialNumber;					/*   @6 +   2 uint16_t */
+	uint16_t				DescriptorCRC;					/*   @8 +   2 uint16_t */
+	uint16_t				DescriptorCRCLength;				/*  @10 +   2 uint16_t */
+	uint32_t				TagLocation;					/*  @12 +   4 uint32_t */
 
 	bool					get(const unsigned int sz,const unsigned char *b);
 	void					parse(const unsigned int sz,const unsigned char *b);
@@ -738,8 +740,8 @@ struct UDFTagId { /* ECMA-167 7.2.1 */
 
 #if !defined(OSFREE)
 struct UDFextent_ad { /* ECMA-167 3/7.1 */
-	uint32_t				ExtentLength = 0;					/*   @0 +   4 uint32_t */
-	uint32_t				ExtentLocation = 0;					/*   @4 +   4 uint32_t */
+	uint32_t				ExtentLength;					/*   @0 +   4 uint32_t */
+	uint32_t				ExtentLocation;					/*   @4 +   4 uint32_t */
 
 	void					get(const unsigned int sz,const unsigned char *b);
 						UDFextent_ad(const unsigned int sz,const unsigned char *b);
@@ -776,8 +778,8 @@ struct UDFdstring : public UDF_blob {
 #if !defined(OSFREE)
 /* NTS: The structure is the same, what the location/position is relative to is different. It's relative to the partition */
 struct UDFshort_ad { /* ECMA-167 4/14.14.1 */
-	uint32_t				ExtentLength = 0;					/*   @0 +   4 uint32_t */
-	uint32_t				ExtentPosition = 0;					/*   @4 +   4 uint32_t */
+	uint32_t				ExtentLength;					/*   @0 +   4 uint32_t */
+	uint32_t				ExtentPosition;					/*   @4 +   4 uint32_t */
 
 	void					get(const unsigned int sz,const unsigned char *b);
 						UDFshort_ad(const unsigned int sz,const unsigned char *b);
@@ -789,8 +791,8 @@ struct UDFshort_ad { /* ECMA-167 4/14.14.1 */
 
 #if !defined(OSFREE)
 struct UDFlb_addr { /* ECMA-167 4/7.1 */
-	uint32_t				LogicalBlockNumber = 0;					/*   @0 +   4 uint32_t */
-	uint16_t				PartitionReferenceNumber = 0;				/*   @4 +   2 uint16_t */
+	uint32_t				LogicalBlockNumber;					/*   @0 +   4 uint32_t */
+	uint16_t				PartitionReferenceNumber;				/*   @4 +   2 uint16_t */
 
 	void					get(const unsigned int sz,const unsigned char *b);
 						UDFlb_addr(const unsigned int sz,const unsigned char *b);
@@ -802,7 +804,7 @@ struct UDFlb_addr { /* ECMA-167 4/7.1 */
 
 #if !defined(OSFREE)
 struct UDFlong_ad { /* ECMA-167 4/14.14.2 */
-	uint32_t				ExtentLength = 0;					/*   @0 +   4 uint32_t */
+	uint32_t				ExtentLength;					/*   @0 +   4 uint32_t */
 	UDFlb_addr				ExtentLocation;						/*   @4 +   6 lb_addr */
 	uint8_t					ImplementationUse[6];					/*  @10 +   6 uint8_t */
 
@@ -836,7 +838,7 @@ struct UDFcharspec { /* ECMA-167 7.2.1 */
 
 #if !defined(OSFREE)
 struct UDFregid { /* ECMA-167 7.4 */
-	uint8_t					Flags = 0;						/*   @0 +   0 uint8_t */
+	uint8_t					Flags;						/*   @0 +   0 uint8_t */
 	uint8_t					Identifier[23];						/*   @1 +  23 uint8_t */
 	uint8_t					IdentifierSuffix[8];					/*  @24 +   8 uint8_t */
 
@@ -850,16 +852,16 @@ struct UDFregid { /* ECMA-167 7.4 */
 
 #if !defined(OSFREE)
 struct UDFtimestamp { /* ECMA-167 7.3 */
-	uint16_t				TypeAndTimeZone = 0;					/*   @0 +   2 uint16_t */
-	int16_t					Year = 0;						/*   @2 +   2 int16_t */
-	uint8_t					Month = 0;						/*   @4 +   1 uint8_t */
-	uint8_t					Day = 0;						/*   @5 +   1 uint8_t */
-	uint8_t					Hour = 0;						/*   @6 +   1 uint8_t */
-	uint8_t					Minute = 0;						/*   @7 +   1 uint8_t */
-	uint8_t					Second = 0;						/*   @8 +   1 uint8_t */
-	uint8_t					Centiseconds = 0;					/*   @9 +   1 uint8_t */
-	uint8_t					HundredsOfMicroseconds = 0;				/*  @10 +   1 uint8_t */
-	uint8_t					Microseconds = 0;					/*  @11 +   1 uint8_t */
+	uint16_t				TypeAndTimeZone;					/*   @0 +   2 uint16_t */
+	int16_t					Year;						/*   @2 +   2 int16_t */
+	uint8_t					Month;						/*   @4 +   1 uint8_t */
+	uint8_t					Day;						/*   @5 +   1 uint8_t */
+	uint8_t					Hour;						/*   @6 +   1 uint8_t */
+	uint8_t					Minute;						/*   @7 +   1 uint8_t */
+	uint8_t					Second;						/*   @8 +   1 uint8_t */
+	uint8_t					Centiseconds;					/*   @9 +   1 uint8_t */
+	uint8_t					HundredsOfMicroseconds;				/*  @10 +   1 uint8_t */
+	uint8_t					Microseconds;					/*  @11 +   1 uint8_t */
 
 	void					get(const unsigned int sz,const unsigned char *b);
 						UDFtimestamp(const unsigned int sz,const unsigned char *b);
@@ -872,15 +874,15 @@ struct UDFtimestamp { /* ECMA-167 7.3 */
 #if !defined(OSFREE)
 struct UDFPrimaryVolumeDescriptor {
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=1 */
-	uint32_t				VolumeDescriptorSequenceNumber = 0;			/*  @16 +   4 uint32_t */
-	uint32_t				PrimaryVolumeDescriptorNumber = 0;			/*  @20 +   4 uint32_t */
+	uint32_t				VolumeDescriptorSequenceNumber;			/*  @16 +   4 uint32_t */
+	uint32_t				PrimaryVolumeDescriptorNumber;			/*  @20 +   4 uint32_t */
 	UDFdstring				VolumeIdentifier;					/*  @24 +  32 dstring */
-	uint16_t				VolumeSequenceNumber = 0;				/*  @56 +   2 uint16_t */
-	uint16_t				MaximumVolumeSequenceNumber = 0;			/*  @58 +   2 uint16_t */
-	uint16_t				InterchangeLevel = 0;					/*  @60 +   2 uint16_t */
-	uint16_t				MaximumInterchangeLevel = 0;				/*  @62 +   2 uint16_t */
-	uint32_t				CharacterSetList = 0;					/*  @64 +   4 uint32_t */
-	uint32_t				MaximumCharacterSetList = 0;				/*  @68 +   4 uint32_t */
+	uint16_t				VolumeSequenceNumber;				/*  @56 +   2 uint16_t */
+	uint16_t				MaximumVolumeSequenceNumber;			/*  @58 +   2 uint16_t */
+	uint16_t				InterchangeLevel;					/*  @60 +   2 uint16_t */
+	uint16_t				MaximumInterchangeLevel;				/*  @62 +   2 uint16_t */
+	uint32_t				CharacterSetList;					/*  @64 +   4 uint32_t */
+	uint32_t				MaximumCharacterSetList;				/*  @68 +   4 uint32_t */
 	UDFdstring				VolumeSetIdentifier;					/*  @72 + 128 dstring */
 	UDFcharspec				DescriptorCharacterSet;					/* @200 +  64 charspec */
 	UDFcharspec				ExplanatoryCharacterSet;				/* @264 +  64 charspec */
@@ -890,8 +892,8 @@ struct UDFPrimaryVolumeDescriptor {
 	UDFtimestamp				RecordingDateAndTime;					/* @376 +  12 timestamp */
 	UDFregid				ImplementationIdentifier;				/* @388 +  32 regid */
 	uint8_t					ImplementationUse[64];					/* @420 +  64 bytes */
-	uint32_t				PredecessorVolumeDescriptorSequenceLocation = 0;	/* @484 +   4 uint32_t */
-	uint16_t				Flags = 0;						/* @488 +   2 uint16_t */
+	uint32_t				PredecessorVolumeDescriptorSequenceLocation;	/* @484 +   4 uint32_t */
+	uint16_t				Flags;						/* @488 +   2 uint16_t */
 
 	void					get(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b);
 						UDFPrimaryVolumeDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b);
@@ -904,14 +906,14 @@ struct UDFPrimaryVolumeDescriptor {
 #if !defined(OSFREE)
 struct UDFPartitionDescriptor {
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=5 */
-	uint32_t				VolumeDescriptorSequenceNumber = 0;			/*  @16 +   4 uint32_t */
-	uint16_t				PartitionFlags = 0;					/*  @20 +   2 uint16_t */
-	uint16_t				PartitionNumber = 0;					/*  @22 +   2 uint16_t */
+	uint32_t				VolumeDescriptorSequenceNumber;			/*  @16 +   4 uint32_t */
+	uint16_t				PartitionFlags;					/*  @20 +   2 uint16_t */
+	uint16_t				PartitionNumber;					/*  @22 +   2 uint16_t */
 	UDFregid				PartitionContents;					/*  @24 +  32 regid */
 	uint8_t					PartitionContentsUse[128];				/*  @56 + 128 uint8_t */
-	uint32_t				AccessType = 0;						/* @184 +   4 uint32_t */
-	uint32_t				PartitionStartingLocation = 0;				/* @188 +   4 uint32_t */
-	uint32_t				PartitionLength = 0;					/* @192 +   4 uint32_t */
+	uint32_t				AccessType;						/* @184 +   4 uint32_t */
+	uint32_t				PartitionStartingLocation;				/* @188 +   4 uint32_t */
+	uint32_t				PartitionLength;					/* @192 +   4 uint32_t */
 	UDFregid				ImplementationIdentifier;				/* @196 +  32 regid */
 	uint8_t					ImplementationUse[128];					/* @228 + 128 uint8_t */
 
@@ -926,14 +928,14 @@ struct UDFPartitionDescriptor {
 #if !defined(OSFREE)
 struct UDFLogicalVolumeDescriptor {
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=6 */
-	uint32_t				VolumeDescriptorSequenceNumber = 0;			/*  @16 +   4 uint32_t */
+	uint32_t				VolumeDescriptorSequenceNumber;			/*  @16 +   4 uint32_t */
 	UDFcharspec				DescriptorCharacterSet;					/*  @20 +  64 charspec */
 	UDFdstring				LogicalVolumeIdentifier;				/*  @84 + 128 dstring */
-	uint32_t				LogicalBlockSize = 0;					/* @212 +   4 uint32_t */
+	uint32_t				LogicalBlockSize;					/* @212 +   4 uint32_t */
 	UDFregid				DomainIdentifier;					/* @216 +  32 regid */
 	uint8_t					LogicalVolumeContentsUse[16];				/* @248 +  16 uint8_t */
-	uint32_t				MapTableLength = 0;					/* @264 +   4 uint32_t */
-	uint32_t				NumberOfPartitionMaps = 0;				/* @268 +   4 uint32_t */
+	uint32_t				MapTableLength;					/* @264 +   4 uint32_t */
+	uint32_t				NumberOfPartitionMaps;				/* @268 +   4 uint32_t */
 	UDFregid				ImplementationIdentifier;				/* @272 +  32 regid */
 	uint8_t					ImplementationUse[128];					/* @304 + 128 uint8_t */
 	UDFextent_ad				IntegritySequenceExtent;				/* @432 +   8 extent_ad */
@@ -951,12 +953,12 @@ struct UDFLogicalVolumeDescriptor {
 struct UDFFileSetDescriptor { /* ECMA-167 4/14.1 */
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=256 */
 	UDFtimestamp				RecordingDateAndType;					/*  @16 +  12 timestamp */
-	uint16_t				InterchangeLevel = 0;					/*  @28 +   2 uint16_t */
-	uint16_t				MaximumInterchangeLevel = 0;				/*  @30 +   2 uint16_t */
-	uint32_t				CharacterSetList = 0;					/*  @32 +   4 uint32_t */
-	uint32_t				MaximumCharacterSetList = 0;				/*  @36 +   4 uint32_t */
-	uint32_t				FileSetNumber = 0;					/*  @40 +   4 uint32_t */
-	uint32_t				FileSetDescriptorNumber = 0;				/*  @44 +   4 uint32_t */
+	uint16_t				InterchangeLevel;					/*  @28 +   2 uint16_t */
+	uint16_t				MaximumInterchangeLevel;				/*  @30 +   2 uint16_t */
+	uint32_t				CharacterSetList;					/*  @32 +   4 uint32_t */
+	uint32_t				MaximumCharacterSetList;				/*  @36 +   4 uint32_t */
+	uint32_t				FileSetNumber;					/*  @40 +   4 uint32_t */
+	uint32_t				FileSetDescriptorNumber;				/*  @44 +   4 uint32_t */
 	UDFcharspec				LogicalVolumeIdentifierCharacterSet;			/*  @48 +  64 charspec */
 	UDFdstring				LogicalVolumeIdentifier;				/* @112 + 128 dstring */
 	UDFcharspec				FileSetCharacterSet;					/* @240 +  64 charspec */
@@ -978,9 +980,9 @@ struct UDFFileSetDescriptor { /* ECMA-167 4/14.1 */
 
 #if !defined(OSFREE)
 struct UDFext_ad { /* ECMA-167 4/14.14.3 */
-	uint32_t				ExtentLength = 0;					/*   @0 +   4 uint32_t */
-	uint32_t				RecordedLength = 0;					/*   @4 +   4 uint32_t */
-	uint32_t				InformationLength = 0;					/*   @8 +   4 uint32_t */
+	uint32_t				ExtentLength;					/*   @0 +   4 uint32_t */
+	uint32_t				RecordedLength;					/*   @4 +   4 uint32_t */
+	uint32_t				InformationLength;					/*   @8 +   4 uint32_t */
 	UDFlb_addr				ExtentLocation;						/*  @12 +   6 lb_addr */
 	uint8_t					ImplementationUse[2];					/*  @18 +   2 uint8_t */
 
@@ -994,14 +996,14 @@ struct UDFext_ad { /* ECMA-167 4/14.14.3 */
 
 #if !defined(OSFREE)
 struct UDFicbtag { /* ECMA-167 4/14.6 */
-	uint32_t				PriorRecordedNumberOfDirectEntries = 0;			/*   @0 +   4 uint32_t */
-	uint16_t				StrategyType = 0;					/*   @4 +   2 uint16_t */
+	uint32_t				PriorRecordedNumberOfDirectEntries;			/*   @0 +   4 uint32_t */
+	uint16_t				StrategyType;					/*   @4 +   2 uint16_t */
 	uint8_t					StrategyParameter[2];					/*   @6 +   2 uint8_t */
-	uint16_t				MaximumNumberOfEntries = 0;				/*   @8 +   2 uint16_t */
-	uint8_t					Reserved = 0;						/*  @10 +   1 uint8_t */
-	uint8_t					FileType = 0;						/*  @11 +   1 uint8_t */
+	uint16_t				MaximumNumberOfEntries;				/*   @8 +   2 uint16_t */
+	uint8_t					Reserved;						/*  @10 +   1 uint8_t */
+	uint8_t					FileType;						/*  @11 +   1 uint8_t */
 	UDFlb_addr				ParentICBLocation;					/*  @12 +   6 lb_addr */
-	uint16_t				Flags = 0;						/*  @18 +   2 uint16 */
+	uint16_t				Flags;						/*  @18 +   2 uint16 */
 
 	uint8_t					AllocationDescriptorType(void) const;
 	void					get(const unsigned int sz,const unsigned char *b);
@@ -1016,24 +1018,24 @@ struct UDFicbtag { /* ECMA-167 4/14.6 */
 struct UDFFileEntry { /* ECMA-167 4/14.9 */
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=261 */
 	UDFicbtag				ICBTag;							/*  @16 +  20 icbtag */
-	uint32_t				Uid = 0;						/*  @36 +   4 uint32_t */
-	uint32_t				Gid = 0;						/*  @40 +   4 uint32_t */
-	uint32_t				Permissions = 0;					/*  @44 +   4 uint32_t */
-	uint16_t				FileLinkCount = 0;					/*  @48 +   2 uint16_t */
-	uint8_t					RecordFormat = 0;					/*  @50 +   1 uint8_t */
-	uint8_t					RecordDisplayAttributes = 0;				/*  @51 +   1 uint8_t */
-	uint32_t				RecordLength = 0;					/*  @52 +   4 uint32_t */
-	uint64_t				InformationLength = 0;					/*  @56 +   8 uint64_t */
-	uint64_t				LogicalBlocksRecorded = 0;				/*  @64 +   8 uint64_t */
+	uint32_t				Uid;						/*  @36 +   4 uint32_t */
+	uint32_t				Gid;						/*  @40 +   4 uint32_t */
+	uint32_t				Permissions;					/*  @44 +   4 uint32_t */
+	uint16_t				FileLinkCount;					/*  @48 +   2 uint16_t */
+	uint8_t					RecordFormat;					/*  @50 +   1 uint8_t */
+	uint8_t					RecordDisplayAttributes;				/*  @51 +   1 uint8_t */
+	uint32_t				RecordLength;					/*  @52 +   4 uint32_t */
+	uint64_t				InformationLength;					/*  @56 +   8 uint64_t */
+	uint64_t				LogicalBlocksRecorded;				/*  @64 +   8 uint64_t */
 	UDFtimestamp				AccessDateAndTime;					/*  @72 +  12 timestamp */
 	UDFtimestamp				ModificationDateAndTime;				/*  @84 +  12 timestamp */
 	UDFtimestamp				AttributeDateAndTime;					/*  @96 +  12 timestamp */
-	uint32_t				Checkpoint = 0;						/* @108 +   4 uint32_t */
+	uint32_t				Checkpoint;						/* @108 +   4 uint32_t */
 	UDFlong_ad				ExtendedAttributeICB;					/* @112 +  16 long_ad */
 	UDFregid				ImplementationIdentifier;				/* @128 +  32 regid */
-	uint64_t				UniqueId = 0;						/* @160 +   8 uint64_t */
-	uint32_t				LengthOfExtendedAttributes = 0;				/* @168 +   4 uint32_t */
-	uint32_t				LengthOfAllocationDescriptors = 0;			/* @172 +   4 uint32_t */
+	uint64_t				UniqueId;						/* @160 +   8 uint64_t */
+	uint32_t				LengthOfExtendedAttributes;				/* @168 +   4 uint32_t */
+	uint32_t				LengthOfAllocationDescriptors;			/* @172 +   4 uint32_t */
 
 	// TODO: Extended Attributes @176
 
@@ -1056,11 +1058,11 @@ struct UDFFileEntry { /* ECMA-167 4/14.9 */
 #if !defined(OSFREE)
 struct UDFFileIdentifierDescriptor { /* ECMA-167 4/14.4 */
 	UDFTagId				DescriptorTag;						/*   @0 +  16 tag ID=257 */
-	uint16_t				FileVersionNumber = 0;					/*  @16 +   2 uint16_t */
-	uint8_t					FileCharacteristics = 0;				/*  @18 +   1 uint8_t */
-	uint8_t					LengthOfFileIdentifier = 0;				/*  @19 +   1 uint8_t */
+	uint16_t				FileVersionNumber;					/*  @16 +   2 uint16_t */
+	uint8_t					FileCharacteristics;				/*  @18 +   1 uint8_t */
+	uint8_t					LengthOfFileIdentifier;				/*  @19 +   1 uint8_t */
 	UDFlong_ad				ICB;							/*  @20 +  16 long_ad */
-	uint16_t				LengthOfImplementationUse = 0;				/*  @36 +   2 uint16_t */
+	uint16_t				LengthOfImplementationUse;				/*  @36 +   2 uint16_t */
 	std::vector<uint8_t>			ImplementationUse;					/*  @38 + L_IU bytes */
 	UDF_blob				FileIdentifier;						/*  @38+L_IU + L_FI bytes */
 
@@ -1086,17 +1088,17 @@ struct UDFextents {
 	std::vector<struct UDFextent> xl;
 
 	// extents stored within extent area
-	bool is_indata = false;
+	bool is_indata;
 	std::vector<uint8_t> indata;
 
 	// current position
-	uint32_t		relofs = 0;	// offset within extent
-	uint64_t		extofs = 0;	// base offset of extent
-	size_t			extent = 0;	// which extent
-	uint64_t		filesz = 0;	// file size
+	uint32_t		relofs;	// offset within extent
+	uint64_t		extofs;	// base offset of extent
+	size_t			extent;	// which extent
+	uint64_t		filesz;	// file size
 
 	std::vector<uint8_t>	sector_buffer;
-	uint32_t		sector_buffer_n = 0xFFFFFFFFu;
+	uint32_t		sector_buffer_n;
 
 				UDFextents();
 				UDFextents(const struct UDFextent_ad &s);
@@ -1109,32 +1111,32 @@ class isoDrive : public DOS_Drive {
 public:
 	isoDrive(char driveLetter, const char* fileName, uint8_t mediaid, int &error, std::vector<std::string>& options);
 	~isoDrive();
-	bool FileOpen(DOS_File **file, const char *name, uint32_t flags) override;
-	bool FileCreate(DOS_File **file, const char *name, uint16_t attributes) override;
-	bool FileUnlink(const char *name) override;
-	bool RemoveDir(const char *dir) override;
-	bool MakeDir(const char *dir) override;
-	bool TestDir(const char *dir) override;
-	bool FindFirst(const char *dir, DOS_DTA &dta, bool fcb_findfirst) override;
-	bool FindNext(DOS_DTA &dta) override;
-	bool SetFileAttr(const char *name,uint16_t attr) override;
-	bool GetFileAttr(const char *name, uint16_t *attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
-	unsigned long GetCompressedSize(char* name) override;
+	bool FileOpen(DOS_File **file, const char *name, uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File **file, const char *name, uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char *name) DBX_OVERRIDE;
+	bool RemoveDir(const char *dir) DBX_OVERRIDE;
+	bool MakeDir(const char *dir) DBX_OVERRIDE;
+	bool TestDir(const char *dir) DBX_OVERRIDE;
+	bool FindFirst(const char *dir, DOS_DTA &dta, bool fcb_findfirst) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA &dta) DBX_OVERRIDE;
+	bool SetFileAttr(const char *name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char *name, uint16_t *attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
 #endif
-	bool Rename(const char * oldname,const char * newname) override;
-	bool AllocationInfo(uint16_t *bytes_sector, uint8_t *sectors_cluster, uint16_t *total_clusters, uint16_t *free_clusters) override;
-	bool FileExists(const char *name) override;
-	bool FileStat(const char *name, FileStat_Block *const stat_block) override;
-	uint8_t GetMediaByte(void) override;
-	void EmptyCache(void) override;
-	void MediaChange(void) override;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool AllocationInfo(uint16_t *bytes_sector, uint8_t *sectors_cluster, uint16_t *total_clusters, uint16_t *free_clusters) DBX_OVERRIDE;
+	bool FileExists(const char *name) DBX_OVERRIDE;
+	bool FileStat(const char *name, FileStat_Block *const stat_block) DBX_OVERRIDE;
+	uint8_t GetMediaByte(void) DBX_OVERRIDE;
+	void EmptyCache(void) DBX_OVERRIDE;
+	void MediaChange(void) DBX_OVERRIDE;
 	void MediaChangeImmediate(void);
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
 	bool loadImage();
 #if !defined(OSFREE)
 	bool loadImageUDF();
@@ -1142,8 +1144,8 @@ public:
 #endif
 	bool readSector(uint8_t *buffer, uint32_t sector) const;
 	void setFileName(const char* fileName);
-	char const* GetLabel(void) override {return discLabel;};
-	void Activate(void) override;
+	char const* GetLabel(void) DBX_OVERRIDE {return discLabel;};
+	void Activate(void) DBX_OVERRIDE;
 private:
 #if !defined(OSFREE)
 	int  readDirEntry(isoDirEntry* de, const uint8_t* data, unsigned int direntindex) const;
@@ -1172,20 +1174,20 @@ private:
 	} sectorHashEntries[ISO_MAX_HASH_TABLE_SIZE];
 #endif
 
-    bool iso = false;
-    bool dataCD = false;
+    bool iso;
+    bool dataCD;
 #if !defined(OSFREE)
-    bool is_udf = false;
-    bool is_joliet = false;
+    bool is_udf;
+    bool is_joliet;
 #else
     static constexpr bool is_udf = false;
     static constexpr bool is_joliet = false;
 #endif
 #if !defined(OSFREE)
-    bool is_rock_ridge = false; // NTS: Rock Ridge and System Use Sharing Protocol was detected in the root directory
-    bool enable_joliet = false; // NTS: "Joliet" is just ISO 9660 with filenames encoded as UTF-16 Unicode. One of the few times Microsoft extended something yet kept it simple --J.C.
-    bool enable_rock_ridge = false; // NTS: Windows 95/98 are unlikely to support Rock Ridge, therefore this is off by default. If they do support RR, let me know --J.C.
-    bool enable_udf = false; // NTS: Windows 98 is said to have added UDF support
+    bool is_rock_ridge; // NTS: Rock Ridge and System Use Sharing Protocol was detected in the root directory
+    bool enable_joliet; // NTS: "Joliet" is just ISO 9660 with filenames encoded as UTF-16 Unicode. One of the few times Microsoft extended something yet kept it simple --J.C.
+    bool enable_rock_ridge; // NTS: Windows 95/98 are unlikely to support Rock Ridge, therefore this is off by default. If they do support RR, let me know --J.C.
+    bool enable_udf; // NTS: Windows 98 is said to have added UDF support
 #else
     static constexpr bool is_rock_ridge = false; // NTS: Rock Ridge and System Use Sharing Protocol was detected in the root directory
     static constexpr bool enable_joliet = false; // NTS: "Joliet" is just ISO 9660 with filenames encoded as UTF-16 Unicode. One of the few times Microsoft extended something yet kept it simple --J.C.
@@ -1195,15 +1197,15 @@ private:
 #if !defined(OSFREE)
 	isoDirEntry rootEntry;
 #endif
-    uint8_t mediaid = 0;
+    uint8_t mediaid;
 	char fileName[CROSS_LEN];
 #if !defined(OSFREE)
-	uint8_t rr_susp_skip = 0;
+	uint8_t rr_susp_skip;
 #endif
-    uint8_t subUnit = 0;
-    char driveLetter = '\0';
+    uint8_t subUnit;
+    char driveLetter;
 	char discLabel[32];
-	CDROM_Interface *cdrom = NULL;
+	CDROM_Interface *cdrom;
 public:
 #if !defined(OSFREE)
 	UDFextent_ad convertToUDFextent_ad(const UDFshort_ad &s,const uint32_t partition_ref_id=0xFFFFFFFFu) const;
@@ -1244,7 +1246,7 @@ private:
 #if !defined(OSFREE)
 		UDFextents udfdirext;
 #endif
-    } dirIterators[MAX_OPENDIRS] = {};
+    } dirIterators[MAX_OPENDIRS];
 private:
 #if !defined(OSFREE)
 	bool GetNextDirEntry(const int dirIteratorHandle, UDFFileIdentifierDescriptor &fid, UDFFileEntry &fe, UDFextents &dirext, char fname[LFN_NAMELENGTH],unsigned int dirIteratorIndex);
@@ -1256,34 +1258,34 @@ struct VFILE_Block;
 class Virtual_Drive: public DOS_Drive {
 public:
 	Virtual_Drive();
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) override;
-	bool FileUnlink(const char * name) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
-	bool TestDir(const char * dir) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) override;
-	bool FindNext(DOS_DTA & dta) override;
-	bool SetFileAttr(const char * name,uint16_t attr) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
-	bool GetFileAttrEx(char* name, struct stat *status) override;
-	unsigned long GetCompressedSize(char* name) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t attributes) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
+	bool TestDir(const char * dir) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA & dta) DBX_OVERRIDE;
+	bool SetFileAttr(const char * name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
+	bool GetFileAttrEx(char* name, struct stat *status) DBX_OVERRIDE;
+	unsigned long GetCompressedSize(char* name) DBX_OVERRIDE;
 #if defined (WIN32)
-	HANDLE CreateOpenFile(char const* const name) override;
+	HANDLE CreateOpenFile(char const* const name) DBX_OVERRIDE;
 #endif
-	bool Rename(const char * oldname,const char * newname) override;
-	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) override;
-	bool FileExists(const char* name) override;
-	bool FileStat(const char* name, FileStat_Block* const stat_block) override;
-	void MediaChange() override {}
-	uint8_t GetMediaByte(void) override;
-	void EmptyCache(void) override;
-	bool isRemote(void) override;
-	bool isRemovable(void) override;
-	Bits UnMount(void) override;
-	char const* GetLabel(void) override;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) DBX_OVERRIDE;
+	bool FileExists(const char* name) DBX_OVERRIDE;
+	bool FileStat(const char* name, FileStat_Block* const stat_block) DBX_OVERRIDE;
+	void MediaChange() DBX_OVERRIDE {}
+	uint8_t GetMediaByte(void) DBX_OVERRIDE;
+	void EmptyCache(void) DBX_OVERRIDE;
+	bool isRemote(void) DBX_OVERRIDE;
+	bool isRemovable(void) DBX_OVERRIDE;
+	Bits UnMount(void) DBX_OVERRIDE;
+	char const* GetLabel(void) DBX_OVERRIDE;
 private:
-	VFILE_Block* search_file = nullptr;
+	VFILE_Block* search_file;
 };
 
 class Overlay_Drive: public localDrive {
@@ -1291,24 +1293,24 @@ public:
 #if !defined(OSFREE)
 	Overlay_Drive(const char * startdir,const char* overlay, uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid,uint8_t &error, std::vector<std::string> &options);
 
-	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) override;
-	bool FileCreate(DOS_File * * file,const char * name,uint16_t /*attributes*/) override;
-	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) override;
-	bool FindNext(DOS_DTA & dta) override;
-	bool FileUnlink(const char * name) override;
-	bool SetFileAttr(const char * name,uint16_t attr) override;
-	bool GetFileAttr(const char * name,uint16_t * attr) override;
+	bool FileOpen(DOS_File * * file,const char * name,uint32_t flags) DBX_OVERRIDE;
+	bool FileCreate(DOS_File * * file,const char * name,uint16_t /*attributes*/) DBX_OVERRIDE;
+	bool FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) DBX_OVERRIDE;
+	bool FindNext(DOS_DTA & dta) DBX_OVERRIDE;
+	bool FileUnlink(const char * name) DBX_OVERRIDE;
+	bool SetFileAttr(const char * name,uint16_t attr) DBX_OVERRIDE;
+	bool GetFileAttr(const char * name,uint16_t * attr) DBX_OVERRIDE;
 	std::string GetHostName(const char * name);
-	bool FileExists(const char* name) override;
-	bool Rename(const char * oldname,const char * newname) override;
-	bool FileStat(const char* name, FileStat_Block * const stat_block) override;
-	void EmptyCache(void) override;
+	bool FileExists(const char* name) DBX_OVERRIDE;
+	bool Rename(const char * oldname,const char * newname) DBX_OVERRIDE;
+	bool FileStat(const char* name, FileStat_Block * const stat_block) DBX_OVERRIDE;
+	void EmptyCache(void) DBX_OVERRIDE;
 
-	FILE* create_file_in_overlay(const char* dos_filename, char const* mode);
-	Bits UnMount(void) override;
-	bool TestDir(const char * dir) override;
-	bool RemoveDir(const char * dir) override;
-	bool MakeDir(const char * dir) override;
+	FILE* create_file_in_overlay(const char* dos_filename, char const* mode, std::string *out_host_path = NULL);
+	Bits UnMount(void) DBX_OVERRIDE;
+	bool TestDir(const char * dir) DBX_OVERRIDE;
+	bool RemoveDir(const char * dir) DBX_OVERRIDE;
+	bool MakeDir(const char * dir) DBX_OVERRIDE;
 #endif
 #if !defined(OSFREE)
 	const char* getOverlaydir() const {return overlaydir;};
@@ -1316,10 +1318,10 @@ public:
 	const char* getOverlaydir() const {return "";};
 #endif
 #if !defined(OSFREE)
-	bool ovlnocachedir = false;
+	bool ovlnocachedir;
 #endif
 #if !defined(OSFREE)
-	bool ovlreadonly = false;
+	bool ovlreadonly;
 #else
 	static constexpr bool ovlreadonly = false;
 #endif
@@ -1348,9 +1350,9 @@ private:
 	bool is_dir_only_in_overlay(const char* name); //cached
 
 
-	void remove_special_file_from_disk(const char* dosname, const char* operation) override;
-	bool add_special_file_to_disk(const char* dosname, const char* operation, uint16_t value = 0, bool isdir = false) override;
-	std::string create_filename_of_special_operation(const char* dosname, const char* operation, bool expand = false) override;
+	void remove_special_file_from_disk(const char* dosname, const char* operation) DBX_OVERRIDE;
+	bool add_special_file_to_disk(const char* dosname, const char* operation, uint16_t value = 0, bool isdir = false) DBX_OVERRIDE;
+	std::string create_filename_of_special_operation(const char* dosname, const char* operation, bool expand = false) DBX_OVERRIDE;
 	void convert_overlay_to_DOSname_in_base(char* dirname );
 	//For caching the update_cache routine.
 	std::vector<std::string> DOSnames_cache; //Also set is probably better.

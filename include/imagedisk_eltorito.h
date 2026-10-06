@@ -25,8 +25,8 @@
 class imageDiskElToritoFloppy : public imageDisk {
 public:
     /* Read_Sector and Write_Sector take care of geometry translation for us,
-     * then call the absolute versions. So, we override the absolute versions only */
-    Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override {
+     * then call the absolute versions. So, we DBX_OVERRIDE the absolute versions only */
+    Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE {
         unsigned char buffer[2048];
 
 	if (!src_drive)
@@ -38,12 +38,12 @@ public:
         memcpy(data,buffer+((sectnum&3)*512),512);
         return Int13Status::NoError;
     }
-    Int13Status Write_AbsoluteSector(uint32_t sectnum,const void * data) override {
+    Int13Status Write_AbsoluteSector(uint32_t sectnum,const void * data) DBX_OVERRIDE {
         (void)sectnum;//UNUSED
         (void)data;//UNUSED
         return Int13Status::WriteProtected; /* fail, read only */
     }
-    imageDiskElToritoFloppy(unsigned char new_CDROM_drive,unsigned long new_cdrom_sector_offset,unsigned char floppy_emu_type) : imageDisk((FILE *)NULL,NULL,0,false), CDROM_drive(new_CDROM_drive), cdrom_sector_offset(new_cdrom_sector_offset), floppy_type(floppy_emu_type) {
+    imageDiskElToritoFloppy(unsigned char new_CDROM_drive,unsigned long new_cdrom_sector_offset,unsigned char floppy_emu_type) : imageDisk((FILE *)NULL,NULL,0,false), src_drive(NULL), CDROM_drive(new_CDROM_drive), cdrom_sector_offset(new_cdrom_sector_offset), floppy_type(floppy_emu_type) {
         diskimg = NULL;
         sector_size = 512;
         class_id = ID_EL_TORITO_FLOPPY;
@@ -83,7 +83,7 @@ public:
         }
     }
 
-    CDROM_Interface *src_drive=NULL;
+    CDROM_Interface *src_drive;
     unsigned char CDROM_drive;
     unsigned long cdrom_sector_offset;
     unsigned char floppy_type;

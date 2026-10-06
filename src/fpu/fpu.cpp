@@ -20,10 +20,15 @@
 #include "dosbox.h"
 #if C_FPU
 
-#include <array>
+#if !C_OPENSTEP
 #include <cfenv>
+#endif
+#if !C_FPU_X86
+#include <cmath>
+#endif
 #include <limits>
 #include <string>
+#include <sstream>
 
 #include "cpu.h"
 #include "cpu/lazyflags.h"
@@ -40,7 +45,7 @@ FPU fpu;
 
 namespace {
 
-constexpr double X87_TRIG_ARG_LIMIT = 0x1p63; // 2^63
+const double X87_TRIG_ARG_LIMIT = 0x1p63; // 2^63
 
 } // namespace
 
@@ -75,7 +80,7 @@ static void fpu_StoreRegister80(PhysPt addr, int reg)
 
 void fpu_Push(const FPU_Reg_80& input)
 {
-    auto val = input;   // 32-bit ARM MSVC does not gaurantee 16-byte stack alignment so have to pass by ref
+    FPU_Reg_80 val = input;   // 32-bit ARM MSVC does not gaurantee 16-byte stack alignment so have to pass by ref
                         // and create a copy here
     TOP = (TOP-1) & 7;
     if (fpu.regvalid[TOP]) {
@@ -83,7 +88,7 @@ void fpu_Push(const FPU_Reg_80& input)
         fpu.sw.SF = 1;
         fpu.sw.C1 = 1;
         fpu_detail::CheckException();
-        val = FPU_Reg_80::QNaN;
+        val = FPU_QNaN_80;
     }
     fpu.regs_80[TOP] = val;
     fpu.regvalid[TOP] = true;
@@ -96,8 +101,8 @@ void fpu_Push(const FPU_Reg_80& input)
 static void fpu_PushReal(const FPU_Reg_32& source)
 {
     FPU_Reg_80 value;
-    const auto denormal = IsSubnormal(source);
-    const auto signaling_nan = IsSNaN(source);
+    const bool denormal = IsSubnormal(source);
+    const bool signaling_nan = IsSNaN(source);
     float80::convertFrom(value, source);
     if (signaling_nan) float80::setQuietBit(value);
     fpu_Push(value);
@@ -107,8 +112,8 @@ static void fpu_PushReal(const FPU_Reg_32& source)
 static void fpu_PushReal(const FPU_Reg_64& source)
 {
     FPU_Reg_80 value;
-    const auto denormal = IsSubnormal(source);
-    const auto signaling_nan = IsSNaN(source);
+    const bool denormal = IsSubnormal(source);
+    const bool signaling_nan = IsSNaN(source);
     float80::convertFrom(value, source);
     if (signaling_nan) float80::setQuietBit(value);
     fpu_Push(value);
@@ -195,9 +200,9 @@ void FPU_FADD_EA(int op1)
 
 void FPU_FBLD(PhysPt addr)
 {
-    std::array<uint8_t, 10> bcd = {};
-    const auto low = mem_readq(addr);
-    const auto high = mem_readw(addr + 8);
+    uint8_t bcd[10] = {0};
+    const uint64_t low = mem_readq(addr);
+    const uint16_t high = mem_readw(addr + 8);
 
     for (uint8_t i = 0; i < 8; ++i)
         bcd[i] = static_cast<uint8_t>(low >> (i * 8U));
@@ -210,7 +215,7 @@ void FPU_FBLD(PhysPt addr)
     // Packed BCD has 18 digits in bytes 0 through 8. Both guest-memory reads
     // complete before modifying the FPU stack, so a page fault leaves it unchanged.
     for (uint8_t i = 0; i < 9; ++i) {
-        const auto digits = bcd[i];
+        const uint8_t digits = bcd[i];
         magnitude += (digits & 0x0FU) * decimal_place;
         decimal_place *= 10;
         magnitude += ((digits >> 4) & 0x0FU) * decimal_place;
@@ -218,8 +223,8 @@ void FPU_FBLD(PhysPt addr)
     }
 
     // Bit 7 of the final byte is the sign; the other bits are reserved.
-    const auto negative = (bcd[9] & 0x80U) != 0;
-    auto value = static_cast<int64_t>(magnitude);
+    const bool negative = (bcd[9] & 0x80U) != 0;
+    int64_t value = static_cast<int64_t>(magnitude);
     if (negative && value != 0)
         value = -value;
 
@@ -234,14 +239,14 @@ void FPU_FBLD(PhysPt addr)
 
 void FPU_FBST(PhysPt addr)
 {
-    constexpr uint64_t bcd_max = 999'999'999'999'999'999ULL;
+    const uint64_t bcd_max = 999999999999999999ULL;
 
     fpu_detail::StackValid(TOP);
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
-    const auto conversion = float80::convertToI64(value);
-    auto exceptions = conversion.exceptions;
-    auto rounded_up = conversion.rounded_up;
+    const float80::IntegerConversionResult conversion = float80::convertToI64(value);
+    uint16_t exceptions = conversion.exceptions;
+    bool rounded_up = conversion.rounded_up;
 
     uint64_t magnitude = 0;
     if (!(exceptions & FPU_EX_INVALID)) {
@@ -263,7 +268,7 @@ void FPU_FBST(PhysPt addr)
 
     if (exceptions & FPU_EX_INVALID) {
         // Packed-BCD integer indefinite: 00 00 00 00 00 00 C0 00 FF FF.
-        mem_writeq(addr, 0xC000'0000'0000'0000ULL);
+        mem_writeq(addr, 0xC000000000000000ULL);
         mem_writew(addr + 8, 0xFFFFU);
         return;
     }
@@ -271,7 +276,7 @@ void FPU_FBST(PhysPt addr)
     uint64_t lower = 0;
     uint16_t upper = value.f.sign ? 0x8000U : 0;
     for (uint8_t i = 0; i < 9; ++i) {
-        auto digit_pair = static_cast<uint8_t>(magnitude % 10U);
+        uint8_t digit_pair = static_cast<uint8_t>(magnitude % 10U);
         magnitude /= 10U;
         digit_pair |= static_cast<uint8_t>(magnitude % 10U) << 4U;
         magnitude /= 10U;
@@ -468,7 +473,7 @@ void FPU_FINIT()
 {
 	fpu.cw.init();
 	fpu.sw.init();
-    fpu.regvalid = {};
+    std::fill(fpu.regvalid, fpu.regvalid + 9, false);
     fpu.regvalid[8] = true; // the 9th register is always valid, it's used for temporary storage
     fpu.ea_denormal = false;
 
@@ -767,13 +772,13 @@ void FPU_FPOP()
 void FPU_FPTAN()
 {
     FPU_Reg_80 one = {};
-    float80::convertFrom(one, int64_t{1});
+    float80::convertFrom(one, int64_t(1));
 
     fpu.sw.C1 = 0;
     fpu.sw.C2 = 0;
 
     if (fpu_detail::CheckInputs(TOP)) {
-        fpu_Push(FPU_Reg_80::QNaN);
+        fpu_Push(FPU_QNaN_80);
         return;
     }
 
@@ -781,14 +786,14 @@ void FPU_FPTAN()
         fpu.sw.IE = 1;
         fpu_detail::CheckException();
         fpu_detail::SetQNaN(TOP);
-        fpu_Push(FPU_Reg_80::QNaN);
+        fpu_Push(FPU_QNaN_80);
         return;
     }
 
     fpu_detail::CheckInputDenormals(TOP);
 
 #if C_FPU_X86
-    const auto output = (TOP - 1) & 7;
+    const unsigned int output = (TOP - 1) & 7;
     FPUD_PTAN();
     if (!fpu.sw.C2) fpu_Push(fpu.regs_80[output]);
 #else
@@ -952,8 +957,8 @@ void FPU_FRSTOR(PhysPt addr, bool op16)
 {
 	FPU_FLDENV(addr, op16);
 
-	auto start = op16 ? 14:28;
-	for(auto i = 0; i < 8; i++) {
+	int start = op16 ? 14:28;
+	for(int i = 0; i < 8; i++) {
 		fpu.regs_80[STV(i)].raw.l = mem_readq(addr+start);
 		fpu.regs_80[STV(i)].raw.h = mem_readw(addr+start+8);
 #ifndef HAS_LONG_DOUBLE
@@ -1013,7 +1018,7 @@ void FPU_FSINCOS()
     fpu.sw.C1 = 0;
     fpu.sw.C2 = 0;
     if (fpu_detail::CheckInputs(TOP)) {
-        fpu_Push(FPU_Reg_80::QNaN);
+        fpu_Push(FPU_QNaN_80);
         return;
     }
 
@@ -1028,7 +1033,7 @@ void FPU_FSINCOS()
     fpu_detail::CheckInputDenormals(TOP);
 
 #if C_FPU_X86
-    const auto output = (TOP - 1) & 7;
+    const unsigned int output = (TOP - 1) & 7;
     FPUD_SINCOS();
     if (!fpu.sw.C2) fpu_Push(fpu.regs_80[output]);
 #else
@@ -1061,8 +1066,8 @@ void FPU_FSINCOS()
 
     FPU_Reg_80 cosine_80 = {};
     float80::convertFrom(cosine_80, cosine);
-    const auto output = (TOP - 1) & 7;
-    const auto stack_overflow = fpu.regvalid[output];
+    const unsigned int output = (TOP - 1) & 7;
+    const bool stack_overflow = fpu.regvalid[output];
     fpu_Push(cosine_80);
     if (!stack_overflow) {
         fpu.use80[TOP] = false;
@@ -1177,8 +1182,8 @@ void FPU_FSAVE(PhysPt addr, bool op16)
 {
     FPU_FSTENV(addr, op16);
 
-    auto offset = op16 ? 14 : 28;
-    for (auto i = 0; i < 8; ++i) {
+    int offset = op16 ? 14 : 28;
+    for (int i = 0; i < 8; ++i) {
         fpu_StoreRegister80(addr + offset, STV(i));
         offset += 10;
     }
@@ -1191,7 +1196,7 @@ void FPU_FST_F32(PhysPt addr)
     fpu_detail::StackValid(TOP);
 
     FPU_Reg_32 result = {};
-    float80::F32ConversionResult conversion = {};
+    float80::F32ConversionResult conversion;
 
 #ifdef HAS_LONG_DOUBLE
     conversion = float80::convertToF32(fpu.regs_80[TOP]);
@@ -1225,7 +1230,7 @@ void FPU_FST_F64(PhysPt addr)
     fpu_detail::StackValid(TOP);
 
     FPU_Reg_64 result = {};
-    float80::F64ConversionResult conversion = {};
+    float80::F64ConversionResult conversion;
 
 #ifdef HAS_LONG_DOUBLE
     conversion = float80::convertToF64(fpu.regs_80[TOP]);
@@ -1261,7 +1266,7 @@ void FPU_FST_I16(PhysPt addr)
     fpu_detail::StackValid(TOP);
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
-    const auto conversion = float80::convertToI16(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI16(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1280,7 +1285,7 @@ void FPU_FISTTP_I16(PhysPt addr)
 
     // Do not temporarily change fpu.cw.RC and call FPU_FST_I16: a memory
     // fault during the store could prevent restoration of the guest control word.
-    const auto conversion = float80::convertToI16Truncate(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI16Truncate(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1297,7 +1302,7 @@ void FPU_FST_I32(PhysPt addr)
     fpu_detail::StackValid(TOP);
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
-    const auto conversion = float80::convertToI32(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI32(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1314,7 +1319,7 @@ void FPU_FISTTP_I32(PhysPt addr)
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
 
-    const auto conversion = float80::convertToI32Truncate(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI32Truncate(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1331,7 +1336,7 @@ void FPU_FST_I64(PhysPt addr)
     fpu_detail::StackValid(TOP);
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
-    const auto conversion = float80::convertToI64(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI64(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1348,7 +1353,7 @@ void FPU_FISTTP_I64(PhysPt addr)
     FPU_Reg_80 value = {};
     fpu_GetST80(value);
 
-    const auto conversion = float80::convertToI64Truncate(value);
+    const float80::IntegerConversionResult conversion = float80::convertToI64Truncate(value);
     fpu.sw.C1 = conversion.rounded_up;
 
     if (conversion.exceptions) {
@@ -1527,7 +1532,7 @@ void FPU_FXTRACT()
 
 #if C_FPU_X86
     fpu_detail::CheckInputDenormals(TOP);
-    const auto output = (TOP - 1) & 7;
+    const unsigned int output = (TOP - 1) & 7;
     FPUD_XTRACT
     fpu_Push(fpu.regs_80[output]);
 #else
@@ -1588,17 +1593,17 @@ void FPU_FYL2X()
 {
     fpu.sw.C1 = 0;
 
-    const auto x = TOP;
-    const auto y = STV(1);
+    const unsigned int x = TOP;
+    const unsigned int y = STV(1);
 
     if (fpu_detail::CheckInputs(y, x)) {
         FPU_FPOP();
         return;
     }
 
-    const auto x_is_zero = fpu_detail::InputIsZero(x);
-    const auto y_is_zero = fpu_detail::InputIsZero(y);
-    const auto y_is_infinity = fpu_detail::InputIsInfinity(y);
+    const bool x_is_zero = fpu_detail::InputIsZero(x);
+    const bool y_is_zero = fpu_detail::InputIsZero(y);
+    const bool y_is_infinity = fpu_detail::InputIsInfinity(y);
     if (fpu_detail::InputIsNegative(x) &&
         !x_is_zero) {
         fpu.sw.IE = 1;
@@ -1655,8 +1660,8 @@ void FPU_FYL2XP1()
 {
     fpu.sw.C1 = 0;
 
-    const auto x = TOP;
-    const auto y = STV(1);
+    const unsigned int x = TOP;
+    const unsigned int y = STV(1);
 
     if (fpu_detail::CheckInputs(y, x)) {
         FPU_FPOP();
@@ -2613,14 +2618,23 @@ void FPU_Init() {
 	FPU_FINIT();
 
     // Don't trigger any exceptions on the host
+#if C_OPENSTEP
+    // OPENSTEP has no C99 fenv API. Preserve precision and rounding while
+    // masking and clearing host x87 exceptions, as feholdexcept does.
+    unsigned short host_cw;
+    __asm__ __volatile__("fnstcw %0" : "=m"(host_cw));
+    host_cw |= 0x003f;
+    __asm__ __volatile__("fnclex; fldcw %0" : : "m"(host_cw));
+#else
     fenv_t tmp;
     std::feholdexcept(&tmp);
+#endif
 }
 
 static void FPU_SetAbridgedTag(uint8_t b)
 {
-    for (auto& regvalid: fpu.regvalid) {
-        regvalid = !!(b & 1);
+    for (unsigned int index = 0; index < 9; ++index) {
+        fpu.regvalid[index] = !!(b & 1);
         b >>= 1;
     }
 }
@@ -2628,9 +2642,9 @@ static void FPU_SetAbridgedTag(uint8_t b)
 static uint8_t FPU_GetAbridgedTag()
 {
     uint8_t b = 0;
-    auto i = 0;
-    for (auto regvalid: fpu.regvalid) {
-        if (regvalid) b |= 1u << i++;
+    unsigned int i = 0;
+    for (unsigned int index = 0; index < 9; ++index) {
+        if (fpu.regvalid[index]) b |= 1u << i++;
     }
     return b;
 }
@@ -2679,7 +2693,7 @@ void CPU_FXRSTOR(PhysPt eaa) {
 	fpu.mxcsr = mem_readd(eaa+0x018);				/* +0x018 MXCSR */
 
 	/* NTS: Remember that st(i) TOP pointer is in FPU status word */
-	for (auto i = 0; i < 8; i++) {
+	for (int i = 0; i < 8; i++) {
 #ifdef HAS_LONG_DOUBLE
 		fpu.p_regs[STV(i)].m1 = mem_readd(eaa+0x020+(i*16)+0);
 		fpu.p_regs[STV(i)].m2 = mem_readd(eaa+0x020+(i*16)+4);
@@ -2695,7 +2709,7 @@ void CPU_FXRSTOR(PhysPt eaa) {
     FPU_SetAbridgedTag(mem_readb(eaa+0x004));	/* +0x004 FPU tag words, abridged to a bitfield of 1=not empty 0=empty, register order NOT from TOP */
 
 	if (CPU_SSE()) {
-		for (auto i = 0; i < 8; i++) {
+		for (int i = 0; i < 8; i++) {
 			XMM_Reg &xmm = fpu.xmmreg[i];
 			xmm.u32[0] = mem_readd(eaa+0x0A0+(i*16)+0x0);
 			xmm.u32[1] = mem_readd(eaa+0x0A0+(i*16)+0x4);
@@ -2722,10 +2736,12 @@ public:
 
 std::string FPUStatusWord::to_string() const
 {
-	return "B=" + std::to_string(B) + " C3-C0=" + std::to_string(C3) + std::to_string(C2) +
-	       std::to_string(C1) + std::to_string(C0) + " ES=" + std::to_string(ES) +
-	       " SF=" + std::to_string(SF) + " PE=" + std::to_string(PE) +
-	       " UE=" + std::to_string(UE) + " OE=" + std::to_string(OE) +
-	       " ZE=" + std::to_string(ZE) + " DE=" + std::to_string(DE) +
-	       " IE=" + std::to_string(IE) + " TOP=" + std::to_string(top);
+    std::ostringstream text;
+    text << "B=" << unsigned(B) << " C3-C0=" << unsigned(C3) << unsigned(C2)
+         << unsigned(C1) << unsigned(C0) << " ES=" << unsigned(ES)
+         << " SF=" << unsigned(SF) << " PE=" << unsigned(PE)
+         << " UE=" << unsigned(UE) << " OE=" << unsigned(OE)
+         << " ZE=" << unsigned(ZE) << " DE=" << unsigned(DE)
+         << " IE=" << unsigned(IE) << " TOP=" << unsigned(top);
+    return text.str();
 }

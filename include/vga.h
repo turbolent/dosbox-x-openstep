@@ -228,14 +228,25 @@ struct VGA_Draw {
 	 *   ...
 	 *
 	 * memory write checking must be as simple as possible because mem write code is called VERY OFTEN */
-    unsigned int draw_base_planar = 0;
-    unsigned int draw_base_size = 0;
+    unsigned int draw_base_planar;
+    unsigned int draw_base_size;
 
 	uint8_t cga_snow[80];			// one bit per horizontal column where snow should occur
 
 	/*Color and brightness for monochrome display*/
 	MonochromeColor monochrome_pal;
 	uint8_t monochrome_bright;
+	VGA_Draw() : resizing(false), width(0), height(0), blocks(0),
+	    address(0), panning(0), bytes_skip(0), linear_base(NULL), linear_mask(0),
+	    planar_mask(0), address_add(0), line_length(0), address_line_total(0),
+	    address_line(0), lines_total(0), vblank_skip(0), lines_done(0), split_line(0),
+	    hsync_events(0), byte_panning_shift(0), render_step(0), render_max(0),
+	    delay(), screen_ratio(0), font(), font_tables(), blinking(0), blink(false),
+	    char9dot(false), cursor(), mode(), has_split(false), must_draw_again(false),
+	    must_complete_frame(false), vret_triggered(false), vga_override(false),
+	    modeswitch_set(false), doublescan_set(false), doublescan_effect(false),
+	    char9_set(false), bpp(0), clock(0), oscclock(0), draw_base_planar(0),
+	    draw_base_size(0), cga_snow(), monochrome_pal(), monochrome_bright(0) {}
 };
 
 typedef struct {
@@ -601,29 +612,31 @@ typedef struct {
 
 typedef union CGA_Latch {
 	uint16_t d;
-    uint8_t b[2] = {};
+    uint8_t b[2];
 
-    CGA_Latch() { }
+    CGA_Latch() : b() { }
     CGA_Latch(const uint16_t raw) : d(raw) { }
 } CGA_Latch;
 
 typedef union VGA_Latch {
 	uint32_t d;
-    uint8_t b[4] = {};
+    uint8_t b[4];
 
-    VGA_Latch() { }
+    VGA_Latch() : b() { }
     VGA_Latch(const uint32_t raw) : d(raw) { }
 } VGA_Latch;
 
 typedef struct VGA_Memory_t {
-	uint8_t*      linear = NULL;
-	uint8_t*      linear_orgptr = NULL;
+	uint8_t*      linear;
+	uint8_t*      linear_orgptr;
 
-    uint32_t    memsize = 0;
-    uint32_t    memmask = 0;
-    uint32_t    memmask_crtc = 0;       // in CRTC-visible units (depends on byte/word/dword mode)
-    uint32_t    memsize_original = 0;	// memsize prior to rounding up to a power of 2
-    uint32_t    vbe_memsize = 0;        // memory size reported through the VBE
+    uint32_t    memsize;
+    uint32_t    memmask;
+    uint32_t    memmask_crtc;       // in CRTC-visible units (depends on byte/word/dword mode)
+    uint32_t    memsize_original;	// memsize prior to rounding up to a power of 2
+    uint32_t    vbe_memsize;        // memory size reported through the VBE
+    VGA_Memory_t() : linear(NULL), linear_orgptr(NULL), memsize(0), memmask(0),
+        memmask_crtc(0), memsize_original(0), vbe_memsize(0) {}
 } VGA_Memory;
 
 typedef struct {
@@ -647,7 +660,8 @@ enum {
 
 // optimization tracking, the "complexity" of the arrangement.
 typedef struct VGA_Complexity_t {
-	unsigned int	flags = 0;
+	unsigned int	flags;
+	VGA_Complexity_t() : flags(0) {}
 
 	INLINE unsigned int setf(unsigned int flag) {
 		const unsigned int pf = flags;
@@ -668,9 +682,10 @@ typedef struct VGA_Complexity_t {
 } VGA_Complexity;
 
 typedef struct VGA_Override_t {
-	bool			enable = false;
-	bool			start_sum = false;
-	uint32_t		start = ~uint32_t(0u);
+	bool			enable;
+	bool			start_sum;
+	uint32_t		start;
+	VGA_Override_t() : enable(false), start_sum(false), start(~uint32_t(0u)) {}
 } VGA_Override;
 
 enum VGA_DOSBoxIG_VidFormat {
@@ -687,58 +702,73 @@ enum VGA_DOSBoxIG_VidFormat {
 };
 
 typedef struct VGA_DOSBoxIG {
-	bool                    svga = false; /* override VGA output with DOSBoxIG SVGA graphics */
-	bool                    vga_reg_lockout = false; /* lock out standard VGA registers except 3BAh/3DAh and DAC registers */
-	bool                    vga_3da_lockout = false; /* lock out port 3BAh/3DAh */
-	bool                    vga_dac_lockout = false; /* lock out DAC registers */
-	bool			vga_acpal_bypass = false; /* VGA DAC bypass AC palette */
-	bool			override_refresh = false; /* force a refresh rate */
-	bool			vesa_bios_lockout = false; /* disable VESA BIOS modesetting (for Windows driver) */
-	bool			force_A0000 = false; /* force VGA memory map to A0000-AFFFF */
-	unsigned int            width = 16;
-	unsigned int            height = 16;
-	unsigned int		bytes_per_scanline = 0;
-	unsigned int            wa_total = 0,ha_total = 0; /* additional cols/rows to add to get htotal/vtotal */
-	uint16_t		dar_width = 0,dar_height = 0; /* display aspect ratio, if nonzero */
-	uint32_t                vratefp16 = 0; /* video sync rate as a fixed point 16.16 number */
-	uint32_t		display_offset = 0; /* offset in video memory to display */
-	uint32_t		rbank_offset = 0; /* offset of 64KB bank window in video memory */
-	uint32_t		wbank_offset = 0; /* offset of 64KB bank window in video memory */
-	uint8_t                 vidformat = 0; /* video pixel format (VGA_DOSBoxIG_VidFormat) */
-	uint8_t			hpel = 0; /* horizontal pan */
-	uint8_t			vpel = 0; /* vertical pan */
-	uint8_t			hscale = 0; /* horizontal pixel duplication */
-	uint8_t			vscale = 0; /* vertical pixel duplication */
-	uint32_t		ctlreg = 0; /* raw data written to CTL register */
+	bool                    svga; /* override VGA output with DOSBoxIG SVGA graphics */
+	bool                    vga_reg_lockout; /* lock out standard VGA registers except 3BAh/3DAh and DAC registers */
+	bool                    vga_3da_lockout; /* lock out port 3BAh/3DAh */
+	bool                    vga_dac_lockout; /* lock out DAC registers */
+	bool			vga_acpal_bypass; /* VGA DAC bypass AC palette */
+	bool			override_refresh; /* force a refresh rate */
+	bool			vesa_bios_lockout; /* disable VESA BIOS modesetting (for Windows driver) */
+	bool			force_A0000; /* force VGA memory map to A0000-AFFFF */
+	unsigned int            width;
+	unsigned int            height;
+	unsigned int		bytes_per_scanline;
+	unsigned int            wa_total,ha_total; /* additional cols/rows to add to get htotal/vtotal */
+	uint16_t		dar_width,dar_height; /* display aspect ratio, if nonzero */
+	uint32_t                vratefp16; /* video sync rate as a fixed point 16.16 number */
+	uint32_t		display_offset; /* offset in video memory to display */
+	uint32_t		rbank_offset; /* offset of 64KB bank window in video memory */
+	uint32_t		wbank_offset; /* offset of 64KB bank window in video memory */
+	uint8_t                 vidformat; /* video pixel format (VGA_DOSBoxIG_VidFormat) */
+	uint8_t			hpel; /* horizontal pan */
+	uint8_t			vpel; /* vertical pan */
+	uint8_t			hscale; /* horizontal pixel duplication */
+	uint8_t			vscale; /* vertical pixel duplication */
+	uint32_t		ctlreg; /* raw data written to CTL register */
+
+    VGA_DOSBoxIG() : svga(false), vga_reg_lockout(false), vga_3da_lockout(false), vga_dac_lockout(false),
+        vga_acpal_bypass(false), override_refresh(false), vesa_bios_lockout(false), force_A0000(false),
+        width(16), height(16), bytes_per_scanline(0), wa_total(0),
+        ha_total(0), dar_width(0), dar_height(0), vratefp16(0),
+        display_offset(0), rbank_offset(0), wbank_offset(0), vidformat(0),
+        hpel(0), vpel(0), hscale(0), vscale(0),
+        ctlreg(0) {}
 } VGA_DOSBoxIG;
 
 typedef struct VGA_Type_t {
-    VGAModes mode = {};                              /* The mode the vga system is in */
-    VGAModes lastmode = {};
-    uint8_t misc_output = 0;
-    VGA_Draw draw = {};
-    VGA_Config config = {};
-    VGA_Internal internal = {};
+    VGAModes mode;                              /* The mode the vga system is in */
+    VGAModes lastmode;
+    uint8_t misc_output;
+    VGA_Draw draw;
+    VGA_Config config;
+    VGA_Internal internal;
     /* Internal module groups */
-    VGA_Seq seq = {};
-    VGA_Attr attr = {};
-    VGA_Crtc crtc = {};
-    VGA_Gfx gfx = {};
-    VGA_Dac dac = {};
+    VGA_Seq seq;
+    VGA_Attr attr;
+    VGA_Crtc crtc;
+    VGA_Gfx gfx;
+    VGA_Dac dac;
     VGA_Latch latch;
-    VGA_S3 s3 = {};
-    VGA_SVGA svga = {};
-    VGA_HERC herc = {};
-    VGA_TANDY tandy = {};
-    VGA_AMSTRAD amstrad = {};
-    uint8_t olivetti_ctrl = 0; // Olivetti M24 / AT&T 6300 OGC control register (port 0x3DE)
-    VGA_OTHER other = {};
+    VGA_S3 s3;
+    VGA_SVGA svga;
+    VGA_HERC herc;
+    VGA_TANDY tandy;
+    VGA_AMSTRAD amstrad;
+    uint8_t olivetti_ctrl; // Olivetti M24 / AT&T 6300 OGC control register (port 0x3DE)
+    VGA_OTHER other;
     VGA_Memory mem;
-    VGA_LFB lfb = {};
-    VGA_Complexity complexity = {};
-    VGA_Override overopts = {};
-    VGA_DOSBoxIG dosboxig = {};
-    unsigned int max_svga_width = 0,max_svga_height = 0;
+    VGA_LFB lfb;
+    VGA_Complexity complexity;
+    VGA_Override overopts;
+    VGA_DOSBoxIG dosboxig;
+    unsigned int max_svga_width,max_svga_height;
+
+    VGA_Type_t() : mode(), lastmode(), misc_output(0), draw(),
+        config(), internal(), seq(), attr(),
+        crtc(), gfx(), dac(), s3(),
+        svga(), herc(), tandy(), amstrad(),
+        olivetti_ctrl(0), other(), lfb(), complexity(),
+        overopts(), dosboxig(), max_svga_width(0), max_svga_height(0) {}
 } VGA_Type;
 
 
@@ -979,7 +1009,7 @@ static inline unsigned char *pc98_vram_text(void) {
 }
 
 /* return value is relative to current CPU page or current display page ptr */
-static inline constexpr unsigned int pc98_pgram_bitplane_offset(const unsigned int b) {
+static inline DBX_CONSTEXPR unsigned int pc98_pgram_bitplane_offset(const unsigned int b) {
     /* WARNING: b is not range checked for performance! Do not call with b >= 8 if memsize = 512KB or b >= 4 if memsize >= 256KB */
     return (b * PC98_VRAM_BITPLANE_SIZE);
 }

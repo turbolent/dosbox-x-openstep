@@ -20,7 +20,9 @@
 #include <string>
 #include <vector>
 
+#if !C_OPENSTEP
 #include <SDL_video.h>
+#endif
 
 #ifdef __WIN32__
 #include "programs.h"
@@ -102,7 +104,11 @@ void SetVal(const std::string & secname, const std::string & preval, const std::
 #define DOSBOXMENU_NSMENU   (2)     /* Mac OS X NSMenu / NSMenuItem resources */
 #define DOSBOXMENU_SDLDRAW  (3)     /* menus that WE draw on the SDL surface */
 
-#if C_FORCE_MENU_SDLDRAW /* Programmer/Dev wants to compile with SDL drawn menus even if host OS offers menus (shrug) Ok */
+#define DOSBOXMENU_OPENSTEP (4)     /* native essential menus in openstep/video.m */
+
+#if C_OPENSTEP
+# define DOSBOXMENU_TYPE DOSBOXMENU_OPENSTEP
+#elif C_FORCE_MENU_SDLDRAW /* Programmer/Dev wants to compile with SDL drawn menus even if host OS offers menus (shrug) Ok */
 # define DOSBOXMENU_TYPE    DOSBOXMENU_SDLDRAW
 #elif defined(HX_DOS)
 # define DOSBOXMENU_TYPE    DOSBOXMENU_SDLDRAW
@@ -119,7 +125,7 @@ void SetVal(const std::string & secname, const std::string & preval, const std::
 #endif
 
 /* Whether or not the menu exists, and is NOT drawn by ourself (Windows and Mac OS X) */
-#if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU || DOSBOXMENU_TYPE == DOSBOXMENU_NSMENU
+#if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU || DOSBOXMENU_TYPE == DOSBOXMENU_NSMENU || DOSBOXMENU_TYPE == DOSBOXMENU_OPENSTEP
 # define DOSBOXMENU_EXTERNALLY_MANAGED
 #endif
 
@@ -132,9 +138,9 @@ void GUI_Shortcut(int select);
 #define MENU_DOSBOXMENU_H
 
 class DOSBoxMenu {
-    public:
-        DOSBoxMenu(const DOSBoxMenu &src) = delete;             /* don't copy me */
-        DOSBoxMenu(const DOSBoxMenu &&src) = delete;            /* don't move me */
+    private:
+        DOSBoxMenu(const DOSBoxMenu &src); /* not copyable */
+        DOSBoxMenu &operator=(const DOSBoxMenu &src);
     public:
         class item;
     public:
@@ -152,7 +158,7 @@ class DOSBoxMenu {
         typedef std::string             mapper_event_t;     /* event name */
     public:
         class displaylist {
-            friend DOSBoxMenu;
+            friend class DOSBoxMenu;
 
             public:
                                         displaylist();
@@ -173,20 +179,20 @@ class DOSBoxMenu {
                 }
         };
     public:
-        static constexpr item_handle_t  unassigned_item_handle = ((item_handle_t)(0xFFFFU)); 
-        static constexpr callback_t     unassigned_callback = NULL;
+        static const item_handle_t  unassigned_item_handle = ((item_handle_t)(0xFFFFU));
+        static const callback_t         unassigned_callback;
         static const mapper_event_t     unassigned_mapper_event; /* empty std::string */
     public:
         struct accelerator {
-                                        accelerator() { }
+                                        accelerator() : key(0), key_instance(0) { }
                                         accelerator(char _key,unsigned char _instance=0) : key(_key), key_instance(_instance) { }
 
-            char                        key = 0;            /* ascii code i.e. 'g' */
-            unsigned char               key_instance = 0;   /* which occurrence of the letter in the text */
+            char                        key;            /* ascii code i.e. 'g' */
+            unsigned char               key_instance;   /* which occurrence of the letter in the text */
         };
     public:
         class item {
-            friend DOSBoxMenu;
+            friend class DOSBoxMenu;
 
             public:
                                         item();
@@ -194,16 +200,16 @@ class DOSBoxMenu {
         public:
                 void                    check_layout(void);
             protected:
-                DOSBoxMenu*             topMenu = NULL;     /* menu object that contains this item */
+                DOSBoxMenu*             topMenu;     /* menu object that contains this item */
                 std::string             name;               /* item name */
                 std::string             text;               /* item text */
                 std::string             shortcut_text;      /* shortcut text on the right */
                 std::string             description;        /* description text */
                 struct accelerator      accelerator;        /* menu accelerator */
             protected:
-                item_handle_t           parent_id = unassigned_item_handle; /* parent submenu that contains us */
-                item_handle_t           master_id = unassigned_item_handle; /* our own item ID in the top menu master list */
-                enum item_type_t        type = item_type_id;
+                item_handle_t           parent_id; /* parent submenu that contains us */
+                item_handle_t           master_id; /* our own item ID in the top menu master list */
+                enum item_type_t        type;
             protected:
                 struct status {
                                         status() : changed(false), allocated(false),
@@ -218,14 +224,14 @@ class DOSBoxMenu {
                     unsigned int        in_use:1;
                     unsigned int        hidden:1;
                     unsigned int        changed_layout:1;
-                } status = {};
+                } status;
             protected:
-                callback_t              callback_func = unassigned_callback;
-                mapper_event_t          mapper_event = unassigned_mapper_event;
+                callback_t              callback_func;
+                mapper_event_t          mapper_event;
             public:
                 displaylist             display_list;
             public:
-                uint64_t                user_defined = 0;
+                uint64_t                user_defined;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU /* Windows menu handle */
             protected:
                 HMENU                   winMenu = NULL;
@@ -493,7 +499,7 @@ class DOSBoxMenu {
     protected:
         std::vector<item>               master_list;
         std::map<std::string,item_handle_t> name_map;
-        item_handle_t                   master_list_alloc = 0;
+        item_handle_t                   master_list_alloc;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU /* Windows menu handle */
     protected:
         HMENU                           winMenu = NULL;
@@ -505,7 +511,7 @@ class DOSBoxMenu {
         bool                            mainMenuWM_COMMAND(unsigned int id);
 #endif
     public:
-        static constexpr unsigned int   winMenuMinimumID = 0x1000;
+        static const unsigned int   winMenuMinimumID = 0x1000;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_NSMENU /* Mac OS X NSMenu / NSMenuItem handle */
     protected:
         void*                           nsMenu = NULL;
@@ -516,7 +522,7 @@ class DOSBoxMenu {
         void*                           getNsMenu(void) const;
         bool                            mainMenuAction(unsigned int id);
     public:
-        static constexpr unsigned int   nsMenuMinimumID = 0x1000;
+        static const unsigned int   nsMenuMinimumID = 0x1000;
 #endif
 #if DOSBOXMENU_TYPE == DOSBOXMENU_SDLDRAW
     public:
@@ -547,16 +553,16 @@ class DOSBoxMenu {
         void                            updateRect(void);
         void                            layoutMenu(void);
     public:
-        static constexpr size_t         menuBarHeightBase = (16 + 1);
+        static const size_t         menuBarHeightBase = (16 + 1);
         size_t                          menuBarHeight = menuBarHeightBase;
     public:
         size_t                          screenWidth = 640;
         size_t                          screenHeight = 400;
     public:
-        static constexpr size_t         fontCharWidthBase = 8;
-        static constexpr size_t         fontCharHeightBase = 16;
-        static constexpr size_t         dropshadowX = 8;
-        static constexpr size_t         dropshadowY = 8;
+        static const size_t         fontCharWidthBase = 8;
+        static const size_t         fontCharHeightBase = 16;
+        static const size_t         dropshadowX = 8;
+        static const size_t         dropshadowY = 8;
     public:
         size_t                          fontCharScale = 1;
         size_t                          fontCharWidth = fontCharWidthBase;
@@ -565,7 +571,7 @@ class DOSBoxMenu {
     public:
         void                            dispatchItemCommand(item &item);
     public:
-        static constexpr size_t         master_list_limit = 4096;
+        static const size_t         master_list_limit = 4096;
     public:
         void                            displaylist_append(const DOSBoxMenu::item_handle_t parent_id,const DOSBoxMenu::item_handle_t item_id);
         void                            displaylist_clear(const DOSBoxMenu::item_handle_t parent_id);

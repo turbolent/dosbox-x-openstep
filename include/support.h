@@ -107,13 +107,13 @@ static inline bool is_power_of_2(Bitu val) {
 ///     // buffer is filled with "a"
 
 template<size_t N>
-char * safe_strcpy(char (& dst)[N], const char * src) noexcept {
+char * safe_strcpy(char (& dst)[N], const char * src) DBX_NOEXCEPT {
         snprintf(dst, N, "%s", src);
         return & dst[0];
 }
 
 template<size_t N>
-char * safe_strcat(char (& dst)[N], const char * src) noexcept {
+char * safe_strcat(char (& dst)[N], const char * src) DBX_NOEXCEPT {
         strncat(dst, src, N - strnlen(dst, N) - 1);
         return & dst[0];
 }

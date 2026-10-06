@@ -72,7 +72,7 @@ class CommandLine {
 		typedef std::list<std::string>::iterator cmd_it;
 		std::string opt_gnu_getopt_singlechar;		/* non-empty if we hit GNU options like -abcd => -a -b -c -d */
 		cmd_it opt_scan;
-		bool opt_eat_argv = false;
+		bool opt_eat_argv;
 		std::list<std::string> cmds;
 		std::string file_name;
 		std::string raw_cmdline;
@@ -87,7 +87,7 @@ class CommandLine {
  */
 class Program {
 	public:
-		static constexpr unsigned int prg_nopsp = 1u << 0u; //! Bitfield flag: Do not create or handle PSP segment
+		static const unsigned int prg_nopsp = 1u << 0u; //! Bitfield flag: Do not create or handle PSP segment
 		Program(const unsigned int fl=0);                   //! Constructor
 		virtual ~Program(){                                 //! Default destructor
 			delete cmd;
@@ -99,8 +99,8 @@ class Program {
 		unsigned char exit_status;                          //! Exit status, returned to the parent DOS process
 
 		std::string temp_line;                              //! Temporary string object for parsing
-		CommandLine * cmd = NULL;                           //! Command line object
-		DOS_PSP * psp = NULL;                               //! DOS kernel Program Segment Prefix associated with this program at runtime
+		CommandLine * cmd;                           //! Command line object
+		DOS_PSP * psp;                               //! DOS kernel Program Segment Prefix associated with this program at runtime
 		virtual void Run(void)=0;                           //! Run() method, called when the program is run. Subclass must override this
 		bool GetEnvStr(const char * entry,std::string & result); //! Return an environment variable by name
 		bool GetEnvNum(Bitu want_num,std::string & result);      //! Return an environment variable by index

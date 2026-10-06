@@ -39,7 +39,7 @@ void PC98_ChangeMouseFunction(bool nec);
 /* ====================== PC98UTIL.COM ====================== */
 class PC98UTIL : public Program {
 public:
-	void Run(void) override {
+	void Run(void) DBX_OVERRIDE {
         string arg;
 		bool got_opt=false;
 		

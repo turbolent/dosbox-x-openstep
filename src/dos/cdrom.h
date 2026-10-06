@@ -28,17 +28,19 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
-#if !defined(HX_DOS) && !(defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR))
+#if !C_OPENSTEP && !defined(HX_DOS) && !(defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR))
 #include <thread>
 #endif
 
 #include "ide.h"
 #include "mem.h"
 #include "mixer.h"
+#if !C_OPENSTEP
 #include "../libs/decoders/SDL_sound.h"
 #include "../libs/libchdr/chd.h"
+#endif
 
-#if defined(C_SDL2) /* SDL 1.x defines this, SDL 2.x does not */
+#if defined(C_SDL2) || C_OPENSTEP /* SDL 1.x defines this, SDL 2.x does not */
 /** @name Frames / MSF Conversion Functions
  *  Conversion functions from frames to Minute/Second/Frames and vice versa
  */
@@ -54,7 +56,9 @@
 }
 #define MSF_TO_FRAMES(M, S, F)	((M)*60*CD_FPS+(S)*CD_FPS+(F))
 
+#if !C_OPENSTEP
 #include "../../vs/sdl/src/cdrom/compat_SDL_cdrom.h"
+#endif
 #endif /* C_SDL2 */
 
 #define RAW_SECTOR_SIZE		2352
@@ -72,11 +76,12 @@ enum { CDROM_USE_SDL, CDROM_USE_ASPI, CDROM_USE_IOCTL_DIO, CDROM_USE_IOCTL_DX, C
 //! \description CD-ROM time is represented as minutes, seconds, and frames (75 per second)
 typedef struct SMSF {
     //! \brief Time, minutes field
-    unsigned char   min = 0;
+    unsigned char   min;
     //! \brief Time, seconds field
-    unsigned char   sec = 0;
+    unsigned char   sec;
     //! \brief Time, frame field
-    unsigned char   fr = 0;
+    unsigned char   fr;
+    SMSF(unsigned char m=0, unsigned char s=0, unsigned char f=0) : min(m), sec(s), fr(f) {}
 } TMSF;
 
 //! \brief Output and channel control state
@@ -88,9 +93,11 @@ typedef struct SCtrl {
 } TCtrl;
 
 template<typename T1, typename T2>
-inline constexpr T1 ceil_udivide(const T1 x, const T2 y) noexcept {
+inline DBX_CONSTEXPR T1 ceil_udivide(const T1 x, const T2 y) DBX_NOEXCEPT {
+#if __cplusplus >= 201103L
 	static_assert(std::is_unsigned<T1>::value, "First parameter should be unsigned");
 	static_assert(std::is_unsigned<T2>::value, "Second parameter should be unsigned");
+#endif
 	return (x != 0) ? 1 + ((x - 1) / y) : 0;
 }
 
@@ -108,7 +115,7 @@ public:
 		ID_IMAGE
 	};
 
-//	CDROM_Interface						(void);
+	CDROM_Interface() : class_id(ID_BASE), subUnit(0xFF), refcount(0) {}
 	virtual ~CDROM_Interface			(void) { if (refcount) fprintf(stderr,"CDROM_Interface delete with refcount %u\n",refcount); };
 
     //! \brief Set the device associated with this interface, if supported by emulation
@@ -156,11 +163,11 @@ public:
     //! \brief TODO?
 	virtual void	InitNewMedia		(void) {};
 
-	INTERFACE_TYPE class_id = ID_BASE;
-	uint8_t                subUnit = 0xFF;
+	INTERFACE_TYPE class_id;
+	uint8_t                subUnit;
 
 	private:
-		volatile int refcount = 0;
+		volatile int refcount;
 
 	public:
 		int Addref() {
@@ -182,6 +189,7 @@ public:
 //! \brief CD-ROM interface to SDL 1.x CD-ROM support
 //!
 //! \brief This connects CD-ROM emulation to the CD-ROM functions provided by SDL 1.x
+#if !C_OPENSTEP
 class CDROM_Interface_SDL : public CDROM_Interface
 {
 public:
@@ -189,21 +197,21 @@ public:
 	virtual ~CDROM_Interface_SDL(void);
 
     /* base C++ class overrides, no documentation needed */
-	bool	SetDevice			(const char* path, int forceCD) override;
-	bool	GetUPC				(unsigned char& attr, char* upc) override { attr = 0; strcpy(upc,"UPC"); return true; };
-	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) override;
-	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) override;
-	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) override;
-	bool	GetAudioStatus		(bool& playing, bool& pause) override;
-	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) override;
-	bool	PlayAudioSector		(unsigned long start,unsigned long len) override;
-	bool	PauseAudio			(bool resume) override;
-	bool	StopAudio			(void) override;
-	void	ChannelControl		(TCtrl ctrl) override { (void)ctrl; return; };
-	bool	ReadSectors			(PhysPt /*buffer*/, bool /*raw*/, unsigned long /*sector*/, unsigned long /*num*/) override { return false; };
+	bool	SetDevice			(const char* path, int forceCD) DBX_OVERRIDE;
+	bool	GetUPC				(unsigned char& attr, char* upc) DBX_OVERRIDE { attr = 0; strcpy(upc,"UPC"); return true; };
+	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) DBX_OVERRIDE;
+	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) DBX_OVERRIDE;
+	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) DBX_OVERRIDE;
+	bool	GetAudioStatus		(bool& playing, bool& pause) DBX_OVERRIDE;
+	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) DBX_OVERRIDE;
+	bool	PlayAudioSector		(unsigned long start,unsigned long len) DBX_OVERRIDE;
+	bool	PauseAudio			(bool resume) DBX_OVERRIDE;
+	bool	StopAudio			(void) DBX_OVERRIDE;
+	void	ChannelControl		(TCtrl ctrl) DBX_OVERRIDE { (void)ctrl; return; };
+	bool	ReadSectors			(PhysPt /*buffer*/, bool /*raw*/, unsigned long /*sector*/, unsigned long /*num*/) DBX_OVERRIDE { return false; };
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
-	bool	LoadUnloadMedia		(bool unload) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
+	bool	LoadUnloadMedia		(bool unload) DBX_OVERRIDE;
 
 private:
     //! \brief Open the device
@@ -217,6 +225,7 @@ private:
     int driveID = 0;
     Uint32 oldLeadOut = 0;
 };
+#endif
 
 //! \brief Dummy CD-ROM interface
 //!
@@ -224,26 +233,26 @@ private:
 class CDROM_Interface_Fake : public CDROM_Interface
 {
 public:
-	bool	SetDevice			(const char* /*path*/, int /*forceCD*/) override { return true; };
-	bool	GetUPC				(unsigned char& attr, char* upc) override { attr = 0; strcpy(upc,"UPC"); return true; };
-	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) override;
-	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) override;
-	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) override;
-	bool	GetAudioStatus		(bool& playing, bool& pause) override;
-	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) override;
-	bool	PlayAudioSector		(unsigned long /*start*/,unsigned long /*len*/) override { return true; };
-	bool	PauseAudio			(bool /*resume*/) override { return true; };
-	bool	StopAudio			(void) override { return true; };
-	void	ChannelControl		(TCtrl ctrl) override { (void)ctrl; return; };
-	bool	ReadSectors			(PhysPt /*buffer*/, bool /*raw*/, unsigned long /*sector*/, unsigned long /*num*/) override { return true; };
+	bool	SetDevice			(const char* /*path*/, int /*forceCD*/) DBX_OVERRIDE { return true; };
+	bool	GetUPC				(unsigned char& attr, char* upc) DBX_OVERRIDE { attr = 0; strcpy(upc,"UPC"); return true; };
+	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) DBX_OVERRIDE;
+	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) DBX_OVERRIDE;
+	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) DBX_OVERRIDE;
+	bool	GetAudioStatus		(bool& playing, bool& pause) DBX_OVERRIDE;
+	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) DBX_OVERRIDE;
+	bool	PlayAudioSector		(unsigned long /*start*/,unsigned long /*len*/) DBX_OVERRIDE { return true; };
+	bool	PauseAudio			(bool /*resume*/) DBX_OVERRIDE { return true; };
+	bool	StopAudio			(void) DBX_OVERRIDE { return true; };
+	void	ChannelControl		(TCtrl ctrl) DBX_OVERRIDE { (void)ctrl; return; };
+	bool	ReadSectors			(PhysPt /*buffer*/, bool /*raw*/, unsigned long /*sector*/, unsigned long /*num*/) DBX_OVERRIDE { return true; };
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 
-	bool	LoadUnloadMedia		(bool /*unload*/) override { return true; };
+	bool	LoadUnloadMedia		(bool /*unload*/) DBX_OVERRIDE { return true; };
 
-	CDROM_Interface_Fake() { class_id = ID_FAKE; }
+	CDROM_Interface_Fake() : isEmpty(false) { class_id = ID_FAKE; }
 
-	bool	isEmpty = false;
+	bool	isEmpty;
 };	
 
 //! \brief Image CD-ROM interface
@@ -255,19 +264,19 @@ private:
 	// Nested Class Definitions
 	class TrackFile {
 	protected:
-		TrackFile(uint16_t _chunkSize) : chunkSize(_chunkSize) {}
+		TrackFile(uint16_t _chunkSize) : chunkSize(_chunkSize), audio_pos(UINT32_MAX) {}
 	public:
-		virtual          ~TrackFile() = default;
+		virtual          ~TrackFile() {}
 		virtual bool     read(uint8_t *buffer,int64_t seek, int count) = 0;
 		virtual bool     seek(int64_t offset) = 0;
 		virtual uint16_t   decode(uint8_t *buffer) = 0;
-		virtual uint16_t   getEndian() = 0;
+		virtual bool              isLittleEndian() = 0;
 		virtual uint32_t   getRate() = 0;
 		virtual uint8_t    getChannels() = 0;
 		virtual int64_t    getLength() = 0;
 		virtual void setAudioPosition(uint32_t pos) = 0;
-		const uint16_t chunkSize = 0;
-		uint32_t audio_pos = UINT32_MAX; // last position when playing audio
+		const uint16_t chunkSize;
+		uint32_t audio_pos; // last position when playing audio
 	};
 
     //! \brief Binary file reader for the image
@@ -276,20 +285,27 @@ private:
 		BinaryFile      (const char *filename, bool &error);
 		~BinaryFile     ();
 
-		BinaryFile      () = delete;
-		BinaryFile      (const BinaryFile&) = delete; // prevent copying
-		BinaryFile&     operator= (const BinaryFile&) = delete; // prevent assignment
-
-		bool            read(uint8_t *buffer,int64_t seek, int count) override;
-		bool            seek(int64_t offset) override;
-		uint16_t          decode(uint8_t *buffer) override;
-		uint16_t          getEndian() override;
-		uint32_t          getRate() override { return 44100; }
-		uint8_t           getChannels() override { return 2; }
-		int64_t           getLength() override;
-		void setAudioPosition(uint32_t pos) override { audio_pos = pos; }
 	private:
+		BinaryFile      ();
+		BinaryFile      (const BinaryFile&); // prevent copying
+		BinaryFile&     operator= (const BinaryFile&); // prevent assignment
+	public:
+
+		bool            read(uint8_t *buffer,int64_t seek, int count) DBX_OVERRIDE;
+		bool            seek(int64_t offset) DBX_OVERRIDE;
+		uint16_t          decode(uint8_t *buffer) DBX_OVERRIDE;
+		bool              isLittleEndian() DBX_OVERRIDE;
+		uint32_t          getRate() DBX_OVERRIDE { return 44100; }
+		uint8_t           getChannels() DBX_OVERRIDE { return 2; }
+		int64_t           getLength() DBX_OVERRIDE;
+		void setAudioPosition(uint32_t pos) DBX_OVERRIDE { audio_pos = pos; }
+	private:
+#if C_OPENSTEP
+		FILE *file;
+		long long length;
+#else
 		std::ifstream   *file;
+#endif
 	};
 
 	class AudioFile : public TrackFile {
@@ -297,22 +313,34 @@ private:
 		AudioFile       (const char *filename, bool &error);
 		~AudioFile      ();
 
-		AudioFile       () = delete;
-		AudioFile       (const AudioFile&) = delete; // prevent copying
-		AudioFile&      operator= (const AudioFile&) = delete; // prevent assignment
-
-		bool            read(uint8_t *buffer,int64_t seek, int count) override { (void)buffer; (void)seek; (void)count; return false; }
-		bool            seek(int64_t offset) override;
-		uint16_t          decode(uint8_t *buffer) override;
-		uint16_t          getEndian() override;
-		uint32_t          getRate() override;
-		uint8_t           getChannels() override;
-		int64_t           getLength() override;
-        void setAudioPosition(uint32_t pos) override { (void)pos;/*unused*/ }
 	private:
+		AudioFile       ();
+		AudioFile       (const AudioFile&); // prevent copying
+		AudioFile&      operator= (const AudioFile&); // prevent assignment
+	public:
+
+#if C_OPENSTEP
+		bool            read(uint8_t *buffer,int64_t seek, int count) DBX_OVERRIDE;
+#else
+		bool            read(uint8_t *buffer,int64_t seek, int count) DBX_OVERRIDE { (void)buffer; (void)seek; (void)count; return false; }
+#endif
+		bool            seek(int64_t offset) DBX_OVERRIDE;
+		uint16_t          decode(uint8_t *buffer) DBX_OVERRIDE;
+		bool              isLittleEndian() DBX_OVERRIDE;
+		uint32_t          getRate() DBX_OVERRIDE;
+		uint8_t           getChannels() DBX_OVERRIDE;
+		int64_t           getLength() DBX_OVERRIDE;
+        void setAudioPosition(uint32_t pos) DBX_OVERRIDE { (void)pos;/*unused*/ }
+	private:
+#if C_OPENSTEP
+		FILE *file;
+		uint32_t data_start, data_size, position;
+#else
 		Sound_Sample    *sample = nullptr;
+#endif
 	};
 
+#if !C_OPENSTEP
     class CHDFile : public TrackFile {
     public:
         CHDFile(const char* filename, bool& error);
@@ -322,14 +350,14 @@ private:
         CHDFile(const CHDFile&) = delete;
         CHDFile& operator= (const CHDFile&) = delete;
 
-        bool            read(uint8_t* buffer, int64_t seek, int count) override;
-        bool            seek(int64_t offset) override;
-        uint16_t        decode(uint8_t* buffer) override;
-        uint16_t        getEndian() override;
-        uint32_t        getRate() override { return 44100; }
-        uint8_t         getChannels() override { return 2; }
-        int64_t         getLength() override;
-        void setAudioPosition(uint32_t pos) override { audio_pos = pos; }
+        bool            read(uint8_t* buffer, int64_t seek, int count) DBX_OVERRIDE;
+        bool            seek(int64_t offset) DBX_OVERRIDE;
+        uint16_t        decode(uint8_t* buffer) DBX_OVERRIDE;
+        bool              isLittleEndian() DBX_OVERRIDE;
+        uint32_t        getRate() DBX_OVERRIDE { return 44100; }
+        uint8_t         getChannels() DBX_OVERRIDE { return 2; }
+        int64_t         getLength() DBX_OVERRIDE;
+        void setAudioPosition(uint32_t pos) DBX_OVERRIDE { audio_pos = pos; }
         chd_file*       getChd() { return this->chd; }
     private:
               chd_file*   chd               = nullptr;
@@ -348,6 +376,7 @@ private:
     public:
               bool         skip_sync         = false;   // this will fail if a CHD contains 2048 and 2352 sector tracks
      };
+#endif
 
 public:
 	// Nested struct definition
@@ -365,23 +394,23 @@ public:
     //! \brief Constructor, with parameter for subunit
 	CDROM_Interface_Image           (uint8_t subUnit);
 	virtual ~CDROM_Interface_Image  (void);
-	void	InitNewMedia            (void) override {};
-	bool	SetDevice               (const char *path, int forceCD) override;
-	bool	GetUPC                  (unsigned char& attr, char* upc) override;
-	bool	GetAudioTracks          (int& stTrack, int& end, TMSF& leadOut) override;
-	bool	GetAudioTrackInfo       (int track, TMSF& start, unsigned char& attr) override;
-	bool	GetAudioSub             (unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) override;
-	bool	GetAudioStatus          (bool& playing, bool& pause) override;
-	bool	GetMediaTrayStatus      (bool& mediaPresent, bool& mediaChanged, bool& trayOpen) override;
-	bool	PlayAudioSector         (unsigned long start, unsigned long len) override;
-	bool	PauseAudio              (bool resume) override;
-	bool	StopAudio               (void) override;
+	void	InitNewMedia            (void) DBX_OVERRIDE {};
+	bool	SetDevice               (const char *path, int forceCD) DBX_OVERRIDE;
+	bool	GetUPC                  (unsigned char& attr, char* upc) DBX_OVERRIDE;
+	bool	GetAudioTracks          (int& stTrack, int& end, TMSF& leadOut) DBX_OVERRIDE;
+	bool	GetAudioTrackInfo       (int track, TMSF& start, unsigned char& attr) DBX_OVERRIDE;
+	bool	GetAudioSub             (unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) DBX_OVERRIDE;
+	bool	GetAudioStatus          (bool& playing, bool& pause) DBX_OVERRIDE;
+	bool	GetMediaTrayStatus      (bool& mediaPresent, bool& mediaChanged, bool& trayOpen) DBX_OVERRIDE;
+	bool	PlayAudioSector         (unsigned long start, unsigned long len) DBX_OVERRIDE;
+	bool	PauseAudio              (bool resume) DBX_OVERRIDE;
+	bool	StopAudio               (void) DBX_OVERRIDE;
     bool    PlayNextAudioTrack      (void);
-	void	ChannelControl          (TCtrl ctrl) override;
-	bool	ReadSectors             (PhysPt buffer, bool raw, unsigned long sector, unsigned long num) override;
+	void	ChannelControl          (TCtrl ctrl) DBX_OVERRIDE;
+	bool	ReadSectors             (PhysPt buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
-	bool	LoadUnloadMedia         (bool unload) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
+	bool	LoadUnloadMedia         (bool unload) DBX_OVERRIDE;
 	//! \brief Indicate whether the image has a data track
 	bool	ReadSector              (uint8_t *buffer, bool raw, unsigned long sector);
 	//! \brief Indicate whether the image has a data track
@@ -392,12 +421,14 @@ private:
 	static struct imagePlayer {
 		CDROM_Interface_Image *cd;
 		MixerChannel   *channel;
-		SDL_mutex                *mutex             = nullptr;
-		void (MixerChannel::*addFrames) (Bitu, const int16_t*) = nullptr;
-		uint32_t                 playedTrackFrames  = 0;
-		uint32_t                 totalTrackFrames   = 0;
-		uint32_t                 startSector        = 0;
-		uint32_t                 totalRedbookFrames = 0;
+#if !C_OPENSTEP
+		SDL_mutex *mutex;
+#endif
+		void (MixerChannel::*addFrames) (Bitu, const int16_t*);
+		uint32_t                 playedTrackFrames;
+		uint32_t                 totalTrackFrames;
+		uint32_t                 startSector;
+		uint32_t                 totalRedbookFrames;
 		uint8_t   buffer[AUDIO_DECODE_BUFFER_SIZE];
 		uint32_t  startFrame;
 		uint32_t  currFrame;
@@ -412,7 +443,17 @@ private:
 		int      playbackRemaining;
 		uint16_t   bufferPos;
 		uint16_t   bufferConsumed;
-        int currentTrackIdx = -1;
+        int currentTrackIdx;
+
+        imagePlayer() : cd(NULL), channel(NULL),
+#if !C_OPENSTEP
+            mutex(NULL),
+#endif
+            addFrames(NULL), playedTrackFrames(0), totalTrackFrames(0), startSector(0),
+            totalRedbookFrames(0), buffer(), startFrame(0), currFrame(0), numFrames(0),
+            isPlaying(false), isPaused(false), ctrlUsed(false), ctrlData(),
+            trackFile(NULL), addSamples(NULL), playbackTotal(0), playbackRemaining(0),
+            bufferPos(0), bufferConsumed(0), currentTrackIdx(-1) {}
 	} player;
 
 	// Private utility functions
@@ -424,7 +465,9 @@ private:
 
 	// Private functions for cue sheet processing
 	bool  LoadCueSheet(const char *cuefile);
+#if !C_OPENSTEP
 	bool  LoadChdFile(const char* chdfile);
+#endif
 	bool  LoadCloneCDSheet(const char *cuefile);
 	bool  GetRealFileName(std::string& filename, std::string& pathname) const;
 	bool  GetCueKeyword(std::string &keyword, std::istream &in) const;
@@ -450,26 +493,26 @@ class CDROM_Interface_Aspi : public CDROM_Interface
 public:
 	virtual ~CDROM_Interface_Aspi(void);
 
-	bool	SetDevice			(const char* path, int forceCD) override;
+	bool	SetDevice			(const char* path, int forceCD) DBX_OVERRIDE;
 
-	bool	GetUPC				(unsigned char& attr, char* upc) override;
+	bool	GetUPC				(unsigned char& attr, char* upc) DBX_OVERRIDE;
 
-	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) override;
-	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) override;
-	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) override;
-	bool	GetAudioStatus		(bool& playing, bool& pause) override;
-	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) override;
+	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) DBX_OVERRIDE;
+	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) DBX_OVERRIDE;
+	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) DBX_OVERRIDE;
+	bool	GetAudioStatus		(bool& playing, bool& pause) DBX_OVERRIDE;
+	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) DBX_OVERRIDE;
 
-	bool	PlayAudioSector		(unsigned long start,unsigned long len) override;
-	bool	PauseAudio			(bool resume) override;
-	bool	StopAudio			(void) override;
-	void	ChannelControl		(TCtrl ctrl) override { (void)ctrl; return; };
+	bool	PlayAudioSector		(unsigned long start,unsigned long len) DBX_OVERRIDE;
+	bool	PauseAudio			(bool resume) DBX_OVERRIDE;
+	bool	StopAudio			(void) DBX_OVERRIDE;
+	void	ChannelControl		(TCtrl ctrl) DBX_OVERRIDE { (void)ctrl; return; };
 	
-	bool	ReadSectors			(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectors			(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	
-	bool	LoadUnloadMedia		(bool unload) override;
+	bool	LoadUnloadMedia		(bool unload) DBX_OVERRIDE;
 	
 private:
 	DWORD	GetTOC				(LPTOC toc);
@@ -503,29 +546,29 @@ public:
 	CDROM_Interface_Ioctl		(cdioctl_cdatype ioctl_cda);
 	virtual ~CDROM_Interface_Ioctl(void);
 
-	bool	SetDevice			(const char* path, int forceCD) override;
+	bool	SetDevice			(const char* path, int forceCD) DBX_OVERRIDE;
 
-	bool	GetUPC				(unsigned char& attr, char* upc) override;
+	bool	GetUPC				(unsigned char& attr, char* upc) DBX_OVERRIDE;
 
-	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) override;
-	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) override;
-	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) override;
-	bool	GetAudioStatus		(bool& playing, bool& pause) override;
-	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) override;
+	bool	GetAudioTracks		(int& stTrack, int& end, TMSF& leadOut) DBX_OVERRIDE;
+	bool	GetAudioTrackInfo	(int track, TMSF& start, unsigned char& attr) DBX_OVERRIDE;
+	bool	GetAudioSub			(unsigned char& attr, unsigned char& track, unsigned char& index, TMSF& relPos, TMSF& absPos) DBX_OVERRIDE;
+	bool	GetAudioStatus		(bool& playing, bool& pause) DBX_OVERRIDE;
+	bool	GetMediaTrayStatus	(bool& mediaPresent, bool& mediaChanged, bool& trayOpen) DBX_OVERRIDE;
 
-	bool	PlayAudioSector		(unsigned long start,unsigned long len) override;
-	bool	PauseAudio			(bool resume) override;
-	bool	StopAudio			(void) override;
-	void	ChannelControl		(TCtrl ctrl) override;
+	bool	PlayAudioSector		(unsigned long start,unsigned long len) DBX_OVERRIDE;
+	bool	PauseAudio			(bool resume) DBX_OVERRIDE;
+	bool	StopAudio			(void) DBX_OVERRIDE;
+	void	ChannelControl		(TCtrl ctrl) DBX_OVERRIDE;
 	
 	bool	ReadSector			(uint8_t *buffer, bool raw, unsigned long sector);
-	bool	ReadSectors			(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectors			(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	
-	bool	LoadUnloadMedia		(bool unload) override;
+	bool	LoadUnloadMedia		(bool unload) DBX_OVERRIDE;
 
-	void	InitNewMedia		(void) override { Close(); Open(); };
+	void	InitNewMedia		(void) DBX_OVERRIDE { Close(); Open(); };
 private:
 
 	bool	Open				(void);
@@ -588,11 +631,11 @@ class CDROM_Interface_Ioctl : public CDROM_Interface_SDL
 public:
 	CDROM_Interface_Ioctl		(void);
 
-	bool	SetDevice		(const char* path, int forceCD) override;
-	bool	GetUPC			(unsigned char& attr, char* upc) override;
-	bool	ReadSectors		(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	SetDevice		(const char* path, int forceCD) DBX_OVERRIDE;
+	bool	GetUPC			(unsigned char& attr, char* upc) DBX_OVERRIDE;
+	bool	ReadSectors		(PhysPt buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 	/* This is needed for IDE hack, who's buffer does not exist in DOS physical memory */
-	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) override;
+	bool	ReadSectorsHost			(void* buffer, bool raw, unsigned long sector, unsigned long num) DBX_OVERRIDE;
 
 private:
 	char	device_name[512];

@@ -54,6 +54,7 @@
 #endif
 #endif
 
+#if !C_OPENSTEP
 CDROM_Interface_SDL::CDROM_Interface_SDL(void) {
 }
 
@@ -186,7 +187,19 @@ bool CDROM_Interface_SDL::LoadUnloadMedia(bool unload) {
 	return success;
 }
 
+#endif
+
 int CDROM_GetMountType(const char* path, int forceCD) {
+#if C_OPENSTEP
+    (void)forceCD;
+    if (!path) return -1;
+    if (!strcmp(path, "empty")) return 2;
+    struct stat info;
+    if (stat(path, &info) != 0) return -1;
+    if (S_ISREG(info.st_mode)) return 1;
+    if (S_ISDIR(info.st_mode)) return 2;
+    return -1;
+#else
 	(void)forceCD;
 	// 0 - physical CDROM
 	// 1 - Iso file
@@ -227,6 +240,7 @@ int CDROM_GetMountType(const char* path, int forceCD) {
 	if ((pref_stat(path, &file_stat) == 0) && (file_stat.st_mode & S_IFREG)) return 1;
 #endif
 	return 2;
+#endif
 }
 
 // ******************************************************

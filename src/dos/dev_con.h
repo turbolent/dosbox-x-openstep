@@ -71,22 +71,22 @@ uint8_t DefaultANSIAttr() {
 class device_CON : public DOS_Device {
 public:
 	device_CON();
-	bool Read(uint8_t * data,uint16_t * size) override;
-	bool Write(const uint8_t * data,uint16_t * size) override;
-	bool Seek(uint32_t * pos,uint32_t type) override;
-	bool Close() override;
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+	bool Close() DBX_OVERRIDE;
 	uint8_t GetAnsiAttr(void) {
 		return ansi.attr;
 	}
 	void SetAnsiAttr(uint8_t attr) {
 		ansi.attr = attr;
 	}
-	uint16_t GetInformation(void) override;
-	void SetInformation(uint16_t info) override {
+	uint16_t GetInformation(void) DBX_OVERRIDE;
+	void SetInformation(uint16_t info) DBX_OVERRIDE {
 		binary = info & DeviceInfoFlags::Binary;
 	}
-	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
-	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
     bool ANSI_SYS_installed();
 	void ClearKeyMap() {
 		key_map.clear();
@@ -558,7 +558,7 @@ private:
 
     static void LineFeedRev(void) { // ESC M
 		BIOS_NCOLS;BIOS_NROWS;
-		auto defattr = DefaultANSIAttr();
+		uint8_t defattr = DefaultANSIAttr();
 		uint8_t page=real_readb(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
 		uint8_t cur_row=CURSOR_POS_ROW(page);
 		uint8_t cur_col=CURSOR_POS_COL(page);
@@ -576,7 +576,7 @@ private:
 
     static void LineFeed(void) { // ESC D
 		BIOS_NCOLS;BIOS_NROWS;
-		auto defattr = DefaultANSIAttr();
+		uint8_t defattr = DefaultANSIAttr();
 		uint8_t page=real_readb(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
 		uint8_t cur_row=CURSOR_POS_ROW(page);
 		uint8_t cur_col=CURSOR_POS_COL(page);
@@ -594,7 +594,7 @@ private:
 	
 	static void AdjustCursorPosition(uint8_t& cur_col,uint8_t& cur_row) {
 		BIOS_NCOLS;BIOS_NROWS;
-		auto defattr = DefaultANSIAttr();
+		uint8_t defattr = DefaultANSIAttr();
 		//Need a new line?
 		if(cur_col==ncols) 
 		{
@@ -687,7 +687,7 @@ private:
 
                     if(pc98_column_over || (cw == 2 && (cur_col+cw) > ncols)) {
                         BIOS_NROWS;
-                        auto defattr = DefaultANSIAttr();
+                        uint8_t defattr = DefaultANSIAttr();
                         pc98_column_over = false;
                         cur_col=0;
                         cur_row++;
@@ -830,7 +830,7 @@ public:
 bool device_CON::Read(uint8_t * data,uint16_t * size) {
 	uint16_t oldax=reg_ax;
 	uint16_t count=0;
-	auto defattr=DefaultANSIAttr();
+	uint8_t defattr=DefaultANSIAttr();
 	INT10_SetCurMode();
 	if ((readcache) && (*size)) {
 		data[count++]=readcache;
@@ -1328,7 +1328,7 @@ bool device_CON::Write(const uint8_t * data,uint16_t * size) {
                             { 0x0,  0x4,  0x2,  0x6,  0x1,  0x5,  0x3,  0x7 }, /*   IBM */
                             { 0x0, 0x40, 0x80, 0xC0, 0x20, 0x60, 0xA0, 0xE0 }, /* PC-98 */
                         };
-                        const auto &flagset = COLORFLAGS[IS_PC98_ARCH];
+                        const uint8_t *flagset = COLORFLAGS[IS_PC98_ARCH];
 
                         if(IS_PC98_ARCH) {
                             // Convert alternate color codes to regular ones
@@ -1540,7 +1540,7 @@ bool device_CON::Close() {
 extern bool dos_con_use_int16_to_detect_input;
 
 uint16_t device_CON::GetInformation(void) {
-    static constexpr auto deviceWord = DeviceInfoFlags::Device | DeviceInfoFlags::Special | DeviceInfoFlags::StdIn |
+    static const uint16_t deviceWord = DeviceInfoFlags::Device | DeviceInfoFlags::Special | DeviceInfoFlags::StdIn |
                                        DeviceInfoFlags::StdOut;
 
 	if (dos_con_use_int16_to_detect_input || IS_PC98_ARCH) {

@@ -38,24 +38,25 @@ public:
 
 #define SYSEX_SIZE 8192
 struct DB_Midi {
-	Bitu status = 0;
-	Bitu cmd_len = 0;
-	Bitu cmd_pos = 0;
-    uint8_t cmd_buf[8] = {};
-    uint8_t rt_buf[8] = {};
+	Bitu status;
+	Bitu cmd_len;
+	Bitu cmd_pos;
+    uint8_t cmd_buf[8];
+    uint8_t rt_buf[8];
 	struct midi_state_sysex_t {
-        uint8_t buf[SYSEX_SIZE] = {};
-		Bitu used = 0;
-		Bitu delay = 0;
-		bool extra_delay = false;
-		uint32_t start = 0;
+        uint8_t buf[SYSEX_SIZE];
+		Bitu used;
+		Bitu delay;
+		bool extra_delay;
+		uint32_t start;
 
-		midi_state_sysex_t() {}
+		midi_state_sysex_t() : buf(), used(0), delay(0), extra_delay(false), start(0) {}
 	} sysex;
-	bool available = false;
-	MidiHandler * handler = NULL;
+	bool available;
+	MidiHandler * handler;
 
-	DB_Midi() {}
+	DB_Midi() : status(0), cmd_len(0), cmd_pos(0), cmd_buf(), rt_buf(),
+        available(false), handler(NULL) {}
 };
 
 extern bool roland_gs_sysex;

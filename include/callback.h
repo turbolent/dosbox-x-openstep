@@ -81,16 +81,16 @@ extern Bitu call_priv_io;
 
 class CALLBACK_HandlerObject{
 private:
-	bool installed = false;
-	Bitu m_callback = 0; // NULL
-	enum {NONE,SETUP,SETUPAT} m_type = NONE;
+	bool installed;
+	Bitu m_callback;
+	enum {NONE,SETUP,SETUPAT} m_type;
     struct {	
 		RealPt old_vector;
 		uint8_t interrupt;
 		bool installed;
 	} vectorhandler;
 public:
-	CALLBACK_HandlerObject() {
+	CALLBACK_HandlerObject() : installed(false), m_callback(0), m_type(NONE) {
 		vectorhandler.installed=false;
 	}
 	~CALLBACK_HandlerObject();
@@ -102,7 +102,7 @@ public:
 	void Uninstall();
 
 	//Only allocate a callback number
-	void Allocate(CallBack_Handler handler,const char* description=nullptr);
+	void Allocate(CallBack_Handler handler,const char* description=NULL);
 	uint16_t Get_callback() {
 		return (uint16_t)m_callback;
 	}

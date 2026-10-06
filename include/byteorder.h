@@ -1,6 +1,36 @@
 
+#ifndef DOSBOX_BYTEORDER_H
+#define DOSBOX_BYTEORDER_H
 /* Emscripten does not have endian.h */
-# if defined(EMSCRIPTEN)
+# if defined(C_OPENSTEP) && defined(NeXT)
+
+/* OPENSTEP/i386 is little endian; GCC 4.2 has no bswap16 builtin. */
+#  include <stdint.h>
+static inline uint16_t openstep_swap16(uint16_t x) {
+    return (uint16_t)((x << 8) | (x >> 8));
+}
+static inline uint32_t openstep_swap32(uint32_t x) {
+    return ((x & 0xffU) << 24) | ((x & 0xff00U) << 8) |
+           ((x >> 8) & 0xff00U) | (x >> 24);
+}
+static inline uint64_t openstep_swap64(uint64_t x) {
+    return ((uint64_t)openstep_swap32((uint32_t)x) << 32) |
+           openstep_swap32((uint32_t)(x >> 32));
+}
+#  define htole16(x) (x)
+#  define htole32(x) (x)
+#  define htole64(x) (x)
+#  define le16toh(x) (x)
+#  define le32toh(x) (x)
+#  define le64toh(x) (x)
+#  define htobe16(x) openstep_swap16(x)
+#  define htobe32(x) openstep_swap32(x)
+#  define htobe64(x) openstep_swap64(x)
+#  define be16toh(x) openstep_swap16(x)
+#  define be32toh(x) openstep_swap32(x)
+#  define be64toh(x) openstep_swap64(x)
+
+# elif defined(EMSCRIPTEN)
 
 #  include <endian.h>
 
@@ -137,3 +167,5 @@
 #include <endian.h>
 
 #endif
+
+#endif /* DOSBOX_BYTEORDER_H */

@@ -68,11 +68,11 @@ void PageHandler::writed(PhysPt addr,uint32_t val) {
 }
 
 HostPt PageHandler::GetHostReadPt(PageNum /*phys_page*/) {
-	return nullptr;
+	return NULL;
 }
 
 HostPt PageHandler::GetHostWritePt(PageNum /*phys_page*/) {
-	return nullptr;
+	return NULL;
 }
 
 bool PageHandler::readb_checked(PhysPt addr, uint8_t * val) {
@@ -376,7 +376,7 @@ private:
 		if (handler->getFlags() & PFLAG_WRITEABLE)
 			paging.tlb.write[lin_page] = handler->GetHostWritePt(phys_page) - (lin_page << 12);
 		else
-			paging.tlb.write[lin_page] = nullptr;
+			paging.tlb.write[lin_page] = NULL;
 
 		paging.tlb.writehandler[lin_page] = handler;
 	}
@@ -386,41 +386,41 @@ private:
 	}
 public:
 	PageFoilHandler() : PageHandler(PFLAG_INIT|PFLAG_NOCODE) {}
-	uint8_t readb(PhysPt addr) override {(void)addr;read();return 0;}
-	uint16_t readw(PhysPt addr) override {(void)addr;read();return 0;}
-	uint32_t readd(PhysPt addr) override {(void)addr;read();return 0;}
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {(void)addr;read();return 0;}
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {(void)addr;read();return 0;}
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {(void)addr;read();return 0;}
 
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		work(addr);
 		// execute the write:
 		// no need to care about mpl because we won't be entered
 		// if write isn't allowed
 		mem_writeb(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		work(addr);
 		mem_writew(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		work(addr);
 		mem_writed(addr,val);
 	}
 
-	bool readb_checked(PhysPt addr, uint8_t * val) override {(void)addr;(void)val;read();return true;}
-	bool readw_checked(PhysPt addr, uint16_t * val) override {(void)addr;(void)val;read();return true;}
-	bool readd_checked(PhysPt addr, uint32_t * val) override {(void)addr;(void)val;read();return true;}
+	bool readb_checked(PhysPt addr, uint8_t * val) DBX_OVERRIDE {(void)addr;(void)val;read();return true;}
+	bool readw_checked(PhysPt addr, uint16_t * val) DBX_OVERRIDE {(void)addr;(void)val;read();return true;}
+	bool readd_checked(PhysPt addr, uint32_t * val) DBX_OVERRIDE {(void)addr;(void)val;read();return true;}
 
-	bool writeb_checked(PhysPt addr,uint8_t val) override {
+	bool writeb_checked(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		work(addr);
 		mem_writeb(addr,val);
 		return false;
 	}
-	bool writew_checked(PhysPt addr,uint16_t val) override {
+	bool writew_checked(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		work(addr);
 		mem_writew(addr,val);
 		return false;
 	}
-	bool writed_checked(PhysPt addr,uint32_t val) override {
+	bool writed_checked(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		work(addr);
 		mem_writed(addr,val);
 		return false;
@@ -550,13 +550,13 @@ private:
 
 public:
 	ExceptionPageHandler() : PageHandler(PFLAG_INIT|PFLAG_NOCODE) {}
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		if (!cpu.mpl) return readb_through(addr);
 			
 		Exception(addr, false, false);
 		return mem_readb(addr); // read the updated page (unlikely to happen?)
 				}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		// access type is supervisor mode (temporary)
 		// we are always allowed to read in superuser mode
 		// so get the handler and address and read it
@@ -565,13 +565,13 @@ public:
 		Exception(addr, false, false);
 		return mem_readw(addr);
 			}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		if (!cpu.mpl) return readd_through(addr);
 
 		Exception(addr, false, false);
 		return mem_readd(addr);
 		}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		if (!cpu.mpl) {
 			writeb_through(addr, val);
 			return;
@@ -579,7 +579,7 @@ public:
 		Exception(addr, true, false);
 		mem_writeb(addr, val);
 			}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		if (!cpu.mpl) {
 			// TODO Exception on a KR-page?
 			writew_through(addr, val);
@@ -595,7 +595,7 @@ public:
 		Exception(addr, true, false);
 		mem_writew(addr, val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		if (!cpu.mpl) {
 			writed_through(addr, val);
 			return;
@@ -604,27 +604,27 @@ public:
 		mem_writed(addr, val);
 	}
 	// returning true means an exception was triggered for these _checked functions
-	bool readb_checked(PhysPt addr, uint8_t * val) override {
+	bool readb_checked(PhysPt addr, uint8_t * val) DBX_OVERRIDE {
         (void)val;//UNUSED
 		Exception(addr, false, true);
 		return true;
 	}
-	bool readw_checked(PhysPt addr, uint16_t * val) override {
+	bool readw_checked(PhysPt addr, uint16_t * val) DBX_OVERRIDE {
         (void)val;//UNUSED
 		Exception(addr, false, true);
 		return true;
 			}
-	bool readd_checked(PhysPt addr, uint32_t * val) override {
+	bool readd_checked(PhysPt addr, uint32_t * val) DBX_OVERRIDE {
         (void)val;//UNUSED
 		Exception(addr, false, true);
 		return true;
 		}
-	bool writeb_checked(PhysPt addr,uint8_t val) override {
+	bool writeb_checked(PhysPt addr,uint8_t val) DBX_OVERRIDE {
         (void)val;//UNUSED
 		Exception(addr, true, true);
 		return true;
 	}
-	bool writew_checked(PhysPt addr,uint16_t val) override {
+	bool writew_checked(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		if (hack_check(addr)) {
 			LOG_MSG("Page attributes modified without clear");
 			PAGING_ClearTLB();
@@ -634,7 +634,7 @@ public:
 		Exception(addr, true, true);
 		return true;
 	}
-	bool writed_checked(PhysPt addr,uint32_t val) override {
+	bool writed_checked(PhysPt addr,uint32_t val) DBX_OVERRIDE {
         (void)val;//UNUSED
 		Exception(addr, true, true);
 		return true;
@@ -721,57 +721,57 @@ static INLINE bool InitPage_CheckUseraccess(Bitu u1,Bitu u2) {
 class NewInitPageHandler : public PageHandler {
 public:
 	NewInitPageHandler() : PageHandler(PFLAG_INIT|PFLAG_NOCODE) {}
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		InitPage(addr, false, false);
 		return mem_readb(addr);
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		InitPage(addr, false, false);
 		return mem_readw(addr);
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
 		InitPage(addr, false, false);
 		return mem_readd(addr);
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		InitPage(addr, true, false);
 		mem_writeb(addr,val);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		InitPage(addr, true, false);
 		mem_writew(addr,val);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		InitPage(addr, true, false);
 		mem_writed(addr,val);
 	}
 
-	bool readb_checked(PhysPt addr, uint8_t * val) override {
+	bool readb_checked(PhysPt addr, uint8_t * val) DBX_OVERRIDE {
 		if (InitPage(addr, false, true)) return true;
 		*val=mem_readb(addr);
 			return false;
 		}
-	bool readw_checked(PhysPt addr, uint16_t * val) override {
+	bool readw_checked(PhysPt addr, uint16_t * val) DBX_OVERRIDE {
 		if (InitPage(addr, false, true)) return true;
 		*val=mem_readw(addr);
 		return false;
 	}
-	bool readd_checked(PhysPt addr, uint32_t * val) override {
+	bool readd_checked(PhysPt addr, uint32_t * val) DBX_OVERRIDE {
 		if (InitPage(addr, false, true)) return true;
 		*val=mem_readd(addr);
 			return false;
 		}
-	bool writeb_checked(PhysPt addr,uint8_t val) override {
+	bool writeb_checked(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		if (InitPage(addr, true, true)) return true;
 		mem_writeb(addr,val);
 		return false;
 	}
-	bool writew_checked(PhysPt addr,uint16_t val) override {
+	bool writew_checked(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		if (InitPage(addr, true, true)) return true;
 		mem_writew(addr,val);
 			return false;
 		}
-	bool writed_checked(PhysPt addr,uint32_t val) override {
+	bool writed_checked(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		if (InitPage(addr, true, true)) return true;
 		mem_writed(addr,val);
 		return false;
@@ -976,8 +976,8 @@ Bitu PAGING_GetDirBase(void) {
 
 void PAGING_InitTLB(void) {
 	for (Bitu i=0;i<TLB_SIZE;i++) {
-		paging.tlb.read[i]=nullptr;
-		paging.tlb.write[i]=nullptr;
+		paging.tlb.read[i]=NULL;
+		paging.tlb.write[i]=NULL;
 		paging.tlb.readhandler[i]=&init_page_handler;
 		paging.tlb.writehandler[i]=&init_page_handler;
 	}
@@ -994,8 +994,8 @@ void PAGING_ClearTLB(void) {
 	uint32_t * entries=&paging.links.entries[0];
 	for (;paging.links.used>0;paging.links.used--) {
 		Bitu page=*entries++;
-		paging.tlb.read[page]=nullptr;
-		paging.tlb.write[page]=nullptr;
+		paging.tlb.read[page]=NULL;
+		paging.tlb.write[page]=NULL;
 		paging.tlb.readhandler[page]=&init_page_handler;
 		paging.tlb.writehandler[page]=&init_page_handler;
 	}
@@ -1007,8 +1007,8 @@ void PAGING_ClearTLB(void) {
 
 void PAGING_UnlinkPages(PageNum lin_page,PageNum pages) {
 	for (;pages>0;pages--) {
-		paging.tlb.read[lin_page]=nullptr;
-		paging.tlb.write[lin_page]=nullptr;
+		paging.tlb.read[lin_page]=NULL;
+		paging.tlb.write[lin_page]=NULL;
 		paging.tlb.readhandler[lin_page]=&init_page_handler;
 		paging.tlb.writehandler[lin_page]=&init_page_handler;
 		lin_page++;
@@ -1018,8 +1018,8 @@ void PAGING_UnlinkPages(PageNum lin_page,PageNum pages) {
 void PAGING_MapPage(PageNum lin_page,PageNum phys_page) {
 	if (lin_page<LINK_START) {
 		paging.firstmb[lin_page]=(uint32_t)phys_page;
-		paging.tlb.read[lin_page]=nullptr;
-		paging.tlb.write[lin_page]=nullptr;
+		paging.tlb.read[lin_page]=NULL;
+		paging.tlb.write[lin_page]=NULL;
 		paging.tlb.readhandler[lin_page]=&init_page_handler;
 		paging.tlb.writehandler[lin_page]=&init_page_handler;
 	} else {
@@ -1058,7 +1058,7 @@ static void PAGING_LinkPageNew(PageNum lin_page, PageNum phys_page, const uint8_
 		if (handler->getFlags() & PFLAG_READABLE) paging.tlb.read[lin_page] = 
 			handler->GetHostReadPt(phys_page)-lin_base;
 		else
-			paging.tlb.read[lin_page]=nullptr;
+			paging.tlb.read[lin_page]=NULL;
 		paging.tlb.readhandler[lin_page]=handler;
 
 		// write
@@ -1066,11 +1066,11 @@ static void PAGING_LinkPageNew(PageNum lin_page, PageNum phys_page, const uint8_
 			if (handler->getFlags() & PFLAG_WRITEABLE) paging.tlb.write[lin_page] = 
 				handler->GetHostWritePt(phys_page)-lin_base;
 			else
-				paging.tlb.write[lin_page]=nullptr;
+				paging.tlb.write[lin_page]=NULL;
 			paging.tlb.writehandler[lin_page]=handler;
 		} else {
 			paging.tlb.writehandler[lin_page]= &foiling_handler;
-			paging.tlb.write[lin_page]=nullptr;
+			paging.tlb.write[lin_page]=NULL;
 		}
 		break;
 	case ACMAP_RE:
@@ -1078,17 +1078,17 @@ static void PAGING_LinkPageNew(PageNum lin_page, PageNum phys_page, const uint8_
 		if (handler->getFlags() & PFLAG_READABLE) paging.tlb.read[lin_page] = 
 			handler->GetHostReadPt(phys_page)-lin_base;
 		else
-			paging.tlb.read[lin_page]=nullptr;
+			paging.tlb.read[lin_page]=NULL;
 		paging.tlb.readhandler[lin_page]=handler;
 		// exception
 		paging.tlb.writehandler[lin_page]= &exception_handler;
-		paging.tlb.write[lin_page]=nullptr;
+		paging.tlb.write[lin_page]=NULL;
 		break;
 	case ACMAP_EE:
 		paging.tlb.readhandler[lin_page]= &exception_handler;
 		paging.tlb.writehandler[lin_page]= &exception_handler;
-		paging.tlb.read[lin_page]=nullptr;
-		paging.tlb.write[lin_page]=nullptr;
+		paging.tlb.read[lin_page]=NULL;
+		paging.tlb.write[lin_page]=NULL;
 		break;
 	}
 
@@ -1126,9 +1126,9 @@ void PAGING_LinkPage(PageNum lin_page,PageNum phys_page) {
 
 	paging.tlb.phys_page[lin_page]= (uint32_t)phys_page;
 	if (handler->getFlags() & PFLAG_READABLE) paging.tlb.read[lin_page]=handler->GetHostReadPt(phys_page)-lin_base;
-	else paging.tlb.read[lin_page]=nullptr;
+	else paging.tlb.read[lin_page]=NULL;
 	if (handler->getFlags() & PFLAG_WRITEABLE) paging.tlb.write[lin_page]=handler->GetHostWritePt(phys_page)-lin_base;
-	else paging.tlb.write[lin_page]=nullptr;
+	else paging.tlb.write[lin_page]=NULL;
 
 	paging.links.entries[paging.links.used++]= (uint32_t)lin_page;
 	paging.tlb.readhandler[lin_page]=handler;
@@ -1150,8 +1150,8 @@ void PAGING_SwitchCPL(bool isUser) {
 			const tlbentry_t tlb_index = paging.krw_links.entries[i];
 			paging.tlb.readhandler[tlb_index] = &exception_handler;
 			paging.tlb.writehandler[tlb_index] = &exception_handler;
-			paging.tlb.read[tlb_index] = nullptr;
-			paging.tlb.write[tlb_index] = nullptr;
+			paging.tlb.read[tlb_index] = NULL;
+			paging.tlb.write[tlb_index] = NULL;
 		}
 	} else {
 		// us -> sv: ee -> rw
@@ -1167,7 +1167,7 @@ void PAGING_SwitchCPL(bool isUser) {
 			if (handler->getFlags()&PFLAG_READABLE)
 				paging.tlb.read[tlb_index] = handler->GetHostReadPt(phys_page)-lin_base;
 			else
-				paging.tlb.read[tlb_index] = nullptr;
+				paging.tlb.read[tlb_index] = NULL;
 			
 			// map write handler
 			if (dirty) {
@@ -1175,10 +1175,10 @@ void PAGING_SwitchCPL(bool isUser) {
 				if (handler->getFlags()&PFLAG_WRITEABLE)
 					paging.tlb.write[tlb_index] = handler->GetHostWritePt(phys_page)-lin_base;
 				else
-					paging.tlb.write[tlb_index] = nullptr;
+					paging.tlb.write[tlb_index] = NULL;
 			} else {
 				paging.tlb.writehandler[tlb_index] = &foiling_handler;
-				paging.tlb.write[tlb_index] = nullptr;
+				paging.tlb.write[tlb_index] = NULL;
 			}
 		}
 	}
@@ -1191,7 +1191,7 @@ void PAGING_SwitchCPL(bool isUser) {
 			for(Bitu i = 0; i < paging.kr_links.used; i++) {
 				const tlbentry_t tlb_index = paging.kr_links.entries[i];
 				paging.tlb.readhandler[tlb_index] = &exception_handler;
-				paging.tlb.read[tlb_index] = nullptr;
+				paging.tlb.read[tlb_index] = NULL;
 			}
 		} else {
 			// us -> sv: ee -> re
@@ -1205,7 +1205,7 @@ void PAGING_SwitchCPL(bool isUser) {
 				if (handler->getFlags()&PFLAG_READABLE)
 					paging.tlb.read[tlb_index] = handler->GetHostReadPt(phys_page)-lin_base;
 				else
-					paging.tlb.read[tlb_index] = nullptr;
+					paging.tlb.read[tlb_index] = NULL;
 			}
 		}
 	} else { // WP=0
@@ -1215,7 +1215,7 @@ void PAGING_SwitchCPL(bool isUser) {
 			for(Bitu i = 0; i < paging.ur_links.used; i++) {
 				const tlbentry_t tlb_index = paging.ur_links.entries[i];
 				paging.tlb.writehandler[tlb_index] = &exception_handler;
-				paging.tlb.write[tlb_index] = nullptr;
+				paging.tlb.write[tlb_index] = NULL;
 			}
 		} else {
 			// us -> sv: re -> rw
@@ -1231,10 +1231,10 @@ void PAGING_SwitchCPL(bool isUser) {
 					if (handler->getFlags()&PFLAG_WRITEABLE)
 						paging.tlb.write[tlb_index] = handler->GetHostWritePt(phys_page)-lin_base;
 					else
-						paging.tlb.write[tlb_index] = nullptr;
+						paging.tlb.write[tlb_index] = NULL;
 				} else {
 					paging.tlb.writehandler[tlb_index] = &foiling_handler;
-					paging.tlb.write[tlb_index] = nullptr;
+					paging.tlb.write[tlb_index] = NULL;
 				}
 			}
 		}
@@ -1247,19 +1247,19 @@ public:
 	InitPageUserROHandler() {
 		flags=PFLAG_INIT|PFLAG_NOCODE;
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		InitPage(addr,true,false);
 		host_writeb(get_tlb_read(addr)+addr,(uint8_t)(val&0xff));
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		InitPage(addr,true,false);
 		host_writew(get_tlb_read(addr)+addr,(uint16_t)(val&0xffff));
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		InitPage(addr,true,false);
 		host_writed(get_tlb_read(addr)+addr,(uint32_t)val);
 	}
-	bool writeb_checked(PhysPt addr,uint8_t val) override {
+	bool writeb_checked(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		const uint8_t writecode = InitPageCheckOnly(addr);
 		if (writecode) {
 			HostPt tlb_addr;
@@ -1270,7 +1270,7 @@ public:
 		}
 		return true;
 	}
-	bool writew_checked(PhysPt addr,uint16_t val) override {
+	bool writew_checked(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		const uint8_t writecode = InitPageCheckOnly(addr);
 		if (writecode) {
 			HostPt tlb_addr;
@@ -1281,7 +1281,7 @@ public:
 		}
 		return true;
 	}
-	bool writed_checked(PhysPt addr,uint32_t val) override {
+	bool writed_checked(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		const uint8_t writecode = InitPageCheckOnly(addr);
 		if (writecode) {
 			HostPt tlb_addr;
@@ -1503,8 +1503,8 @@ void POD_Load_CPU_Paging( std::istream& stream )
 	PAGING_ClearTLB();
 
 	for( int lcv=0; lcv<TLB_SIZE; lcv++ ) {
-		paging.tlb.read[lcv] = nullptr;
-		paging.tlb.write[lcv] = nullptr;
+		paging.tlb.read[lcv] = NULL;
+		paging.tlb.write[lcv] = NULL;
 		paging.tlb.readhandler[lcv] = &init_page_handler;
 		paging.tlb.writehandler[lcv] = &init_page_handler;
 	}

@@ -19,7 +19,7 @@
 #ifndef DOSBOX_FPU_STATE_H
 #define DOSBOX_FPU_STATE_H
 
-#include <array>
+#include <algorithm>
 #include <cstdint>
 #include <string>
 
@@ -32,7 +32,6 @@ struct RegBit
 	enum { basemask = (1 << nbits) - 1 };
 	enum { mask = basemask << bitno };
 	T data;
-	RegBit(const T& reg) : data(reg) {}
 	template <class T2> RegBit& operator=(T2 val)
 	{
 		data = (data & ~mask) | ((nbits > 1 ? val & basemask : !!val) << bitno);
@@ -45,17 +44,17 @@ struct FPUControlWord
 {
 	union
 	{
-		uint16_t reg = initValue;
-		RegBit<decltype(reg), 0>     IM;  // Invalid operation mask
-		RegBit<decltype(reg), 1>     DM;  // Denormalized operand mask
-		RegBit<decltype(reg), 2>     ZM;  // Zero divide mask
-		RegBit<decltype(reg), 3>     OM;  // Overflow mask
-		RegBit<decltype(reg), 4>     UM;  // Underflow mask
-		RegBit<decltype(reg), 5>     PM;  // Precision mask
-		RegBit<decltype(reg), 7>     M;   // Interrupt mask   (8087-only)
-		RegBit<decltype(reg), 8, 2>  PC;  // Precision control
-		RegBit<decltype(reg), 10, 2> RC;  // Rounding control
-		RegBit<decltype(reg), 12>    IC;  // Infinity control (8087/80287-only)
+		uint16_t reg;
+		RegBit<uint16_t, 0>     IM;  // Invalid operation mask
+		RegBit<uint16_t, 1>     DM;  // Denormalized operand mask
+		RegBit<uint16_t, 2>     ZM;  // Zero divide mask
+		RegBit<uint16_t, 3>     OM;  // Overflow mask
+		RegBit<uint16_t, 4>     UM;  // Underflow mask
+		RegBit<uint16_t, 5>     PM;  // Precision mask
+		RegBit<uint16_t, 7>     M;   // Interrupt mask   (8087-only)
+		RegBit<uint16_t, 8, 2>  PC;  // Precision control
+		RegBit<uint16_t, 10, 2> RC;  // Rounding control
+		RegBit<uint16_t, 12>    IC;  // Infinity control (8087/80287-only)
 	};
 
 	enum
@@ -73,8 +72,8 @@ struct FPUControlWord
 		Chop    = 3
 	};
 
-	FPUControlWord() {}
-	FPUControlWord(const FPUControlWord& other) = default;
+	FPUControlWord() : reg(initValue) {}
+	FPUControlWord(const FPUControlWord& other) : reg(other.reg) {}
 	FPUControlWord& operator=(const FPUControlWord& other)
 	{
 		reg = other.reg;
@@ -99,7 +98,7 @@ struct FPUControlWord
 	void init() { reg = initValue; }
 	FPUControlWord allMasked() const
 	{
-		auto masked = *this;
+		FPUControlWord masked = *this;
 		masked |= IM.mask | DM.mask | ZM.mask | OM.mask | UM.mask | PM.mask;
 		return masked;
 	}
@@ -113,26 +112,26 @@ struct FPUStatusWord
 {
 	union
 	{
-		uint16_t reg = 0;
-		RegBit<decltype(reg), 0>     IE;  // Invalid operation
-		RegBit<decltype(reg), 1>     DE;  // Denormalized operand
-		RegBit<decltype(reg), 2>     ZE;  // Divide-by-zero
-		RegBit<decltype(reg), 3>     OE;  // Overflow
-		RegBit<decltype(reg), 4>     UE;  // Underflow
-		RegBit<decltype(reg), 5>     PE;  // Precision
-		RegBit<decltype(reg), 6>     SF;  // Stack Flag (non-8087/802087)
-		RegBit<decltype(reg), 7>     IR;  // Interrupt request (8087-only)
-		RegBit<decltype(reg), 7>     ES;  // Error summary     (non-8087)
-		RegBit<decltype(reg), 8>     C0;  // Condition flag
-		RegBit<decltype(reg), 9>     C1;  // Condition flag
-		RegBit<decltype(reg), 10>    C2;  // Condition flag
-		RegBit<decltype(reg), 11, 3> top; // Top of stack pointer
-		RegBit<decltype(reg), 14>    C3;  // Condition flag
-		RegBit<decltype(reg), 15>    B;   // Busy flag
+		uint16_t reg;
+		RegBit<uint16_t, 0>     IE;  // Invalid operation
+		RegBit<uint16_t, 1>     DE;  // Denormalized operand
+		RegBit<uint16_t, 2>     ZE;  // Divide-by-zero
+		RegBit<uint16_t, 3>     OE;  // Overflow
+		RegBit<uint16_t, 4>     UE;  // Underflow
+		RegBit<uint16_t, 5>     PE;  // Precision
+		RegBit<uint16_t, 6>     SF;  // Stack Flag (non-8087/802087)
+		RegBit<uint16_t, 7>     IR;  // Interrupt request (8087-only)
+		RegBit<uint16_t, 7>     ES;  // Error summary     (non-8087)
+		RegBit<uint16_t, 8>     C0;  // Condition flag
+		RegBit<uint16_t, 9>     C1;  // Condition flag
+		RegBit<uint16_t, 10>    C2;  // Condition flag
+		RegBit<uint16_t, 11, 3> top; // Top of stack pointer
+		RegBit<uint16_t, 14>    C3;  // Condition flag
+		RegBit<uint16_t, 15>    B;   // Busy flag
 	};
 
-	FPUStatusWord() {}
-	FPUStatusWord(const FPUStatusWord& other) = default;
+	FPUStatusWord() : reg(0) {}
+	FPUStatusWord(const FPUStatusWord& other) : reg(other.reg) {}
 	FPUStatusWord& operator=(const FPUStatusWord& other)
 	{
 		reg = other.reg;
@@ -173,6 +172,7 @@ struct FPUStatusWord
 
 struct FPU
 {
+    FPU() : ea_denormal(false) {}
 #if defined(HAS_LONG_DOUBLE)//probably shouldn't allow struct to change size based on this
 	FPU_Reg_64          _do_not_use__regs[9];
 #else
@@ -187,8 +187,8 @@ struct FPU
 #else
 	bool                use80[9];		// if set, use the 80-bit precision version
 #endif
-    std::array<bool, 9> regvalid;
-	bool                ea_denormal = false;
+    bool regvalid[9];
+	bool                ea_denormal;
 	XMM_Reg             xmmreg[8]; // SSE emulation
 
 	uint32_t            mxcsr; // SSE control register

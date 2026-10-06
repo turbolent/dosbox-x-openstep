@@ -31,22 +31,22 @@ public:
 	CSerialFile(Bitu id, CommandLine* cmd, bool sq = false);
 	virtual ~CSerialFile();
 
-	void setRTSDTR(bool rts, bool dtr) override;
-	void setRTS(bool val) override;
-	void setDTR(bool val) override;
+	void setRTSDTR(bool rts, bool dtr) DBX_OVERRIDE;
+	void setRTS(bool val) DBX_OVERRIDE;
+	void setDTR(bool val) DBX_OVERRIDE;
 
-	void updatePortConfig(uint16_t, uint8_t lcr) override;
-	void updateMSR() override;
-	void transmitByte(uint8_t val, bool first) override;
-	void setBreak(bool value) override;
+	void updatePortConfig(uint16_t, uint8_t lcr) DBX_OVERRIDE;
+	void updateMSR() DBX_OVERRIDE;
+	void transmitByte(uint8_t val, bool first) DBX_OVERRIDE;
+	void setBreak(bool value) DBX_OVERRIDE;
 	void doAction();
-	void handleUpperEvent(uint16_t type) override;
+	void handleUpperEvent(uint16_t type) DBX_OVERRIDE;
 
-	FILE* fp = NULL;
+	FILE* fp;
 	bool squote;
 	bool shellhide;
-	unsigned int timeout = 0;
-	Bitu lastUsedTick = 0;
+	unsigned int timeout;
+	Bitu lastUsedTick;
 	std::string filename;
 	std::string actstd, acterr; // open with a program or batch script
 };

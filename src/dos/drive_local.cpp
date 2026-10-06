@@ -26,6 +26,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <cassert>
+#if C_OPENSTEP
+#include <sys/time.h>
+#endif
 #if defined(MACOSX)
 #define _DARWIN_C_SOURCE
 #endif
@@ -101,8 +104,12 @@
 
 #if defined (WIN32)
 #include <Shellapi.h>
-#else
+#elif !C_OPENSTEP
 #include <glob.h>
+#endif
+
+#if C_OPENSTEP && !defined(MAX_PATH)
+#define MAX_PATH CROSS_LEN
 #endif
 
 #if defined(PATH_MAX) && !defined(MAX_PATH)
@@ -275,7 +282,7 @@ template <class MT> bool String_SBCS_TO_HOST_UTF8(char *d/*CROSS_LEN*/,const cha
 }
 
 uint16_t baselen = 0;
-std::list<uint16_t> bdlist = {};
+std::list<uint16_t> bdlist;
 /* needed for Wengier's TTF output and CJK mode */
 template <class MT> bool String_DBCS_TO_HOST_UTF16(uint16_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/,const MT *hitbl,const MT *rawtbl,const size_t rawtbl_max) {
     const uint16_t* df = d + CROSS_LEN * (morelen?4:1) - 1;
@@ -452,7 +459,7 @@ template <class MT> bool String_HOST_TO_DBCS_UTF16(char *d/*CROSS_LEN*/,const ui
             && !IS_PC98_ARCH && !IS_JEGA_ARCH) {
             int wc = SBCS_From_Host_Find<MT>(ic,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
             bool found = false;
-            for (auto it = lowboxdrawmap.begin(); it != lowboxdrawmap.end(); ++it)
+            for (std::map<int, int>::const_iterator it = lowboxdrawmap.begin(); it != lowboxdrawmap.end(); ++it)
                 if (it->second == wc) {
                     *d++ = it->first;
                     found = true;
@@ -461,7 +468,7 @@ template <class MT> bool String_HOST_TO_DBCS_UTF16(char *d/*CROSS_LEN*/,const ui
             if (found) continue;
         } else if (morelen && IS_PC98_ARCH && ic > 0xFF) {
             int wc = SBCS_From_Host_Find<MT>(ic,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
-            auto it = pc98boxdrawmap.find(wc);
+            std::map<int, int>::const_iterator it = pc98boxdrawmap.find(wc);
             if (it != pc98boxdrawmap.end()) {
                 *d++ = (char)0x86;
                 *d++ = it->second;
@@ -520,7 +527,7 @@ template <class MT> bool String_HOST_TO_DBCS_UTF8(char *d/*CROSS_LEN*/,const cha
             && !IS_PC98_ARCH && !IS_JEGA_ARCH) {
             int wc = SBCS_From_Host_Find<MT>(ic,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
             uint16_t j = 0;
-            for (auto it = lowboxdrawmap.begin(); it != lowboxdrawmap.end(); ++it)
+            for (std::map<int, int>::const_iterator it = lowboxdrawmap.begin(); it != lowboxdrawmap.end(); ++it)
                 if (it->second == wc) {
                     j = it->first;
                     break;
@@ -531,7 +538,7 @@ template <class MT> bool String_HOST_TO_DBCS_UTF8(char *d/*CROSS_LEN*/,const cha
             }
         } else if (morelen && IS_PC98_ARCH && ic > 0xFF) {
             int wc = SBCS_From_Host_Find<MT>(ic,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
-            auto it = pc98boxdrawmap.find(wc);
+            std::map<int, int>::const_iterator it = pc98boxdrawmap.find(wc);
             if (it != pc98boxdrawmap.end()) {
                 *d++ = (char)0x86;
                 *d++ = it->second;
@@ -1227,15 +1234,17 @@ void drivezRegister(std::string const& path, std::string const& target_dir, bool
 #else
         struct dirent *dir;
         host_cnv_char_t *host_name = CodePageGuestToHost(path.c_str());
-        DIR *d = opendir(host_name != NULL ? host_name : path.c_str());
+        const std::string scan_path(host_name != NULL ? host_name : path.c_str());
+        DIR *d = opendir(scan_path.c_str());
         if (d) {
             while ((dir = readdir(d)) != NULL) {
                 host_cnv_char_t *temp_name = CodePageHostToGuest(dir->d_name);
-#if defined(HAIKU)
+#if defined(HAIKU) || C_OPENSTEP
                 struct stat path_stat;
-                stat(dir->d_name, &path_stat);
-                bool is_regular_file = S_ISREG(path_stat.st_mode);
-                bool is_directory = S_ISDIR(path_stat.st_mode);
+                const std::string full_path = scan_path + CROSS_FILESPLIT + dir->d_name;
+                const bool exists = stat(full_path.c_str(), &path_stat) == 0;
+                bool is_regular_file = exists && S_ISREG(path_stat.st_mode);
+                bool is_directory = exists && S_ISDIR(path_stat.st_mode);
 #else
                 bool is_regular_file = (dir->d_type == DT_REG);
                 bool is_directory = (dir->d_type == DT_DIR);
@@ -1260,8 +1269,9 @@ void drivezRegister(std::string const& path, std::string const& target_dir, bool
     std::string vfile_dir_context = (target_dir == "/") ? "" : target_dir;
 
     // PHASE 1: Register all regular files in the current directory first
-    for(std::string const& name : names) {
-        if(!name.size() || name.back() == '/') continue;
+    for(std::vector<std::string>::const_iterator name_it = names.begin(); name_it != names.end(); ++name_it) {
+        const std::string &name = *name_it;
+        if(!name.size() || name[name.size() - 1] == '/') continue;
         if((!strcasecmp(name.c_str(), "AUTOEXEC.BAT") || !strcasecmp(name.c_str(), "CONFIG.SYS")) && target_dir == "/") continue;
 
         FILE* f = NULL;
@@ -1289,7 +1299,7 @@ void drivezRegister(std::string const& path, std::string const& target_dir, bool
         f_data = NULL;
         if (f != NULL) {
             res=fstat(fileno(f),&temp_stat);
-            if (res==0&&(ltime=localtime(&temp_stat.st_mtime))!=nullptr) {
+            if (res==0&&(ltime=localtime(&temp_stat.st_mtime))!=NULL) {
                 fztime=DOS_PackTime((uint16_t)ltime->tm_hour,(uint16_t)ltime->tm_min,(uint16_t)ltime->tm_sec);
                 fzdate=DOS_PackDate((uint16_t)(ltime->tm_year+1900),(uint16_t)(ltime->tm_mon+1),(uint16_t)ltime->tm_mday);
             }
@@ -1305,8 +1315,9 @@ void drivezRegister(std::string const& path, std::string const& target_dir, bool
     }
 
     // PHASE 2: Process subdirectories and recurse down afterwards
-    for(std::string const& name : names) {
-        if(!name.size() || name.back() != '/') continue;
+    for(std::vector<std::string>::const_iterator name_it = names.begin(); name_it != names.end(); ++name_it) {
+        const std::string &name = *name_it;
+        if(!name.size() || name[name.size() - 1] != '/') continue;
 
         ht_stat_t temp_stat;
         host_name_ptr = CodePageGuestToHost((path + CROSS_FILESPLIT + name).c_str());
@@ -1321,18 +1332,18 @@ void drivezRegister(std::string const& path, std::string const& target_dir, bool
 #else
             localtime
 #endif
-            (&temp_stat.st_mtime)) != nullptr) {
+            (&temp_stat.st_mtime)) != NULL) {
             fztime = DOS_PackTime((uint16_t)ltime->tm_hour, (uint16_t)ltime->tm_min, (uint16_t)ltime->tm_sec);
             fzdate = DOS_PackDate((uint16_t)(ltime->tm_year + 1900), (uint16_t)(ltime->tm_mon + 1), (uint16_t)ltime->tm_mday);
         }
 
         // Register the subdirectory directory entity under the current tier context safely
-        VFILE_Register(name.substr(0, name.size() - 1).c_str(), nullptr, 0, vfile_dir_context.c_str());
+        VFILE_Register(name.substr(0, name.size() - 1).c_str(), NULL, 0, vfile_dir_context.c_str());
         fztime = fzdate = 0;
 
         // Build the next recursion path strings cleanly
         std::string next_target_dir = target_dir;
-        if(next_target_dir.empty() || next_target_dir.back() != '/') {
+        if(next_target_dir.empty() || next_target_dir[next_target_dir.size() - 1] != '/') {
             next_target_dir += "/";
         }
         next_target_dir += name.substr(0, name.size() - 1);
@@ -1417,6 +1428,9 @@ bool localDrive::FileCreate(DOS_File * * file,const char * name,uint16_t attribu
     }
 #endif
 
+#if C_OPENSTEP
+    const std::string openstep_path(host_name);
+#endif
     FILE * hand;
     if (enable_share_exe && (!existing_file || special_attributes)) {
 #if defined(WIN32)
@@ -1466,6 +1480,9 @@ bool localDrive::FileCreate(DOS_File * * file,const char * name,uint16_t attribu
 
 	/* Make the 16 bit device information */
 	*file=new LocalFile(name,hand);
+#if C_OPENSTEP
+    static_cast<LocalFile*>(*file)->SetHostPath(openstep_path.c_str());
+#endif
 	(*file)->flags=OPEN_READWRITE;
 
 	return true;
@@ -1498,7 +1515,11 @@ int lock_file_region(int fd, int cmd, struct flock *fl, long long start, unsigne
     start = 0x7fffffff;
   fl->l_start = start;
   fl->l_len = len;
+  #if C_OPENSTEP && defined(NeXT)
+  return fcntl(fd, cmd, (int)fl); /* native BSD prototype takes an integer word */
+#else
   return fcntl( fd, cmd, fl );
+#endif
 }
 
 #define COMPAT_MODE	0x00
@@ -1617,6 +1638,9 @@ bool localDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
         return false;
     }
 
+#if C_OPENSTEP
+    const std::string openstep_path(host_name);
+#endif
     FILE * hand;
     if (enable_share_exe) {
 #if defined(WIN32)
@@ -1666,6 +1690,9 @@ bool localDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
 	}
 
 	*file=new LocalFile(name,hand);
+#if C_OPENSTEP
+    static_cast<LocalFile*>(*file)->SetHostPath(openstep_path.c_str());
+#endif
 	(*file)->flags=flags;  //for the inheritance flag and maybe check for others.
 //	(*file)->SetFileName(host_name);
 	return true;
@@ -1947,8 +1974,8 @@ again:
 	strcpy(lfind_name,ldir_entcopy);
 	lfind_name[LFN_NAMELENGTH]=0;
 
-	find_hsize=(uint32_t) (stat_block.st_size / 0x100000000);
-	find_size=(uint32_t) (stat_block.st_size % 0x100000000);
+	find_hsize=(uint32_t) (stat_block.st_size / UINT64_C(0x100000000));
+	find_size=(uint32_t) (stat_block.st_size % UINT64_C(0x100000000));
 	const struct tm* time;
 	if((time=
 #if defined(__MINGW32__) && !defined(HX_DOS) && !defined(_WIN32_WINDOWS)
@@ -1956,7 +1983,7 @@ again:
 #else
 				localtime
 #endif
-				(&stat_block.st_mtime))!=nullptr){
+				(&stat_block.st_mtime))!=NULL){
 		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 	} else {
@@ -2338,7 +2365,15 @@ bool localDrive::Rename(const char * oldname,const char * newname) {
 	int temp=rename(o_temp_name,n_temp_name);
 #endif
 
-	if (temp==0) dirCache.CacheOut(newnew);
+	if (temp==0) {
+        dirCache.CacheOut(newnew);
+#if C_OPENSTEP
+        for (unsigned i = 0; i < DOS_FILES; ++i) {
+            LocalFile *file = dynamic_cast<LocalFile*>(Files[i]);
+            if (file && file->IsOpen()) file->RenameHostPath(o_temp_name, n_temp_name);
+        }
+#endif
+    }
 
     free(o_temp_name);
     free(n_temp_name);
@@ -2347,8 +2382,24 @@ bool localDrive::Rename(const char * oldname,const char * newname) {
 
 }
 
-#if !defined(WIN32)
+#if C_OPENSTEP && defined(NeXT)
+#include <sys/mount.h>
+#elif !defined(WIN32)
 #include <sys/statvfs.h>
+#endif
+
+#if C_OPENSTEP && defined(NeXT)
+struct OpenStepDiskSpace {
+    unsigned long f_blocks, f_bavail, f_frsize;
+};
+static int openstep_disk_space(const char *path, OpenStepDiskSpace *space) {
+    struct statfs native;
+    if (statfs(path, &native) != 0) return -1;
+    space->f_blocks = native.f_blocks;
+    space->f_bavail = native.f_bavail > 0 ? native.f_bavail : 0;
+    space->f_frsize = native.f_bsize;
+    return 0;
+}
 #endif
 
 bool localDrive::AllocationInfo64(uint32_t* _bytes_sector, uint32_t* _sectors_cluster, uint64_t* _total_clusters, uint64_t* _free_clusters) {
@@ -2396,8 +2447,13 @@ bool localDrive::AllocationInfo64(uint32_t* _bytes_sector, uint32_t* _sectors_cl
                 freec = qwFreeClusters * dwSectPerClust / ratio;
             }
 #else
+#if C_OPENSTEP && defined(NeXT)
+        OpenStepDiskSpace stat;
+        res = openstep_disk_space(basedir, &stat) == 0;
+#else
         struct statvfs stat;
         res = statvfs(basedir, &stat) == 0;
+#endif
         if(res) {
             int ratio = stat.f_blocks / 65536, tmp = ratio;
             *_bytes_sector = 512;
@@ -2503,8 +2559,13 @@ bool localDrive::AllocationInfo64(uint32_t* _bytes_sector, uint32_t* _sectors_cl
                  freec = dwFreeClusters * dwSectPerClust / ratio;
              }
 #else
+#if C_OPENSTEP && defined(NeXT)
+        OpenStepDiskSpace stat;
+        res = openstep_disk_space(basedir, &stat) == 0;
+#else
         struct statvfs stat;
-		res = statvfs(basedir, &stat) == 0;
+        res = statvfs(basedir, &stat) == 0;
+#endif
 		if (res) {
 			int ratio = stat.f_blocks / 65536, tmp=ratio;
 			*_bytes_sector = 512;
@@ -2627,7 +2688,7 @@ bool localDrive::FileStat(const char* name, FileStat_Block * const stat_block) {
 #else
     localtime
 #endif
-    (&temp_stat.st_mtime))!=nullptr) {
+    (&temp_stat.st_mtime))!=NULL) {
 		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	}
@@ -2755,7 +2816,7 @@ next:
     return false;
 }
 
-localDrive::localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, std::vector<std::string> &options) : special_prefix_local(prefix_local.c_str()) {
+localDrive::localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, std::vector<std::string> &options) : remote(-1), special_prefix_local(prefix_local.c_str()), srchInfo() {
 	strcpy(basedir,startdir);
 	sprintf(info,"local directory %s",startdir);
 	allocation.bytes_sector=_bytes_sector;
@@ -2776,7 +2837,8 @@ localDrive::localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sec
         freesizecap=2;
     }
 
-	for (const auto &opt : options) {
+	for (std::vector<std::string>::const_iterator opt_it = options.begin(); opt_it != options.end(); ++opt_it) {
+        const std::string &opt = *opt_it;
 		size_t equ = opt.find_first_of('=');
 		std::string name,value;
 
@@ -2789,7 +2851,7 @@ localDrive::localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sec
 			value.clear();
 		}
 
-		for (char & c: name) c=tolower(c);
+		for (std::string::iterator c = name.begin(); c != name.end(); ++c) *c=tolower((unsigned char)*c);
 		if (name == "remote")
 			remote = 1;
 		else if (name == "local")
@@ -2895,7 +2957,7 @@ bool LocalFile::Write(const uint8_t * data,uint16_t * size) {
 bool toLock(int fd, bool is_lock, uint32_t pos, uint16_t size) {
     struct flock larg;
     unsigned long mask = 0xC0000000;
-    int flag = fcntl(fd, F_GETFL);
+    int flag = fcntl(fd, F_GETFL, 0);
     larg.l_type = is_lock ? (flag & O_RDWR || flag & O_WRONLY ? F_WRLCK : F_RDLCK) : F_UNLCK;
     larg.l_start = pos;
     larg.l_len = size;
@@ -3086,6 +3148,17 @@ bool LocalFile::Close() {
             extern int errno; 
             LOG_MSG("Set time failed (%s)", strerror(errno));
         }
+#elif C_OPENSTEP
+        /* OPENSTEP only exposes pathname-based utimes. Verify that the saved
+         * name still denotes this open inode before changing its timestamps. */
+        struct stat opened, named;
+        struct timeval ftsp[2];
+        ftsp[0].tv_sec = ftsp[1].tv_sec = mktime(&tim);
+        ftsp[0].tv_usec = ftsp[1].tv_usec = 0;
+        if (host_path.empty() || fstat(fileno(fhandle), &opened) != 0 ||
+            stat(host_path.c_str(), &named) != 0 || opened.st_dev != named.st_dev ||
+            opened.st_ino != named.st_ino || utimes(host_path.c_str(), ftsp) != 0)
+            LOG_MSG("Unable to set host timestamp for %s", host_path.c_str());
 #elif defined(OS2)
         struct timeval ftsp[2];
         ftsp[0].tv_sec =  ftsp[1].tv_sec =  mktime(&tim);
@@ -3112,7 +3185,7 @@ bool LocalFile::Close() {
     // only close if one reference left
     if (refCtr==1) {
         if(fhandle) fclose(fhandle); 
-        fhandle = nullptr;
+        fhandle = NULL;
         open = false;
     }
 
@@ -3128,16 +3201,25 @@ uint32_t LocalFile::GetSeekPos() {
 	return file_access_tries>0?(uint32_t)lseek(fileno(fhandle),0,SEEK_CUR):(uint32_t)ftell( fhandle );
 }
 
-LocalFile::LocalFile() {}
+#if C_OPENSTEP
+void LocalFile::RenameHostPath(const char *oldpath, const char *newpath) {
+    const size_t length = strlen(oldpath);
+    if (host_path.compare(0, length, oldpath) == 0 &&
+        (host_path.size() == length || host_path[length] == '/'))
+        host_path.replace(0, length, newpath);
+}
+#endif
 
-LocalFile::LocalFile(const char* _name, FILE* handle) : fhandle(handle) {
+LocalFile::LocalFile() : read_only_medium(false) {}
+
+LocalFile::LocalFile(const char* _name, FILE* handle) : fhandle(handle), read_only_medium(false) {
 	open=true;
 	LocalFile::UpdateDateTimeFromHost();
 
 	attr=DOS_ATTR_ARCHIVE;
 	last_action=NONE;
 
-	name=nullptr;
+	name=NULL;
 	SetName(_name);
 }
 
@@ -3150,7 +3232,7 @@ bool LocalFile::UpdateDateTimeFromHost(void) {
 	struct stat temp_stat;
 	fstat(fileno(fhandle),&temp_stat);
     const struct tm* ltime;
-	if((ltime=localtime(&temp_stat.st_mtime))!=nullptr) {
+	if((ltime=localtime(&temp_stat.st_mtime))!=NULL) {
 		time=DOS_PackTime((uint16_t)ltime->tm_hour,(uint16_t)ltime->tm_min,(uint16_t)ltime->tm_sec);
 		date=DOS_PackDate((uint16_t)(ltime->tm_year+1900),(uint16_t)(ltime->tm_mon+1),(uint16_t)ltime->tm_mday);
 	} else {
@@ -3222,7 +3304,7 @@ bool MSCDEX_HasMediaChanged(uint8_t subUnit);
 bool MSCDEX_GetVolumeName(uint8_t subUnit, char* name);
 
 cdromDrive::cdromDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options)
-		   :localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options), driveLetter(driveLetter)
+		   :localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options), subUnit(0), driveLetter(driveLetter)
 {
 	// Init mscdex
 	error = MSCDEX_AddDrive(driveLetter,startdir,subUnit);

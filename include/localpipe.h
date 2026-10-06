@@ -39,7 +39,8 @@ typedef intptr_t localpipe_t;
 static const localpipe_t LOCALPIPE_INVALID = (localpipe_t)-1;
 
 struct LocalPipeOpenResult {
-	localpipe_t handle = LOCALPIPE_INVALID;
+	localpipe_t handle;
+    LocalPipeOpenResult() : handle(LOCALPIPE_INVALID) {}
 	std::string error;   // human-readable; empty iff handle is valid
 };
 

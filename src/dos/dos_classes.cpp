@@ -560,7 +560,7 @@ void DOS_DTA::GetSearchParams(uint8_t & attr,char * pattern, bool lfn) {
     }
 }
 
-DOS_FCB::DOS_FCB(uint16_t seg,uint16_t off,bool allow_extended) { 
+DOS_FCB::DOS_FCB(uint16_t seg,uint16_t off,bool allow_extended) : extended(false) {
 	SetPt(seg,off); 
 	real_pt=pt;
 	if (allow_extended) {

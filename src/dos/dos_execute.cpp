@@ -17,7 +17,6 @@
  */
 
 
-#include <array>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -896,12 +895,12 @@ bool DOS_Execute(const char* name, PhysPt block_pt, uint16_t flags) {
 		for (const char *p = name; *p; p++)
 			if (*p == ':' || *p == '\\' || *p == '/') base = p + 1;
 
-		std::array<char, 9> stripname = {};
+		char stripname[9] = {0};
 		size_t index = 0;
-		for (; index < stripname.size() - 1 && base[index] && base[index] != '.'; index++)
+		for (; index < sizeof(stripname) - 1 && base[index] && base[index] != '.'; index++)
 			stripname[index] = (char)toupper(base[index]);
 		DOS_MCB pspmcb(dos.psp()-1);
-		pspmcb.SetFileName(stripname.data());
+		pspmcb.SetFileName(stripname);
 		DOS_UpdatePSPName();
 		RunningProgramHash[0] = head.checksum;
 		RunningProgramHash[1] = checksum_bytes;
@@ -914,7 +913,7 @@ bool DOS_Execute(const char* name, PhysPt block_pt, uint16_t flags) {
 			if (s != 0) {
 				DOS_MCB envmcb(s-1);
 				envmcb.SetPSPSeg(dos.psp());
-				envmcb.SetFileName(stripname.data());
+				envmcb.SetFileName(stripname);
 			}
 		}
 	}

@@ -138,7 +138,7 @@ public:
 	// path); the TCP/ENET server sockets ignore it and use `port`.
 	static NETServerSocket *NETServerFactory(SocketTypesE socketType,
 	                                         uint16_t port,
-	                                         const char *bindTarget = nullptr);
+	                                         const char *bindTarget = NULL);
 
 	virtual NETClientSocket *Accept() = 0;
 
@@ -156,10 +156,10 @@ public:
 
 	~ENETServerSocket();
 
-	NETClientSocket *Accept() override;
+	NETClientSocket *Accept() DBX_OVERRIDE;
 
 private:
-	ENetHost    *host      = nullptr;
+	ENetHost    *host      = NULL;
 	ENetAddress  address   = {};
 	bool         nowClient = false;
 };
@@ -173,11 +173,11 @@ public:
 
 	~ENETClientSocket();
 
-	SocketState GetcharNonBlock(uint8_t &val) override;
-	bool Putchar(uint8_t val) override;
-	bool SendArray(const uint8_t *data, size_t n) override;
-	bool ReceiveArray(uint8_t *data, size_t &n) override;
-	bool GetRemoteAddressString(char *buffer) override;
+	SocketState GetcharNonBlock(uint8_t &val) DBX_OVERRIDE;
+	bool Putchar(uint8_t val) DBX_OVERRIDE;
+	bool SendArray(const uint8_t *data, size_t n) DBX_OVERRIDE;
+	bool ReceiveArray(uint8_t *data, size_t &n) DBX_OVERRIDE;
+	bool GetRemoteAddressString(char *buffer) DBX_OVERRIDE;
 
 private:
 	void updateState();
@@ -186,8 +186,8 @@ private:
 	int64_t              connectStart  = 0;
 	bool                 connecting    = false;
 #endif
-	ENetHost            *client        = nullptr;
-	ENetPeer            *peer          = nullptr;
+	ENetHost            *client        = NULL;
+	ENetPeer            *peer          = NULL;
 	ENetAddress          address       = {};
 	std::queue<uint8_t>  receiveBuffer = {};
 };
@@ -217,25 +217,25 @@ public:
 
 	~TCPClientSocket();
 
-	SocketState GetcharNonBlock(uint8_t &val) override;
-	bool Putchar(uint8_t val) override;
-	bool SendArray(const uint8_t *data, size_t n) override;
-	bool ReceiveArray(uint8_t *data, size_t &n) override;
-	bool GetRemoteAddressString(char *buffer) override;
+	SocketState GetcharNonBlock(uint8_t &val) DBX_OVERRIDE;
+	bool Putchar(uint8_t val) DBX_OVERRIDE;
+	bool SendArray(const uint8_t *data, size_t n) DBX_OVERRIDE;
+	bool ReceiveArray(uint8_t *data, size_t &n) DBX_OVERRIDE;
+	bool GetRemoteAddressString(char *buffer) DBX_OVERRIDE;
 
 private:
 
 #ifdef NATIVESOCKETS
-	_TCPsocketX *nativetcpstruct = nullptr;
+	_TCPsocketX *nativetcpstruct = NULL;
 #endif
 
-	TCPsocket mysock = nullptr;
-	SDLNet_SocketSet listensocketset = nullptr;
+	TCPsocket mysock = NULL;
+	SDLNet_SocketSet listensocketset = NULL;
 };
 
 class TCPServerSocket : public NETServerSocket {
 public:
-	TCPsocket mysock = nullptr;
+	TCPsocket mysock = NULL;
 
 	TCPServerSocket(uint16_t port);
 	TCPServerSocket(const TCPServerSocket&) = delete; // prevent copying
@@ -243,7 +243,7 @@ public:
 
 	~TCPServerSocket();
 
-	NETClientSocket *Accept() override;
+	NETClientSocket *Accept() DBX_OVERRIDE;
 };
 
 // --- LOCAL NAMED PIPE / AF_UNIX NET INTERFACE -----------------------------
@@ -261,11 +261,11 @@ public:
 
 	~NamedPipeClientSocket();
 
-	SocketState GetcharNonBlock(uint8_t &val) override;
-	bool Putchar(uint8_t val) override;
-	bool SendArray(const uint8_t *data, size_t n) override;
-	bool ReceiveArray(uint8_t *data, size_t &n) override;
-	bool GetRemoteAddressString(char *buffer) override;
+	SocketState GetcharNonBlock(uint8_t &val) DBX_OVERRIDE;
+	bool Putchar(uint8_t val) DBX_OVERRIDE;
+	bool SendArray(const uint8_t *data, size_t n) DBX_OVERRIDE;
+	bool ReceiveArray(uint8_t *data, size_t &n) DBX_OVERRIDE;
+	bool GetRemoteAddressString(char *buffer) DBX_OVERRIDE;
 
 private:
 	localpipe_t handle = LOCALPIPE_INVALID;
@@ -279,7 +279,7 @@ public:
 
 	~NamedPipeServerSocket();
 
-	NETClientSocket *Accept() override;
+	NETClientSocket *Accept() DBX_OVERRIDE;
 
 private:
 	localpipe_t listener = LOCALPIPE_INVALID;

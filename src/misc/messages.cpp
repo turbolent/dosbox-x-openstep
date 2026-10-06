@@ -18,6 +18,7 @@
 
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include "dosbox.h"
@@ -35,7 +36,9 @@
 #include <list>
 #include <string>
 #include <memory>
+#if !C_OPENSTEP
 #include <unordered_map>
+#endif
 #include <fstream>
 #include <iostream>
 #if defined(__MINGW32__) && !defined(HX_DOS)
@@ -72,21 +75,26 @@ struct MessageBlock {
 std::list<MessageBlock> LangList; // list of translation messages, order maintained in inserted order
 
 // Map for fast lookup
-std::unordered_map<std::string, std::list<MessageBlock>::iterator> LangMap;
+#if C_OPENSTEP
+typedef std::map<std::string, std::list<MessageBlock>::iterator> MessageMap;
+#else
+typedef std::unordered_map<std::string, std::list<MessageBlock>::iterator> MessageMap;
+#endif
+MessageMap LangMap;
 
 void MSG_Add(const char* _name, const char* _val) { //add messages to the translation message list
     // If the message already exists, ignore it
     if(LangMap.find(_name) != LangMap.end()) return;
 
     // Add the message to the end of the list
-    LangList.emplace_back(_name, _val);
+    LangList.push_back(MessageBlock(_name, _val));
 
     // Save the position in the map
-    LangMap[_name] = std::prev(LangList.end());
+    LangMap[_name] = --LangList.end();
 }
 
 void MSG_Replace(const char* _name, const char* _val) {
-    auto it = LangMap.find(_name);
+    MessageMap::iterator it = LangMap.find(_name);
 
     if(it != LangMap.end()) {
         // Update the value while maintaining the order
@@ -94,13 +102,13 @@ void MSG_Replace(const char* _name, const char* _val) {
     }
     else {
         // If not found, add the message
-        LangList.emplace_back(_name, _val);
-        LangMap[_name] = std::prev(LangList.end());
+        LangList.push_back(MessageBlock(_name, _val));
+        LangMap[_name] = --LangList.end();
     }
 }
 
 const char* MSG_Get(const char* msg) { // add messages to the translation message list
-    auto it = LangMap.find(msg);
+    MessageMap::iterator it = LangMap.find(msg);
 
     if(it != LangMap.end())
         return it->second->val.c_str(); // Return the value if found
@@ -111,7 +119,11 @@ const char* MSG_Get(const char* msg) { // add messages to the translation messag
 std::string replaceNewlineWithEscaped(const std::string& input);
 const char* MSG_GetUTF8(const char* msg)
 {
+    #if C_OPENSTEP
+    static std::string storage; // Native frontend and message lookup run on the main thread.
+#else
     thread_local std::string storage;
+#endif
 
     const char* guest = MSG_Get(msg);
 
@@ -123,9 +135,9 @@ const char* MSG_GetUTF8(const char* msg)
     size_t len = strlen(guest);
     std::vector<char> buf(len * 4 + 1, 0);
 
-    CodePageGuestToHostUTF8(buf.data(), guest);
+    CodePageGuestToHostUTF8(&buf[0], guest);
 
-    storage = buf.data();
+    storage = &buf[0];
     return storage.c_str();
 }
 
@@ -143,7 +155,7 @@ std::string formatString(const char* format, ...) {
     va_start(args, format);
 
     // Determine required buffer size
-    int size = vsnprintf(nullptr, 0, format, args);
+    int size = vsnprintf(NULL, 0, format, args);
     va_end(args);
 
     if(size < 0) {
@@ -152,10 +164,10 @@ std::string formatString(const char* format, ...) {
 
     std::vector<char> buffer(size + 1); // Allocate buffer (+1 for null-terminator)
     va_start(args, format);
-    vsnprintf(buffer.data(), buffer.size(), format, args);
+    vsnprintf(&buffer[0], buffer.size(), format, args);
     va_end(args);
 
-    return std::string(buffer.data());
+    return std::string(&buffer[0]);
 }
 
 bool InitCodePage() {
@@ -304,17 +316,17 @@ FILE* testLoadLangFile(const char* fname) {
     config_path = Cross::GetPlatformConfigDir();
     res_path = Cross::GetPlatformResDir();
 
-    std::vector<std::string> base_paths = {
+    const std::string base_paths[] = {
         "", exepath, config_path, res_path,
         "languages/", exepath + "languages/", config_path + "languages/", res_path + "languages/",
         "language/", exepath + "language/", config_path + "language/", res_path + "language/"
     };
 
-    std::vector<std::string> suffixes = { "", ".lng" };
+    const std::string suffixes[] = { "", ".lng" };
 
-    for(const auto& base : base_paths) {
-        for(const auto& suffix : suffixes) {
-            std::string full_path = base + fname + suffix;
+    for (size_t base = 0; base < sizeof(base_paths)/sizeof(base_paths[0]); ++base) {
+        for (size_t suffix = 0; suffix < sizeof(suffixes)/sizeof(suffixes[0]); ++suffix) {
+            std::string full_path = base_paths[base] + fname + suffixes[suffix];
             FILE* mfile = fopen(full_path.c_str(), "rt");
             if(mfile) return mfile;
         }
@@ -328,7 +340,7 @@ FILE* testLoadLangFile(const char* fname) {
     }
 #endif
 
-    return nullptr;
+    return NULL;
 }
 
 
@@ -453,7 +465,7 @@ void LoadMessageFile(const char* fname) {
 
         }
         else if(linein[0] == '.' && trimmed.empty()) {
-            if(!string.empty() && string.back() == '\n') string.pop_back();
+            if(!string.empty() && string[string.size()-1] == '\n') string.erase(string.size()-1);
 
             if(!name.empty()) {
                 MSG_Replace(name.c_str(), string.c_str());
@@ -499,8 +511,8 @@ void LoadMessageFile(const char* fname) {
 #if !defined(OSFREE)
     if(loadlangcp && msgcodepage > 0) {
         const char* layoutname = DOS_GetLoadedLayout();
-        if(!IS_DOSV && !IS_JEGA_ARCH && !IS_PC98_ARCH && layoutname != nullptr) {
-            toSetCodePage(nullptr, msgcodepage, -1);
+        if(!IS_DOSV && !IS_JEGA_ARCH && !IS_PC98_ARCH && layoutname != NULL) {
+            toSetCodePage(NULL, msgcodepage, -1);
         }
     }
 #endif
@@ -514,12 +526,12 @@ void LoadMessageFile(const char* fname) {
 
 
 bool MSG_Write(const char* location, const char* name) {
-    std::unique_ptr<char[]> temp(new char[4096]);
+    std::vector<char> temp(4096);
 
     FILE* out = fopen(location, "w+t");
-    if(out == nullptr) return false; // Failed to open file for writing
+    if(out == NULL) return false; // Failed to open file for writing
 
-    if(name != nullptr) langname = std::string(name);
+    if(name != NULL) langname = std::string(name);
 
     if(!langname.empty())
         fprintf(out, ":DOSBOX-X:LANGUAGE:%s\n", langname.c_str());
@@ -533,23 +545,25 @@ bool MSG_Write(const char* location, const char* name) {
     morelen = inmsg = true;
 
     // Output messages in insertion order using LangList
-    for(const auto& msg : LangList) {
+    for (std::list<MessageBlock>::const_iterator it = LangList.begin(); it != LangList.end(); ++it) {
+        const MessageBlock &msg = *it;
         const char* out_text = msg.val.c_str();
-        if(!CodePageGuestToHostUTF8(temp.get(), out_text))
+        if(!CodePageGuestToHostUTF8(&temp[0], out_text))
             fprintf(out, ":%s\n%s\n.\n", msg.name.c_str(), out_text);
         else
-            fprintf(out, ":%s\n%s\n.\n", msg.name.c_str(), temp.get());
+            fprintf(out, ":%s\n%s\n.\n", msg.name.c_str(), &temp[0]);
     }
 
     // Output menu items (menu filtering conditions remain unchanged)
     std::vector<DOSBoxMenu::item> master_list = mainMenu.get_master_list();
-    for(auto& id : master_list) {
+    for (std::vector<DOSBoxMenu::item>::iterator it = master_list.begin(); it != master_list.end(); ++it) {
+        DOSBoxMenu::item &id = *it;
         if(!id.is_allocated() || id.get_type() == DOSBoxMenu::separator_type_id ||
             id.get_type() == DOSBoxMenu::vseparator_type_id ||
             (id.get_name().size() == 5 && id.get_name().substr(0, 4) == "slot") ||
             (id.get_name().size() > 9 && id.get_name().substr(0, 8) == "command_") ||
             (id.get_name().size() == 6 && id.get_name().substr(0, 5) == "Drive" &&
-                id.get_name().back() >= 'A' && id.get_name().back() <= 'Z') ||
+                id.get_name()[id.get_name().size()-1] >= 'A' && id.get_name()[id.get_name().size()-1] <= 'Z') ||
             (id.get_name().size() > 9 && id.get_name().substr(0, 6) == "drive_" &&
                 id.get_name()[6] >= 'B' && id.get_name()[6] <= 'Z' && id.get_name()[7] == '_') ||
             id.get_name() == "mapper_cycauto")
@@ -566,24 +580,25 @@ bool MSG_Write(const char* location, const char* name) {
             : id.get_name();
 
         const char* out_text = text.c_str();
-        if(!CodePageGuestToHostUTF8(temp.get(), out_text))
+        if(!CodePageGuestToHostUTF8(&temp[0], out_text))
             fprintf(out, ":MENU:%s\n%s\n.\n", idname.c_str(), out_text);
         else
-            fprintf(out, ":MENU:%s\n%s\n.\n", idname.c_str(), temp.get());
+            fprintf(out, ":MENU:%s\n%s\n.\n", idname.c_str(), &temp[0]);
     }
 
     // Output MAPPER items that differ from mainMenu mappings
     std::map<std::string, std::string> event_map = get_event_map();
-    for(const auto& it : event_map) {
+    for (std::map<std::string, std::string>::const_iterator entry = event_map.begin(); entry != event_map.end(); ++entry) {
+        const std::pair<const std::string, std::string> &it = *entry;
         if(mainMenu.item_exists("mapper_" + it.first) &&
             mainMenu.get_item("mapper_" + it.first).get_text() == it.second)
             continue;
 
         const char* out_text = it.second.c_str();
-        if(!CodePageGuestToHostUTF8(temp.get(), out_text))
+        if(!CodePageGuestToHostUTF8(&temp[0], out_text))
             fprintf(out, ":MAPPER:%s\n%s\n.\n", it.first.c_str(), out_text);
         else
-            fprintf(out, ":MAPPER:%s\n%s\n.\n", it.first.c_str(), temp.get());
+            fprintf(out, ":MAPPER:%s\n%s\n.\n", it.first.c_str(), &temp[0]);
     }
 
     morelen = inmsg = false;

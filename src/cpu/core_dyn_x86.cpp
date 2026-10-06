@@ -387,7 +387,7 @@ restart_core:
 		if (DEBUG_HeavyIsBreakpoint()) return debugCallback;
 #endif
 #endif
-	CodePageHandler * chandler=nullptr;
+	CodePageHandler * chandler=NULL;
 	if (GCC_UNLIKELY(MakeCodePage(ip_point,chandler))) {
 		CPU_Exception(cpu.exception.which,cpu.exception.error);
 		goto restart_core;
@@ -430,7 +430,7 @@ restart_core:
 		}
 	}
 run_block:
-	cache.block.running=nullptr;
+	cache.block.running=NULL;
 	core_dyn.pagefault = false;
 	BlockReturnDynX86 ret=safe_gen_runcode((uint8_t*)cache_rwtox(block->cache.start));
 
@@ -543,7 +543,7 @@ void CPU_Core_Dyn_X86_Shutdown(void) {
 void CPU_Core_Dyn_X86_Init(void) {
 	Bits i;
 	/* Setup the global registers and their flags */
-	for (i=0;i<G_MAX;i++) DynRegs[i].genreg=nullptr;
+	for (i=0;i<G_MAX;i++) DynRegs[i].genreg=NULL;
 	DynRegs[G_EAX].data=&reg_eax;
 	DynRegs[G_EAX].flags=DYNFLG_HAS8|DYNFLG_HAS16|DYNFLG_LOAD|DYNFLG_SAVE;
 	DynRegs[G_ECX].data=&reg_ecx;
@@ -598,7 +598,7 @@ void CPU_Core_Dyn_X86_Init(void) {
 	DynRegs[G_TMPD].flags=DYNFLG_HAS16;
 	DynRegs[G_SHIFT].data=&extra_regs.shift;
 	DynRegs[G_SHIFT].flags=DYNFLG_HAS8|DYNFLG_HAS16;
-	DynRegs[G_EXIT].data=nullptr;
+	DynRegs[G_EXIT].data=NULL;
 	DynRegs[G_EXIT].flags=DYNFLG_HAS16;
 	/* Init the generator */
 	gen_init();

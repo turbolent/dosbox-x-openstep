@@ -21,6 +21,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#if C_OPENSTEP
+#include <sys/time.h>
+#endif
 #if defined(WIN32) && defined(__MINGW32__)
 # include <malloc.h>
 #endif
@@ -939,7 +942,7 @@ bool DOS_CloseFile(uint16_t entry, bool fcb, uint8_t * refcnt) {
 	if (refs<=0) {
 		if (!Files[handle]->neverclose) { // Prevent removal of CON/AUX/PRN from SFT
 			delete Files[handle];
-			Files[handle]=nullptr;
+			Files[handle]=NULL;
 		}
 	}
 	if (refcnt!=NULL) *refcnt=static_cast<uint8_t>(refs+1);
@@ -1262,7 +1265,7 @@ bool DOS_UnlinkFile(char const * const name) {
 				strcpy(temp, dir);
 				if (strlen(temp)&&temp[strlen(temp)-1]!='\\') strcat(temp, "\\");
 				strcat(temp, find_name);
-				cdirs.emplace_back(std::string(temp));
+				cdirs.push_back(std::string(temp));
 			}
 		} while ((ret=DOS_FindNext())==true);
 		lfn_filefind_handle=fbak;
@@ -1567,6 +1570,10 @@ bool DOS_ForceDuplicateEntry(uint16_t entry,uint16_t newentry) {
 void initRand() {
 #ifdef WIN32
     srand(GetTickCount());
+#elif C_OPENSTEP
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    srand((unsigned)now.tv_sec ^ (unsigned)now.tv_usec);
 #else
     struct timespec ts;
     unsigned theTick = 0U;
@@ -1727,7 +1734,7 @@ uint8_t FCB_Parsename(uint16_t seg,uint16_t offset,uint8_t parser ,char *string,
 				fill = '?';
 				ncs = '?';
 			}
-			if (ncs == '?' && !ret && index < 8) ret = 1; //Don't override bad drive
+			if (ncs == '?' && !ret && index < 8) ret = 1; //Don't DBX_OVERRIDE bad drive
 			if (!isvalid(ncs)) { //Fill up the name.
 				while(index < 8) 
 					fcb_name.part.name[index++] = (char)fill;
@@ -2341,12 +2348,12 @@ void DOS_SetupFiles (void) {
 	Files = new DOS_File * [DOS_FILES];
 	uint32_t i;
 	for (i=0;i<DOS_FILES;i++) {
-		Files[i]=nullptr;
+		Files[i]=NULL;
 	}
 	/* Setup the Virtual Disk System */
 	for (i=0;i<DOS_DRIVES;i++) {
 		if (Drives[i]) DriveManager::UnmountDrive(i);
-		Drives[i]=nullptr;
+		Drives[i]=NULL;
 	}
 	for (int i=0; i<MAX_DISK_IMAGES; i++) {
 		if (imageDiskList[i]) {
@@ -2649,7 +2656,7 @@ void unmount(int lcv) {
     const isoDrive* cdrom = dynamic_cast<isoDrive*>(Drives[lcv]);
     if (DriveManager::UnmountDrive(lcv) == 0) {
         if (cdrom) IDE_CDROM_Detach(lcv);
-        Drives[lcv]=nullptr;
+        Drives[lcv]=NULL;
         DOS_EnableDriveMenu('A'+lcv);
         mem_writeb(Real2Phys(dos.tables.mediaid)+lcv*dos.tables.dpb_size,0);
     }
@@ -2665,7 +2672,7 @@ void POD_Load_DOS_Files( std::istream& stream )
 	if (!dos_kernel_disabled) {
         if (ZDRIVE_CUR != ZDRIVE_NUM) {
             Drives[ZDRIVE_NUM] = Drives[ZDRIVE_CUR];
-            Drives[ZDRIVE_CUR] = nullptr;
+            Drives[ZDRIVE_CUR] = NULL;
         }
 		// 1. Do drives first (directories -> files)
 		// 2. Then files next
@@ -2848,7 +2855,7 @@ void POD_Load_DOS_Files( std::istream& stream )
 				if( strcmp( Files[lcv]->GetName(), "PRN" ) == 0 ) break;
 				if( strcmp( Files[lcv]->GetName(), "AUX" ) == 0 ) break;
 				if( strcmp( Files[lcv]->GetName(), "EMMXXXX0" ) == 0 ) break;//raiden needs this
-				Files[lcv]=nullptr;
+				Files[lcv]=NULL;
 			}
 
 			// ignore NULL file
@@ -2869,12 +2876,12 @@ void POD_Load_DOS_Files( std::istream& stream )
 
 
 			// NOTE: Must open regardless to get 'new' DOS_File class
-			if (file_drive >= DOS_DRIVES || Drives[file_drive] == nullptr) {
+			if (file_drive >= DOS_DRIVES || Drives[file_drive] == NULL) {
 				LOG_MSG("WARNING: Save-state restore skipped file handle %u for drive %u ('%s'): drive entry missing during DOS file restore",
 					(unsigned int)lcv,
 					(unsigned int)file_drive,
 					file_name);
-				Files[lcv] = nullptr;
+				Files[lcv] = NULL;
 			}
 			else {
 				Drives[file_drive]->FileOpen( &Files[lcv], file_name, file_flags );
@@ -2938,7 +2945,8 @@ void POD_Load_DOS_Files( std::istream& stream )
                 imageDiskChange[d] = true;
             }
             if (i==MAX_DISK_IMAGES-1)
-                for (auto &it : clist) {
+                for (std::vector<int>::const_iterator ci = clist.begin(); ci != clist.end(); ++ci) {
+                    const int it = *ci;
                     ide_slave = false;
                     ide_index = -1;
                     IDE_Auto(ide_index,ide_slave);
@@ -2990,7 +2998,8 @@ void POD_Load_DOS_Files( std::istream& stream )
 #endif
         }
         if (i==MAX_DISK_IMAGES-1)
-            for (auto &it : clist) {
+            for (std::vector<int>::const_iterator ci = clist.begin(); ci != clist.end(); ++ci) {
+                    const int it = *ci;
                 ide_slave = false;
                 ide_index = -1;
                 IDE_Auto(ide_index,ide_slave);

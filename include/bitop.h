@@ -3,8 +3,11 @@
 #define DOSBOX_BITOP_H
 
 #include <limits.h>
+#include "compiler_compat.h"
 
 namespace bitop {
+
+template <typename T> struct width { enum { value = sizeof(T) * CHAR_BIT }; };
 
 /* Return the number of bits of the data type.
  *
@@ -14,7 +17,7 @@ namespace bitop {
  *
  * @return Number of bits in data type T
  */
-template <typename T=unsigned int> static inline constexpr unsigned int type_bits(void) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int type_bits(void) {
     return (unsigned int)sizeof(T) * (unsigned int)CHAR_BIT;
 }
 
@@ -27,7 +30,7 @@ template <typename T=unsigned int> static inline constexpr unsigned int type_bit
  *
  * @return Type T with zero bits
  */
-template <typename T=unsigned int> static inline constexpr T allzero(void) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T allzero(void) {
     return (T)0;
 }
 
@@ -40,7 +43,7 @@ template <typename T=unsigned int> static inline constexpr T allzero(void) {
  * 
  * @return Type T with set bits
  */
-template <typename T=unsigned int> static inline constexpr T allones(void) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T allones(void) {
     return (T)( ~((T)0) );
 }
 
@@ -51,14 +54,14 @@ template <typename T=unsigned int> static inline constexpr T allones(void) {
  * 
  * @return Type T with value inverted
  */
-template <typename T=unsigned int> static inline constexpr T invert(const T v) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T invert(const T v) {
     return (T)( ~v );
 }
 
 
 /* private recursion function */
-template <typename T=unsigned int> static inline constexpr unsigned int _bitlength_recursion(const T v,const unsigned int bits) {
-    return (v != allzero()) ? _bitlength_recursion(v >> (T)1u,bits + 1u) : bits;
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int _bitlength_recursion(const T v,const unsigned int bits) {
+    return (v != allzero<T>()) ? _bitlength_recursion(v >> (T)1u,bits + 1u) : bits;
 }
 
 /* Return minimum number of bits required to represent value 'v' in data type 'T'
@@ -69,16 +72,16 @@ template <typename T=unsigned int> static inline constexpr unsigned int _bitleng
  *
  * @return Number of bits needed
  */
-template <typename T=unsigned int,const T v> static inline constexpr unsigned int bitlength(void) {
+template <typename T DBX_DEFAULT_UINT,const T v> static inline DBX_CONSTEXPR unsigned int bitlength(void) {
     return _bitlength_recursion<T>(v,0);
 }
 
-template <const unsigned int v> static inline constexpr unsigned int bitlength(void) {
+template <const unsigned int v> static inline DBX_CONSTEXPR unsigned int bitlength(void) {
     return bitlength<unsigned int,v>();
 }
 
 /* non-constant version for runtime use */
-template <typename T=unsigned int> static inline unsigned int bitlength(T v) {
+template <typename T DBX_DEFAULT_UINT> static inline unsigned int bitlength(T v) {
     unsigned int c = 0;
 
     while ((v & 0xFFUL) == 0xFFUL) {
@@ -95,12 +98,12 @@ template <typename T=unsigned int> static inline unsigned int bitlength(T v) {
 
 
 /* private recursion function */
-template <typename T=unsigned int> static inline constexpr unsigned int _bitseqlength_recursionlsb(const T v,const unsigned int bits) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int _bitseqlength_recursionlsb(const T v,const unsigned int bits) {
     return (v & 1u) ? _bitseqlength_recursionlsb<T>(v >> (T)1u,bits + 1u) : bits;
 }
 
 /* private common function */
-template <typename T=unsigned int> static inline unsigned int _bitseqlengthlsb_1(T &v) {
+template <typename T DBX_DEFAULT_UINT> static inline unsigned int _bitseqlengthlsb_1(T &v) {
     unsigned int c = 0;
 
     while ((v & 0xFFUL) == 0xFFUL) {
@@ -124,15 +127,15 @@ template <typename T=unsigned int> static inline unsigned int _bitseqlengthlsb_1
  *
  * @return Number of bits
  */
-template <typename T=unsigned int,const T v> static inline constexpr unsigned int bitseqlengthlsb(void) {
+template <typename T DBX_DEFAULT_UINT,const T v> static inline DBX_CONSTEXPR unsigned int bitseqlengthlsb(void) {
     return _bitseqlength_recursionlsb(v,0);
 }
 
-template <const unsigned int v> static inline constexpr unsigned int bitseqlengthlsb(void) {
+template <const unsigned int v> static inline DBX_CONSTEXPR unsigned int bitseqlengthlsb(void) {
     return bitseqlengthlsb<unsigned int,v>();
 }
 
-template <typename T=unsigned int> static inline unsigned int bitseqlengthlsb(T v) {
+template <typename T DBX_DEFAULT_UINT> static inline unsigned int bitseqlengthlsb(T v) {
     return _bitseqlengthlsb_1(/*&*/v);
 }
 
@@ -145,12 +148,12 @@ template <typename T=unsigned int> static inline unsigned int bitseqlengthlsb(T 
  *
  * @return Bitmask
  */
-template <const unsigned int a,typename T=unsigned int> static inline constexpr T bit2mask(void) {
-    static_assert(a < type_bits<T>(), "bit2mask constexpr bit count too large for data type");
+template <const unsigned int a,typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bit2mask(void) {
+    DBX_STATIC_ASSERT(a < width<T>::value, "bit2mask constexpr bit count too large for data type");
     return (T)1U << (T)a;
 }
 
-template <typename T=unsigned int> static inline constexpr T bit2mask(const T a) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bit2mask(const T a) {
     return (T)1U << (T)a;
 }
 
@@ -161,8 +164,8 @@ template <typename T=unsigned int> static inline constexpr T bit2mask(const T a)
  *
  * @return Bitmask
  */
-template <typename T=unsigned int> static inline constexpr T type_msb_mask(void) {
-    return bit2mask<T>(type_bits<T>() - 1u);
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T type_msb_mask(void) {
+    return bit2mask<T>(width<T>::value - 1u);
 }
 
 
@@ -177,25 +180,25 @@ template <typename T=unsigned int> static inline constexpr T type_msb_mask(void)
  *
  * @return Bitmask
  */
-template <const unsigned int a,const unsigned int offset,typename T=unsigned int> static inline constexpr T bitcount2masklsb(void) {
+template <const unsigned int a,const unsigned int offset,typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2masklsb(void) {
     /* NTS: special case for a == type_bits because shifting the size of a register OR LARGER is undefined.
      *      On Intel x86 processors, with 32-bit integers, x >> 32 == x >> 0 because only the low 5 bits are used 
-     *      a % type_bits<T>() is there to keep a < type_bits<T> in case your C++11 compiler likes to trigger
+     *      a % width<T>::value is there to keep a < type_bits<T> in case your C++11 compiler likes to trigger
      *      all static_assert<> clauses even if the ternary would not choose that path. */
-    static_assert(a <= type_bits<T>(), "bitcount2masklsb constexpr bit count too large for data type");
-    static_assert(offset < type_bits<T>(), "bitcount2masklsb constexpr offset count too large for data type");
-    static_assert((a+offset) <= type_bits<T>(), "bitcount2masklsb constexpr bit count + offset count too large for data type");
-    return ((a < type_bits<T>()) ? (bit2mask<a % type_bits<T>(),T>() - (T)1u) : allones<T>()) << (T)offset;
+    DBX_STATIC_ASSERT(a <= width<T>::value, "bitcount2masklsb constexpr bit count too large for data type");
+    DBX_STATIC_ASSERT(offset < width<T>::value, "bitcount2masklsb constexpr offset count too large for data type");
+    DBX_STATIC_ASSERT((a+offset) <= width<T>::value, "bitcount2masklsb constexpr bit count + offset count too large for data type");
+    return ((a < width<T>::value) ? (bit2mask<a % width<T>::value,T>() - (T)1u) : allones<T>()) << (T)offset;
 }
 
-template <const unsigned int a,typename T=unsigned int> static inline constexpr T bitcount2masklsb(void) {
+template <const unsigned int a,typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2masklsb(void) {
     return bitcount2masklsb<a,0u,T>();
 }
 
-template <typename T=unsigned int> static inline constexpr T bitcount2masklsb(const T a,const unsigned int offset=0) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2masklsb(const T a,const unsigned int offset=0) {
     /* NTS: special case for a == type_bits because shifting the size of a register OR LARGER is undefined.
      *      On Intel x86 processors, with 32-bit integers, x >> 32 == x >> 0 because only the low 5 bits are used */
-    return ((a < type_bits<T>()) ? (bit2mask<T>(a) - (T)1u) : allones<T>()) << (T)offset;
+    return ((a < width<T>::value) ? (bit2mask<T>(a) - (T)1u) : allones<T>()) << (T)offset;
 }
 
 
@@ -210,25 +213,25 @@ template <typename T=unsigned int> static inline constexpr T bitcount2masklsb(co
  *
  * @return Bitmask
  */
-template <const unsigned int a,const unsigned int offset,typename T=unsigned int> static inline constexpr T bitcount2maskmsb(void) {
+template <const unsigned int a,const unsigned int offset,typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2maskmsb(void) {
     /* NTS: special case for a == type_bits because shifting the size of a register OR LARGER is undefined.
      *      On Intel x86 processors, with 32-bit integers, x >> 32 == x >> 0 because only the low 5 bits are used 
-     *      a % type_bits<T>() is there to keep a < type_bits<T> in case your C++11 compiler likes to trigger
+     *      a % width<T>::value is there to keep a < type_bits<T> in case your C++11 compiler likes to trigger
      *      all static_assert<> clauses even if the ternary would not choose that path. */
-    static_assert(a <= type_bits<T>(), "bitcount2maskmsb constexpr bit count too large for data type");
-    static_assert(offset < type_bits<T>(), "bitcount2maskmsb constexpr offset count too large for data type");
-    static_assert((a+offset) <= type_bits<T>(), "bitcount2maskmsb constexpr bit count + offset count too large for data type");
-    return ((a != (T)0) ? ((T)(allones<T>() << (T)(type_bits<T>() - a)) >> (T)offset) : allzero<T>());
+    DBX_STATIC_ASSERT(a <= width<T>::value, "bitcount2maskmsb constexpr bit count too large for data type");
+    DBX_STATIC_ASSERT(offset < width<T>::value, "bitcount2maskmsb constexpr offset count too large for data type");
+    DBX_STATIC_ASSERT((a+offset) <= width<T>::value, "bitcount2maskmsb constexpr bit count + offset count too large for data type");
+    return ((a != (T)0) ? ((T)(allones<T>() << (T)(width<T>::value - a)) >> (T)offset) : allzero<T>());
 }
 
-template <const unsigned int a,typename T=unsigned int> static inline constexpr T bitcount2maskmsb(void) {
+template <const unsigned int a,typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2maskmsb(void) {
     return bitcount2maskmsb<a,0u,T>();
 }
 
-template <typename T=unsigned int> static inline constexpr T bitcount2maskmsb(const T a,const unsigned int offset=0) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR T bitcount2maskmsb(const T a,const unsigned int offset=0) {
     /* NTS: special case for a == type_bits because shifting the size of a register OR LARGER is undefined.
      *      On Intel x86 processors, with 32-bit integers, x >> 32 == x >> 0 because only the low 5 bits are used */
-    return ((a != (T)0) ? ((T)(allones<T>() << (T)(type_bits<T>() - a)) >> (T)offset) : allzero<T>());
+    return ((a != (T)0) ? ((T)(allones<T>() << (T)(width<T>::value - a)) >> (T)offset) : allzero<T>());
 }
 
 
@@ -288,7 +291,7 @@ template <typename T=unsigned int> static inline constexpr T bitcount2maskmsb(co
  * For integer values, apply the AND operator to the same bit position from both integers for each bit across the width of the integer.
  *
  * @return Boolean true if 'a' is a power of 2 */
-template <typename T=unsigned int> static inline constexpr bool ispowerof2(const T a) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR bool ispowerof2(const T a) {
     return (a & (a-(T)1u)) == 0;
 }
 
@@ -312,25 +315,25 @@ template <typename T=unsigned int> static inline constexpr bool ispowerof2(const
  */
 
 /* private recursion function */
-template <typename T=unsigned int> static inline constexpr unsigned int _log2_recursion(const T v,const unsigned int bits) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int _log2_recursion(const T v,const unsigned int bits) {
     /* NTS: The additional check against v == allzero() is needed to avoid an infinite recursion loop */
     return (v != allzero<T>()) ?
         (((v & type_msb_mask<T>()) == allzero<T>()) ? _log2_recursion(v << (T)1u,bits - 1u) : bits) :
         (~0u);
 }
 
-template <typename T=unsigned int,const T v> static inline constexpr unsigned int log2(void) {
-    return _log2_recursion<T>(v,type_bits<T>() - 1u);
+template <typename T DBX_DEFAULT_UINT,const T v> static inline DBX_CONSTEXPR unsigned int log2(void) {
+    return _log2_recursion<T>(v,width<T>::value - 1u);
 }
 
-template <const unsigned int v> static inline constexpr unsigned int log2(void) {
+template <const unsigned int v> static inline DBX_CONSTEXPR unsigned int log2(void) {
     return log2<unsigned int,v>();
 }
 
 /* non-constant version for runtime use */
-template <typename T=unsigned int> static inline unsigned int log2(T v) {
+template <typename T DBX_DEFAULT_UINT> static inline unsigned int log2(T v) {
     if (v != allzero<T>()) {
-        unsigned int c = type_bits<T>() - 1u;
+        unsigned int c = width<T>::value - 1u;
 
         while (!(v & type_msb_mask<T>())) {
             v <<= (T)1UL;
@@ -356,22 +359,25 @@ template <typename T=unsigned int> static inline unsigned int log2(T v) {
  * 0x2AAA 0010 1010 1010 1010 shf = 2
  * 0x3FFF 0011 1111 1111 1111 shf = 1
  */
-template <typename T=unsigned int> static inline constexpr unsigned int _rounduppow2mask(const T v,const T shf) {
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int _rounduppow2mask(const T v,const T shf) {
 	return shf != T(0u) ? _rounduppow2mask(v | (v >> shf),shf >> T(1u)) : v;
 }
 
-template <typename T=unsigned int> static inline constexpr unsigned int rounduppow2mask(const T v) {
-	return _rounduppow2mask<T>(v,type_bits<T>() >> T(1u));
+template <typename T DBX_DEFAULT_UINT> static inline DBX_CONSTEXPR unsigned int rounduppow2mask(const T v) {
+	return _rounduppow2mask<T>(v,width<T>::value >> T(1u));
 }
 
-static_assert( rounduppow2mask(0x7000) == 0x7FFF, "oops" );
-static_assert( rounduppow2mask(0x2000) == 0x3FFF, "oops" );
-static_assert( rounduppow2mask(0x0FFF) == 0x0FFF, "oops" );
+#if __cplusplus >= 201103L || defined(_MSC_VER)
+DBX_STATIC_ASSERT( rounduppow2mask(0x7000) == 0x7FFF, "oops" );
+DBX_STATIC_ASSERT( rounduppow2mask(0x2000) == 0x3FFF, "oops" );
+DBX_STATIC_ASSERT( rounduppow2mask(0x0FFF) == 0x0FFF, "oops" );
+
+#endif
 
 /* return type, pair */
 class bitseqlengthandpos_ret_t {
     public:
-        constexpr bitseqlengthandpos_ret_t(const unsigned int _start,const unsigned int _length) : start(_start), length(_length) { }
+        DBX_CONSTEXPR bitseqlengthandpos_ret_t(const unsigned int _start,const unsigned int _length) : start(_start), length(_length) { }
     public:
         bool operator==(const bitseqlengthandpos_ret_t &n) const {
             return  (n.start == start) &&
@@ -385,7 +391,7 @@ class bitseqlengthandpos_ret_t {
 };
 
 /* return a pair struct representing start and length of a series of 1 bits */
-template <typename T=unsigned int> static inline bitseqlengthandpos_ret_t bitseqlengthandpos(T v) {
+template <typename T DBX_DEFAULT_UINT> static inline bitseqlengthandpos_ret_t bitseqlengthandpos(T v) {
     if (v != bitop::allzero<T>()) {
         unsigned int start=0,length=0;
 
@@ -415,6 +421,18 @@ template <typename T=unsigned int> static inline bitseqlengthandpos_ret_t bitseq
     return bitseqlengthandpos_ret_t(0u,0u);
 }
 
+
+#if __cplusplus < 201103L && !defined(_MSC_VER)
+static inline unsigned int type_bits() { return type_bits<unsigned int>(); }
+static inline unsigned int allzero() { return allzero<unsigned int>(); }
+static inline unsigned int allones() { return allones<unsigned int>(); }
+static inline unsigned int type_msb_mask() { return type_msb_mask<unsigned int>(); }
+template <unsigned int a> static inline unsigned int bit2mask() { return bit2mask<a,unsigned int>(); }
+template <unsigned int a, unsigned int offset> static inline unsigned int bitcount2masklsb() { return bitcount2masklsb<a,offset,unsigned int>(); }
+template <unsigned int a> static inline unsigned int bitcount2masklsb() { return bitcount2masklsb<a,0,unsigned int>(); }
+template <unsigned int a, unsigned int offset> static inline unsigned int bitcount2maskmsb() { return bitcount2maskmsb<a,offset,unsigned int>(); }
+template <unsigned int a> static inline unsigned int bitcount2maskmsb() { return bitcount2maskmsb<a,0,unsigned int>(); }
+#endif
 
 void self_test(void);
 

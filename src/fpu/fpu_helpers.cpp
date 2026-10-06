@@ -1,7 +1,9 @@
 #include "dosbox.h"
 #if C_FPU
 
+#if !C_FPU_X86
 #include <cfenv>
+#endif
 #include <cstdint>
 #include <cmath>
 
@@ -20,7 +22,7 @@ namespace fpu_detail {
 namespace {
 
 template <typename T>
-InputClass Classify(const T& input)
+InputClass::Type Classify(const T& input)
 {
     if (IsZero(input))      return InputClass::Zero;
     if (IsSubnormal(input)) return InputClass::Denormal;
@@ -58,7 +60,7 @@ void QuietInputNaN(int op)
     if (fpu.use80[op]) {
         float80::setQuietBit(fpu.regs_80[op]);
     } else {
-        constexpr uint64_t quiet_nan_bit = 0x0008'0000'0000'0000ULL;
+        constexpr uint64_t quiet_nan_bit = 0x0008000000000000ULL;
         fpu.regs[op].f.mantissa |= quiet_nan_bit;
     }
 #endif
@@ -72,8 +74,9 @@ void SetComparisonFlags(bool unordered, bool equal, bool less)
     fpu.sw.C0 = unordered || less;
 }
 
+#if !C_FPU_X86
 template <typename T>
-void CalculatePartialRemainder(T& dividend, T divisor, RemainderMode mode)
+void CalculatePartialRemainder(T& dividend, T divisor, RemainderMode::Type mode)
 {
     constexpr auto partial_reduction_width = 63;
     const auto exponent_difference = std::ilogb(dividend) - std::ilogb(divisor);
@@ -107,6 +110,8 @@ void CalculatePartialRemainder(T& dividend, T divisor, RemainderMode mode)
     fpu.sw.C2 = 0;
 }
 
+#endif // !C_FPU_X86
+
 } // namespace
 
 void CheckException()
@@ -114,6 +119,7 @@ void CheckException()
     // TODO
 }
 
+#if !C_FPU_X86
 void SetStatusFromHostExceptions()
 {
     const auto exceptions = std::fetestexcept(FE_ALL_EXCEPT);
@@ -124,12 +130,13 @@ void SetStatusFromHostExceptions()
     if (exceptions & FE_UNDERFLOW) fpu.sw.UE = 1;
     if (exceptions & FE_INEXACT)   fpu.sw.PE = 1;
 }
+#endif // !C_FPU_X86
 
 uint16_t GetTag()
 {
     uint16_t tags = 0;
-    for (auto i = 0; i < 8; ++i) {
-        FPUTag tag;
+    for (int i = 0; i < 8; ++i) {
+        FPUTag::Type tag;
         if (!fpu.regvalid[i]) {
             tag = FPUTag::Empty;
 #if C_FPU_X86 || defined(HAS_LONG_DOUBLE)
@@ -151,7 +158,7 @@ uint16_t GetTag()
     return tags;
 }
 
-InputClass ClassifyInput(int op)
+InputClass::Type ClassifyInput(int op)
 {
 #if C_FPU_X86 || defined(HAS_LONG_DOUBLE)
     return Classify(fpu.regs_80[op]);
@@ -163,21 +170,21 @@ InputClass ClassifyInput(int op)
 
 void SetQNaN(int pos)
 {
-    fpu.regs_80[pos] = FPU_Reg_80::QNaN;
+    fpu.regs_80[pos] = FPU_QNaN_80;
 #ifndef HAS_LONG_DOUBLE
-    fpu.regs[pos] = FPU_Reg_64::QNaN;
+    fpu.regs[pos] = FPU_QNaN_64;
     fpu.use80[pos] = true;
 #endif
 }
 
 void SetInfinity(int pos, bool negative)
 {
-    fpu.regs_80[pos] = {};
-    fpu.regs_80[pos].f.mantissa = 0x8000'0000'0000'0000ULL;
+    fpu.regs_80[pos] = FPU_Reg_80();
+    fpu.regs_80[pos].f.mantissa = 0x8000000000000000ULL;
     fpu.regs_80[pos].f.exponent = 0x7FFFU;
     fpu.regs_80[pos].f.sign = negative;
 #ifndef HAS_LONG_DOUBLE
-    fpu.regs[pos] = {};
+    fpu.regs[pos] = FPU_Reg_64();
     fpu.regs[pos].f.exponent = 0x7FFU;
     fpu.regs[pos].f.sign = negative;
     fpu.use80[pos] = true;
@@ -249,23 +256,25 @@ void CheckInputDenormals(int op1, int op2)
     CheckException();
 }
 
-void PartialRemainder(double& dividend, double divisor, RemainderMode mode)
+#if !C_FPU_X86
+void PartialRemainder(double& dividend, double divisor, RemainderMode::Type mode)
 {
     CalculatePartialRemainder(dividend, divisor, mode);
 }
 
 #ifdef HAS_LONG_DOUBLE
-void PartialRemainder(long double& dividend, long double divisor, RemainderMode mode)
+void PartialRemainder(long double& dividend, long double divisor, RemainderMode::Type mode)
 {
     CalculatePartialRemainder(dividend, divisor, mode);
 }
 #endif
+#endif // !C_FPU_X86
 
 bool CheckInputs(int op)
 {
     StackValid(op);
-    const auto is_nan = InputIsNaN(op);
-    const auto is_signaling_nan = InputIsSignalingNaN(op);
+    const bool is_nan = InputIsNaN(op);
+    const bool is_signaling_nan = InputIsSignalingNaN(op);
 
     if (is_signaling_nan) {
         QuietInputNaN(op);
@@ -279,10 +288,10 @@ bool CheckInputs(int op1, int op2, bool propagate_nan)
 {
     StackValid(op2);
     StackValid(op1);
-    const auto op1_is_nan = InputIsNaN(op1);
-    const auto op2_is_nan = InputIsNaN(op2);
-    const auto op1_is_signaling_nan = InputIsSignalingNaN(op1);
-    const auto op2_is_signaling_nan = InputIsSignalingNaN(op2);
+    const bool op1_is_nan = InputIsNaN(op1);
+    const bool op2_is_nan = InputIsNaN(op2);
+    const bool op1_is_signaling_nan = InputIsSignalingNaN(op1);
+    const bool op2_is_signaling_nan = InputIsSignalingNaN(op2);
 
     if (op1_is_signaling_nan && propagate_nan)
         QuietInputNaN(op1);
@@ -311,7 +320,7 @@ void RaiseLoadExceptions(bool denormal, bool signaling_nan)
 
 void Compare(int op1, int op2, bool ordered)
 {
-    const auto has_nan = CheckInputs(op1, op2, false);
+    const bool has_nan = CheckInputs(op1, op2, false);
     if (!has_nan) CheckInputDenormals(op1, op2);
 
     // An 8087/287 compares infinities as equal regardless of their signs.
@@ -354,15 +363,15 @@ void CompareToCpuFlags(int op1, int op2, bool ordered)
     SETFLAGBIT(SF, false);
     SETFLAGBIT(AF, false);
 
-    const auto old_c0 = fpu.sw.C0;
-    const auto old_c2 = fpu.sw.C2;
-    const auto old_c3 = fpu.sw.C3;
+    const RegBit<uint16_t, 8> old_c0 = fpu.sw.C0;
+    const RegBit<uint16_t, 10> old_c2 = fpu.sw.C2;
+    const RegBit<uint16_t, 14> old_c3 = fpu.sw.C3;
 
     Compare(op1, op2, ordered);
 
-    const auto compare_c0 = fpu.sw.C0;
-    const auto compare_c2 = fpu.sw.C2;
-    const auto compare_c3 = fpu.sw.C3;
+    const RegBit<uint16_t, 8> compare_c0 = fpu.sw.C0;
+    const RegBit<uint16_t, 10> compare_c2 = fpu.sw.C2;
+    const RegBit<uint16_t, 14> compare_c3 = fpu.sw.C3;
 
     // FCOMI and FUCOMI leave C0, C2, and C3 unchanged and clear C1.
     fpu.sw.C0 = old_c0;
@@ -370,7 +379,7 @@ void CompareToCpuFlags(int op1, int op2, bool ordered)
     fpu.sw.C2 = old_c2;
     fpu.sw.C3 = old_c3;
 
-    const auto unordered = compare_c0 && compare_c2 && compare_c3;
+    const bool unordered = compare_c0 && compare_c2 && compare_c3;
     SETFLAGBIT(ZF, unordered || compare_c3);
     SETFLAGBIT(PF, unordered);
     SETFLAGBIT(CF, unordered || compare_c0);

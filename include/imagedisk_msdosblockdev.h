@@ -24,20 +24,20 @@
 #if !defined(OSFREE)
 class imageDiskMSDOSBlockDevice : public imageDisk {
 public:
-	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override;
-	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) override;
+	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) DBX_OVERRIDE;
 
-	bool detectDiskChange(void) override;
+	bool detectDiskChange(void) DBX_OVERRIDE;
 
 	imageDiskMSDOSBlockDevice();
 	virtual ~imageDiskMSDOSBlockDevice();
 
-	uint8_t media_dpb = 0;
-	uint8_t unit_code = 0;
-	uint16_t devseg = 0;
-	uint16_t attr = 0;
-	PhysPt devhdr = 0;
-	PhysPt bpbptr = 0;
+	uint8_t media_dpb;
+	uint8_t unit_code;
+	uint16_t devseg;
+	uint16_t attr;
+	PhysPt devhdr;
+	PhysPt bpbptr;
 };
 #endif
 

@@ -256,14 +256,15 @@ int get_expanded_files(const std::string &path, std::vector<std::string> &paths,
     strcpy(pdir, homedir.c_str());
     struct dirent *dir;
     host_cnv_char_t *host_name = CodePageGuestToHost(pdir);
-    DIR *d = opendir(host_name != NULL ? host_name : pdir);
+    const std::string scan_path(host_name != NULL ? host_name : pdir);
+        DIR *d = opendir(scan_path.c_str());
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             host_cnv_char_t *temp_name = CodePageHostToGuest(dir->d_name);
-#if defined(HAIKU)
+#if defined(HAIKU) || C_OPENSTEP
             struct stat path_stat;
-            stat(dir->d_name, &path_stat);
-            bool is_regular_file = S_ISREG(path_stat.st_mode);
+            const std::string full_path = scan_path + CROSS_FILESPLIT + dir->d_name;
+            bool is_regular_file = stat(full_path.c_str(), &path_stat) == 0 && S_ISREG(path_stat.st_mode);
 #else
             bool is_regular_file = (dir->d_type == DT_REG);
 #endif
@@ -274,7 +275,8 @@ int get_expanded_files(const std::string &path, std::vector<std::string> &paths,
     }
 #endif
 	wildmount = true;
-	for (std::string name: names) {
+	for (std::vector<std::string>::const_iterator name_it = names.begin(); name_it != names.end(); ++name_it) {
+        const std::string &name = *name_it;
 		if (LWildFileCmp(name.c_str(), pattern))
 			files.push_back((readonly ? ":":"") + std::string(pdir) + std::string(1, CROSS_FILESPLIT) + name);
 	}
@@ -317,7 +319,7 @@ void Set_Label(char const * const input, char * const output, bool cdrom) {
     return;
 }
 
-DOS_Drive::DOS_Drive() {
+DOS_Drive::DOS_Drive() : partitionMount(false), curdir(), info() {
     nocachedir=false;
     readonly=false;
 	curdir[0]=0;

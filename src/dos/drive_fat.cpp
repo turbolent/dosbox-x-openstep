@@ -42,7 +42,6 @@
  * Hopefully this can be done without breaking things --J.C.
  */
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -309,7 +308,7 @@ char* fatDrive::Generate_SFN(const char *path, const char *name) {
                 if(!getFileDirEntry(fullname, &fileEntry, &dirClust, &subEntry,/*dirOk*/true)) return sfn;
                 k++;
         }
-        return nullptr;
+        return NULL;
 }
 #endif
 
@@ -317,26 +316,26 @@ char* fatDrive::Generate_SFN(const char *path, const char *name) {
 class fatFile : public DOS_File {
         public:
                 fatFile(const char* name, uint32_t startCluster, uint32_t fileLen, fatDrive *useDrive);
-                bool Read(uint8_t * data,uint16_t * size) override;
-                bool Write(const uint8_t * data,uint16_t * size) override;
-                bool Seek(uint32_t * pos,uint32_t type) override;
-                bool Close() override;
-                uint16_t GetInformation() override;
-                void Flush() override;
-                bool UpdateDateTimeFromHost() override;
-                uint32_t GetSeekPos() override;
+                bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+                bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+                bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+                bool Close() DBX_OVERRIDE;
+                uint16_t GetInformation() DBX_OVERRIDE;
+                void Flush() DBX_OVERRIDE;
+                bool UpdateDateTimeFromHost() DBX_OVERRIDE;
+                uint32_t GetSeekPos() DBX_OVERRIDE;
                 uint32_t firstCluster;
-                uint32_t seekpos = 0;
+                uint32_t seekpos;
                 uint32_t filelength;
-                uint32_t currentSector = 0;
-                uint32_t curSectOff = 0;
+                uint32_t currentSector;
+                uint32_t curSectOff;
                 uint8_t sectorBuffer[SECTOR_SIZE_MAX];
                 /* Record of where in the directory structure this file is located */
-                uint32_t dirCluster = 0;
-                uint32_t dirIndex = 0;
+                uint32_t dirCluster;
+                uint32_t dirIndex;
 
-                bool modified = false;
-                bool loadedSector = false;
+                bool modified;
+                bool loadedSector;
                 fatDrive::clusterChainMemory file_ccm;
                 fatDrive *myDrive;
 };
@@ -405,7 +404,9 @@ static void convToDirFile(const char *filename, char *filearray) {
 #endif
 
 #if !defined(OSFREE)
-fatFile::fatFile(const char* /*name*/, uint32_t startCluster, uint32_t fileLen, fatDrive *useDrive) : firstCluster(startCluster), filelength(fileLen), myDrive(useDrive) {
+fatFile::fatFile(const char* /*name*/, uint32_t startCluster, uint32_t fileLen, fatDrive *useDrive) :
+    firstCluster(startCluster), seekpos(0), filelength(fileLen), currentSector(0),
+    curSectOff(0), dirCluster(0), dirIndex(0), modified(false), loadedSector(false), myDrive(useDrive) {
 	memset(&sectorBuffer[0], 0, sizeof(sectorBuffer));
 	open = true;
 	
@@ -435,7 +436,7 @@ void fatFile::Flush(void) {
 		else {
 			uint16_t ct,cd;
 
-			time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd,::time(nullptr));
+			time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd,::time(NULL));
 
 			tmpentry.modTime = ct;
 			tmpentry.modDate = cd;
@@ -705,7 +706,7 @@ bool fatFile::Close() {
 		else {
 			uint16_t ct,cd;
 
-			time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd,::time(nullptr));
+			time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd,::time(NULL));
 
 			tmpentry.modTime = ct;
 			tmpentry.modDate = cd;
@@ -1007,7 +1008,7 @@ nextfile:
 				while (j < 11)            sectbuf[entryoffset].entryname[j++] = ' ';
 			}
             uint16_t ct, cd;
-            time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd, ::time(nullptr));
+            time_t_to_DOS_DateTime(/*&*/ct,/*&*/cd, ::time(NULL));
             sectbuf[entryoffset].modTime = ct;
             sectbuf[entryoffset].modDate = cd;
             sectbuf[entryoffset].accessDate = cd;
@@ -1507,7 +1508,14 @@ fatDrive::~fatDrive() {
 }
 
 FILE * fopen_lock(const char * fname, const char * mode, bool &readonly);
-fatDrive::fatDrive(const char* sysFilename, uint32_t bytesector, uint32_t cylsector, uint32_t headscyl, uint32_t cylinders, std::vector<std::string>& options) {
+fatDrive::fatDrive(const char* sysFilename, uint32_t bytesector, uint32_t cylsector, uint32_t headscyl, uint32_t cylinders, std::vector<std::string>& options) :
+    loadedDisk(NULL), req_ver_major(0), req_ver_minor(0), created_successfully(true),
+    opts(), el(), srchInfo(), lfnRange(), allocation(), BPB(), absolute(false),
+    fattype(0), CountOfClusters(0), partSectSize(0), firstDataSector(0),
+    firstRootDirSect(0), physToLogAdj(0), searchFreeCluster(0), findFirstFCB(false),
+    partition_index(-1), cwdDirCluster(0), fatSectBuffer(), curFatSect(0),
+    sector_size(0), bios_disk(0), unformatted(false) {
+    opts.mounttype = -1;
 	if(!dos_kernel_disabled && imgDTASeg == 0) {
 		imgDTASeg = DOS_GetMemory(4,"imgDTASeg");
 		imgDTAPtr = RealMake(imgDTASeg, 0);
@@ -1588,7 +1596,14 @@ fatDrive::fatDrive(const char* sysFilename, uint32_t bytesector, uint32_t cylsec
 	fatDriveInit(sysFilename, bytesector, cylsector, headscyl, cylinders, filesize, options);
 }
 
-fatDrive::fatDrive(imageDisk *sourceLoadedDisk, std::vector<std::string> &options) {
+fatDrive::fatDrive(imageDisk *sourceLoadedDisk, std::vector<std::string> &options) :
+    loadedDisk(NULL), req_ver_major(0), req_ver_minor(0), created_successfully(true),
+    opts(), el(), srchInfo(), lfnRange(), allocation(), BPB(), absolute(false),
+    fattype(0), CountOfClusters(0), partSectSize(0), firstDataSector(0),
+    firstRootDirSect(0), physToLogAdj(0), searchFreeCluster(0), findFirstFCB(false),
+    partition_index(-1), cwdDirCluster(0), fatSectBuffer(), curFatSect(0),
+    sector_size(0), bios_disk(0), unformatted(false) {
+    opts.mounttype = -1;
 	if (!sourceLoadedDisk) {
 		created_successfully = false;
 		return;
@@ -1602,7 +1617,8 @@ fatDrive::fatDrive(imageDisk *sourceLoadedDisk, std::vector<std::string> &option
 	}
 	std::vector<std::string>::iterator it = std::find(options.begin(), options.end(), "readonly");
 	if (it!=options.end()) readonly = true;
-	opts = {0,0,0,0,-1};
+	opts.bytesector = opts.cylsector = opts.headscyl = opts.cylinders = 0;
+    opts.mounttype = -1;
 	imageDiskElToritoFloppy *idelt=dynamic_cast<imageDiskElToritoFloppy *>(sourceLoadedDisk);
 	imageDiskMemory* idmem=dynamic_cast<imageDiskMemory *>(sourceLoadedDisk);
 	imageDiskVHD* idvhd=dynamic_cast<imageDiskVHD *>(sourceLoadedDisk);
@@ -1793,7 +1809,8 @@ void fatDrive::fatDriveInit(const char *sysFilename, uint32_t bytesector, uint32
 		return;
 	}
 
-	for (const auto &opt : options) {
+	for (std::vector<std::string>::const_iterator opt_it = options.begin(); opt_it != options.end(); ++opt_it) {
+        const std::string &opt = *opt_it;
 		size_t equ = opt.find_first_of('=');
 		std::string name,value;
 
@@ -2013,7 +2030,7 @@ void fatDrive::fatDriveInit(const char *sysFilename, uint32_t bytesector, uint32
 			}
 		}
 
-		BPB = {};
+		BPB = FAT_BootSector::bpb_union_t();
 		loadedDisk->Read_AbsoluteSector(0 + partSectOff, &bootbuffer);
 
 		/* If the sector is full of 0xF6, the partition is brand new and was just created with Microsoft FDISK.EXE (Windows 98 behavior)
@@ -3294,10 +3311,10 @@ nextfile:
 #endif
 
 		if (!(sectbuf[entryoffset].attrib & DOS_ATTR_VOLUME) || !VolumeLabelCmp((const char*)sectbuf[entryoffset].entryname, srch_pattern)) goto nextfile;
-		std::array<char, 12> volume_label = {};
-		memcpy(volume_label.data(), sectbuf[entryoffset].entryname, 11);
-		trimString(volume_label.data());
-		labelCache.SetLabel(volume_label.data(), false, true);
+		char volume_label[12] = {0};
+		memcpy(volume_label, sectbuf[entryoffset].entryname, 11);
+		trimString(volume_label);
+		labelCache.SetLabel(volume_label, false, true);
 #if !defined(OSFREE)
 	} else if ((dos.version.major >= 7 || uselfn) && (sectbuf[entryoffset].attrib & 0x3F) == 0x0F) { /* long filename piece */
 		struct direntry_lfn *dlfn = (struct direntry_lfn*)(&sectbuf[entryoffset]);

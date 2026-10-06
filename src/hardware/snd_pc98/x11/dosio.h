@@ -3,7 +3,10 @@
 
 #include <stdio.h>
 
+#ifndef NP2_FILEH_DEFINED
+#define NP2_FILEH_DEFINED
 typedef FILE *			FILEH;
+#endif
 #define	FILEH_INVALID		NULL
 
 #define	FSEEK_SET		SEEK_SET

@@ -2026,8 +2026,8 @@ bool INT10_GetInsertState()
         return pc98_doskey_insertmode;
     }
     else {
-        const auto flags = mem_readb(BIOS_KEYBOARD_FLAGS1);
-        const auto state =static_cast<bool>(flags & BIOS_KEYBOARD_FLAGS1_INSERT_ACTIVE);
+        const uint8_t flags = mem_readb(BIOS_KEYBOARD_FLAGS1);
+        const bool state =static_cast<bool>(flags & BIOS_KEYBOARD_FLAGS1_INSERT_ACTIVE);
         return state;
     }
 }

@@ -9,6 +9,9 @@
 #endif
 
 #include <unistd.h>
+#if defined(C_OPENSTEP)
+#include "openstep/host.h"
+#endif
 
 #if (C_HAVE_MPROTECT) && (C_HAVE_MACH_VM_REMAP)
 #include <mach/mach.h>
@@ -63,6 +66,11 @@ static void cache_dynamic_common_alloc(Bitu allocsz) {
     dyncore_method = DYNCOREM_RWX;
     dyncore_alloc = DYNCOREALLOC_NONE;
 
+#if defined(C_OPENSTEP)
+    cache_code_start_ptr = (uint8_t *)OSHostExecutableAlloc((unsigned)actualsz);
+    if (!cache_code_start_ptr) E_Exit("Mach executable code cache allocation failed");
+    dyncore_alloc = DYNCOREALLOC_MACH_VM;
+#endif
 #if defined (WIN32)
     if (cache_code_start_ptr == NULL) {
         cache_code_start_ptr=(uint8_t*)VirtualAlloc(0,actualsz,MEM_COMMIT,PAGE_EXECUTE_READWRITE);
@@ -197,6 +205,7 @@ static void cache_dynamic_common_alloc(Bitu allocsz) {
         case DYNCOREALLOC_MMAP_ANON:        LOG(LOG_MISC,LOG_DEBUG)("dyncore alloc: mmap using MAP_PRIVATE|MAP_ANONYMOUS"); break;
         case DYNCOREALLOC_MALLOC:           LOG(LOG_MISC,LOG_DEBUG)("dyncore alloc: malloc"); break;
         case DYNCOREALLOC_MEMFD:            LOG(LOG_MISC,LOG_DEBUG)("dyncore alloc: memfd"); break;
+        case DYNCOREALLOC_MACH_VM:          LOG(LOG_MISC,LOG_DEBUG)("dyncore alloc: Mach VM"); break;
         default:                            LOG(LOG_MISC,LOG_DEBUG)("dyncore alloc: ?"); break;
     };
 
@@ -212,7 +221,7 @@ static void cache_dynamic_common_alloc(Bitu allocsz) {
     if (cache_exec_ptr == NULL)
         cache_exec_ptr = cache_code;
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(C_OPENSTEP)
     /* make sure dual mapping works */
     if (cache_exec_ptr != cache_code) {
         *cache_code = 0xAA;
@@ -233,4 +242,3 @@ static void cache_dynamic_common_alloc(Bitu allocsz) {
     LOG(LOG_MISC,LOG_DEBUG)("dyncore: allocated cache size=%lu rw=%p rx=%p",
         (unsigned long)cache_map_size,(void*)cache_code,(void*)cache_exec_ptr);
 }
-

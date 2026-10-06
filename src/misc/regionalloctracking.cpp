@@ -62,7 +62,7 @@ Bitu RegionAllocTracking::getMemory(Bitu bytes,const char *who,Bitu alignment,Bi
 	{
 		/* allocate downward from the top */
 		size_t si = topDownAlloc ? (alist.size() - 1u) : 0u;
-		while ((ssize_t)si >= 0) {
+		while (si < alist.size()) {
 			Block &blk = alist[si];
 			Bitu base;
 
@@ -299,4 +299,3 @@ bool RegionAllocTracking::freeMemory(Bitu offset) {
 	LOG(LOG_BIOS,LOG_DEBUG)("freeMemory in '%s' (address=0x%08lx) FAILED",name.c_str(),(unsigned long)offset);
 	return false;
 }
-

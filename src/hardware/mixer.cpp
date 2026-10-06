@@ -45,7 +45,11 @@
 # define M_PI (3.141592654)
 #endif
 
+#if C_OPENSTEP
+#include "openstep/host.h"
+#else
 #include "SDL.h"
+#endif
 #include "mem.h"
 #include "pic.h"
 #include "dosbox.h"
@@ -739,18 +743,22 @@ static void MIXER_MixData(Bitu fracs/*render up to*/) {
 }
 
 static void MIXER_FillUp(void) {
+#if !C_OPENSTEP /* SoundKit consumption and mixing both run on the main thread. */
 #ifdef C_SDL2
     SDL_LockAudioDevice(SDL2_AudioDevice);
 #else
     SDL_LockAudio();
 #endif
+#endif
     float index = PIC_TickIndex();
     if (index < 0) index = 0;
     MIXER_MixData((Bitu)((double)index * ((Bitu)mixer.samples_this_ms.w * mixer.samples_this_ms.fd)));
+#if !C_OPENSTEP /* SoundKit consumption and mixing both run on the main thread. */
 #ifdef C_SDL2
     SDL_UnlockAudioDevice(SDL2_AudioDevice);
 #else
     SDL_UnlockAudio();
+#endif
 #endif
 }
 
@@ -766,10 +774,12 @@ void MIXER_MixSingle(Bitu /*val*/) {
 static void MIXER_Mix(void) {
     Bitu thr;
 
+#if !C_OPENSTEP /* SoundKit consumption and mixing both run on the main thread. */
 #ifdef C_SDL2
     SDL_LockAudioDevice(SDL2_AudioDevice);
 #else
     SDL_LockAudio();
+#endif
 #endif
 
     /* render */
@@ -798,15 +808,21 @@ static void MIXER_Mix(void) {
     memset(&mixer.work[mixer.work_in][0],0,sizeof(int32_t)*2*mixer.samples_this_ms.w);
     mixer.samples_rendered_ms.fn = 0;
     mixer.samples_rendered_ms.w = 0;
+#if !C_OPENSTEP /* SoundKit consumption and mixing both run on the main thread. */
 #ifdef C_SDL2
     SDL_UnlockAudioDevice(SDL2_AudioDevice);
 #else
     SDL_UnlockAudio();
 #endif
+#endif
     MIXER_FillUp();
 }
 
+#if C_OPENSTEP
+static void MIXER_CallBack(void * userdata, uint8_t *stream, int len) {
+#else
 static void SDLCALL MIXER_CallBack(void * userdata, Uint8 *stream, int len) {
+#endif
     (void)userdata;//UNUSED
     int32_t volscale1 = (int32_t)(mixer.mastervol[0] * (1 << MIXER_VOLSHIFT));
     int32_t volscale2 = (int32_t)(mixer.mastervol[1] * (1 << MIXER_VOLSHIFT));
@@ -862,7 +878,14 @@ static void SDLCALL MIXER_CallBack(void * userdata, Uint8 *stream, int len) {
     remains = (int)mixer.work_in - (int)mixer.work_out;
     if (remains < 0) remains += (int)mixer.work_wrap;
 
+#if C_OPENSTEP
+    /* SoundKit drains several blocks in one service pass. Preserve those
+     * ready blocks instead of applying SDL's one-callback latency target.
+     * Only discard a genuinely stale backlog (at least 250 ms). */
+    if ((unsigned long)remains >= std::max(mixer.freq / 4UL, mixer.blocksize * 2UL)) {
+#else
     if ((unsigned long)remains >= (mixer.blocksize*2UL)) {
+#endif
         /* drop some samples to keep time */
         unsigned int drop;
 
@@ -903,8 +926,27 @@ std::string mixerinfo() {
     return info;
 }
 
+#if C_OPENSTEP
+static unsigned MIXER_SoundKitFill(void *userdata, short *samples, unsigned frames)
+{
+    int available = (int)mixer.work_in - (int)mixer.work_out;
+    if (available < 0) available += (int)mixer.work_wrap;
+    /* SoundKit may have several empty hardware buffers. The SDL callback's
+     * underrun padding cannot supply them: it repeats the last DAC sample and
+     * produces audible discontinuities. Wait for real emulated PCM instead. */
+    if (available < (int)frames ||
+        (mixer.prebuffer_wait && available < (int)mixer.prebuffer_samples))
+        return 0;
+    MIXER_CallBack(userdata, (uint8_t *)samples, (int)(frames * 4));
+    return frames;
+}
+#endif
+
 static void MIXER_Stop(Section* sec) {
     (void)sec;//UNUSED
+#if C_OPENSTEP
+    OSAudioClose();
+#endif
 }
 
 class MIXER : public Program {
@@ -934,7 +976,7 @@ public:
         if (!w) vol1=vol0;
     }
 
-    void Run(void) override {
+    void Run(void) DBX_OVERRIDE {
         if (cmd->FindExist("-?", false) || cmd->FindExist("/?", false)) {
 			WriteOut("Displays or changes the current sound mixer volumes.\n\n"
                     "MIXER [/GUI|/NOSHOW] [/LISTMIDI [handler]] [channel volume]\n\n"
@@ -997,7 +1039,7 @@ MixerChannel* MixerObject::Install(MIXER_Handler handler,Bitu freq,const char * 
         return MIXER_AddChannel(handler,freq,name);
     } else {
         E_Exit("already added mixer channel.");
-        return nullptr; //Compiler happy
+        return NULL; //Compiler happy
     }
 }
 
@@ -1149,7 +1191,7 @@ void MIXER_Init() {
     /* Initialize the internal stuff */
     mixer.prebuffer_samples=0;
     mixer.prebuffer_wait=true;
-    mixer.channels = nullptr;
+    mixer.channels = NULL;
     mixer.pos=0;
     mixer.done=0;
     memset(mixer.work,0,sizeof(mixer.work));
@@ -1162,6 +1204,19 @@ void MIXER_Init() {
     mixer.dc_adj[0]=0;
     mixer.dc_adj[1]=0;
 
+#if C_OPENSTEP
+    OSAudioClose();
+    unsigned rate = mixer.freq, frames = mixer.blocksize;
+    if (!mixer.nosound && !OSAudioOpen(&rate, &frames, MIXER_SoundKitFill, NULL)) {
+        LOG(LOG_MISC,LOG_WARN)("MIXER: SoundKit output unavailable; using nosound mode.");
+        mixer.nosound = true;
+    }
+    mixer.freq = rate;
+    mixer.blocksize = frames;
+    TIMER_AddTickHandler(MIXER_Mix);
+    if (!mixer.nosound && mixer.sampleaccurate)
+        PIC_AddEvent(MIXER_MixSingle, 1000.0 / mixer.freq);
+#else
     /* Start the Mixer using SDL Sound at 22 khz */
     SDL_AudioSpec spec;
     SDL_AudioSpec obtained;
@@ -1215,6 +1270,7 @@ void MIXER_Init() {
         SDL_PauseAudio(0);
 #endif
     }
+#endif
     mixer_start_pic_time = PIC_FullIndex();
     mixer_sample_counter = 0;
     mixer.work_in = mixer.work_out = 0;
@@ -1248,10 +1304,18 @@ void MIXER_Init() {
     LOG(LOG_MISC,LOG_DEBUG)("Mixer: sample_accurate=%u blocksize=%u sdl_rate=%uHz mixer_rate=%uHz channels=%u samples=%u min/max/need=%u/%u/%u per_ms=%u %u/%u samples prebuffer=%u dcadj=%.10f(en=%u)",
         (unsigned int)mixer.sampleaccurate,
         (unsigned int)mixer.blocksize,
-        (unsigned int)obtained.freq,
+#if C_OPENSTEP
         (unsigned int)mixer.freq,
+#else
+        (unsigned int)obtained.freq,
+#endif
+        (unsigned int)mixer.freq,
+#if C_OPENSTEP
+        2u, (unsigned int)mixer.blocksize,
+#else
         (unsigned int)obtained.channels,
         (unsigned int)obtained.samples,
+#endif
         (unsigned int)0,
         (unsigned int)0,
         (unsigned int)0,
@@ -1265,6 +1329,9 @@ void MIXER_Init() {
     AddVMEventFunction(VM_EVENT_DOS_INIT_KERNEL_READY,AddVMEventFunctionFuncPair(MIXER_DOS_Boot));
 
     MIXER_Controls_Init();
+#if C_OPENSTEP
+    if (!mixer.nosound) OSAudioPause(0);
+#endif
 }
 
 // save state support
@@ -1327,7 +1394,7 @@ public:
 	{}
 
 private:
-	void getBytes(std::ostream& stream) override
+	void getBytes(std::ostream& stream) DBX_OVERRIDE
 	{
 
 		//*************************************************
@@ -1346,7 +1413,7 @@ private:
 		POD_Save_Tandy_Sound(stream);
 	}
 
-	void setBytes(std::istream& stream) override
+	void setBytes(std::istream& stream) DBX_OVERRIDE
 	{
 
 		//*************************************************

@@ -31,11 +31,11 @@ public:
 	// Creates a LPT device that communicates with the num-th parallel port, i.e. is LPTnum
 	device_LPT(uint8_t num, class CParallel* pp);
 	virtual ~device_LPT();
-	bool Read(uint8_t * data,uint16_t * size) override;
-	bool Write(const uint8_t * data,uint16_t * size) override;
-	bool Seek(uint32_t * pos,uint32_t type) override;
-	bool Close() override;
-	uint16_t GetInformation(void) override;
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+	bool Close() DBX_OVERRIDE;
+	uint16_t GetInformation(void) DBX_OVERRIDE;
 private:
 	CParallel* pportclass;
 	uint8_t num; // This device is LPTnum
@@ -101,10 +101,10 @@ public:
 	void initialize();
 
 	// What type of port is this?
-	ParallelTypesE parallelType = PARALLEL_TYPE_DISABLED;
+	ParallelTypesE parallelType;
 
 	// How was it created?
-	std::string commandLineString = "";
+	std::string commandLineString;
 
 	DOS_Device* mydosdevice;
 };

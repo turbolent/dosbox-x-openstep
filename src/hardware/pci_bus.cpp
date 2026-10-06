@@ -239,6 +239,7 @@ public:
 };
 
 
+#if !C_OPENSTEP
 class PCI_SSTDevice:public PCI_Device {
 private:
 	static const uint16_t vendor=0x121a;	// 3dfx
@@ -277,7 +278,7 @@ public:
 		}
 	}
 
-	void config_write(uint8_t regnum,Bitu iolen,uint32_t value) override {
+	void config_write(uint8_t regnum,Bitu iolen,uint32_t value) DBX_OVERRIDE {
 		if (iolen == 1) {
 			const unsigned char mask = config_writemask[regnum];
 			const unsigned char nmask = ~mask;
@@ -311,7 +312,7 @@ public:
 			PCI_Device::config_write(regnum,iolen,value); /* which will break down I/O into 8-bit */
 		}
 	}
-	uint32_t config_read(uint8_t regnum,Bitu iolen) override {
+	uint32_t config_read(uint8_t regnum,Bitu iolen) DBX_OVERRIDE {
 		if (iolen == 1) {
 			switch (regnum) {
 				case 0x4c: /* FIXME: I hope I ported this right --J.C. */
@@ -351,6 +352,8 @@ public:
 		}
 	}
 };
+
+#endif
 
 static bool initialized = false;
 
@@ -468,7 +471,9 @@ static void Deinitialize(void) {
 }
 
 static PCI_Device *S3_PCI=NULL;
+#if !C_OPENSTEP
 static PCI_Device *SST_PCI=NULL;
+#endif
 static PCI_Device *DOSBoxIG_PCI=NULL;
 
 extern bool enable_pci_vga;
@@ -509,6 +514,7 @@ void PCI_RemoveSVGAS3_Device(void) {
 	}
 }
 
+#if !C_OPENSTEP
 void PCI_AddSST_Device(Bitu type) {
 	if (!pcibus_enable) return;
 
@@ -540,6 +546,8 @@ void PCI_RemoveSST_Device(void) {
 		SST_PCI = NULL;
 	}
 }
+
+#endif
 
 PhysPt PCI_GetPModeInterface(void) {
 	if (!pcibus_enable) return 0;

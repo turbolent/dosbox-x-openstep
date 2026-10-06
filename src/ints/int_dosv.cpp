@@ -24,7 +24,9 @@
 #include "inout.h"
 #include "callback.h"
 #include "int10.h"
+#if !C_OPENSTEP
 #include "SDL.h"
+#endif
 #include "render.h"
 #include "support.h"
 #include "control.h"
@@ -1456,7 +1458,7 @@ void InitFontHandle()
 		if(!font_window) {
 			font_window = XCreateSimpleWindow(font_display, DefaultRootWindow(font_display), 0, 0, 32, 32, 0, BlackPixel(font_display, DefaultScreen(font_display)), WhitePixel(font_display, DefaultScreen(font_display)));
 			font_pixmap = XCreatePixmap(font_display, font_window, 32, 32, DefaultDepth(font_display, 0));
-			font_gc = XCreateGC(font_display, font_pixmap, 0, nullptr);
+			font_gc = XCreateGC(font_display, font_pixmap, 0, NULL);
 		}
 	}
 #endif
@@ -2437,7 +2439,7 @@ public:
 		flags = PFLAG_HASROM;
 		bank = 0;
 	}
-	uint8_t readb(PhysPt addr) override {
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE {
 		uint16_t code;
 		Bitu offset;
 		if(bank == 0) {
@@ -2467,7 +2469,7 @@ public:
 		}
 		return 0;
 	}
-	uint16_t readw(PhysPt addr) override {
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE {
 		uint16_t code;
 		Bitu offset;
 		if(bank == 0) {
@@ -2497,21 +2499,21 @@ public:
 		}
 		return 0;
 	}
-	uint32_t readd(PhysPt addr) override {
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE {
         (void)addr;
 		return 0;
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
         (void)addr;
 		if((val & 0x80) && val != 0xff) {
 			bank = val & 0x7f;
 		}
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
         (void)addr;
         (void)val;
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
         (void)addr;
         (void)val;
 	}

@@ -220,8 +220,8 @@ static char *findBinaryInPath(const char *bin, char *envr)
 
 static char *readSymLink(const char *path)
 {
-    ssize_t len = 64;
-    ssize_t rc = -1;
+    long len = 64;
+    long rc = -1;
     char *retval = NULL;
 
     while (1)
@@ -377,4 +377,3 @@ char *__PHYSFS_platformCalcPrefDir(const char *org, const char *app)
 #endif /* PHYSFS_PLATFORM_UNIX */
 
 /* end of physfs_platform_unix.c ... */
-

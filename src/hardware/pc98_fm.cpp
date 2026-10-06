@@ -23,6 +23,7 @@
 #include "callback.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <string>
@@ -126,15 +127,15 @@ static std::map<UINT,CBUS4PORT> cbuscore_map;
 
 void pc98_fm86_write(Bitu port,Bitu val,Bitu iolen) {
     (void)iolen;//UNUSED
-    const auto &cbusm = cbuscore_map[port];
-    const auto &func = cbusm.out;
+    const CBUS4PORT &cbusm = cbuscore_map[port];
+    const IOOUT &func = cbusm.out;
     if (func) func(port,val);
 }
 
 Bitu pc98_fm86_read(Bitu port,Bitu iolen) {
     (void)iolen;//UNUSED
-    const auto &cbusm = cbuscore_map[port];
-    const auto &func = cbusm.inp;
+    const CBUS4PORT &cbusm = cbuscore_map[port];
+    const IOINP &func = cbusm.inp;
     if (func) return func(port);
     return ~0ul;
 }
@@ -144,7 +145,7 @@ void cbuscore_attachsndex(UINT port, const IOOUT *out, const IOINP *inp) {
     LOG_MSG("cbuscore_attachsndex(port=0x%x)",port);
 
     for (unsigned int i=0;i < 4;i++) {
-        auto &cbusm = cbuscore_map[port+(i*2)];
+        CBUS4PORT &cbusm = cbuscore_map[port+(i*2)];
 
         IO_RegisterReadHandler(port+(i*2),pc98_fm86_read,IO_MB);
         cbusm.inp = inp[i];

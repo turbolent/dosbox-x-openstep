@@ -28,7 +28,6 @@
 #include "setup.h"
 #include "paging.h"
 #include "programs.h"
-#include "zipfile.h"
 #include "regs.h"
 #include "bitop.h"
 #ifndef WIN32
@@ -109,7 +108,7 @@ class ACPIPageHandler : public PageHandler {
 	public:
 		ACPIPageHandler() : PageHandler(PFLAG_NOCODE|PFLAG_READABLE|PFLAG_WRITEABLE) {}
 		ACPIPageHandler(Bitu flags) : PageHandler(flags) {}
-		HostPt GetHostReadPt(PageNum phys_page) override {
+		HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 			assert(ACPI_buffer != NULL);
 			assert(ACPI_buffer_size >= 4096);
 			phys_page -= (ACPI_BASE >> 12);
@@ -117,7 +116,7 @@ class ACPIPageHandler : public PageHandler {
 			if (phys_page >= (ACPI_buffer_size >> 12)) phys_page = (ACPI_buffer_size >> 12) - 1;
 			return ACPI_buffer + (phys_page << 12);
 		}
-		HostPt GetHostWritePt(PageNum phys_page) override {
+		HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 			assert(ACPI_buffer != NULL);
 			assert(ACPI_buffer_size >= 4096);
 			phys_page -= (ACPI_BASE >> 12);
@@ -188,10 +187,10 @@ static MEM_Callout_t lfb_mmio_cb = MEM_Callout_t_none;
 
 class MEM_callout_vector : public std::vector<MEM_CalloutObject> {
 public:
-    MEM_callout_vector() : std::vector<MEM_CalloutObject>() { };
+    MEM_callout_vector() : std::vector<MEM_CalloutObject>(), getcounter(0), alloc_from(0) { };
 public:
-    unsigned int getcounter = 0;
-    unsigned int alloc_from = 0;
+    unsigned int getcounter;
+    unsigned int alloc_from;
 };
 
 static MEM_callout_vector MEM_callouts[MEM_callouts_max];
@@ -213,32 +212,37 @@ extern bool VIDEO_BIOS_always_carry_14_high_font;
 extern bool VIDEO_BIOS_always_carry_16_high_font;
 
 static struct MemoryBlock {
-    Bitu pages = 0;
-    Bitu handler_pages = 0;
-    Bitu reported_pages = 0;
-    Bitu reported_pages_4gb = 0;
-    PageHandler * * phandlers = NULL;
-    MemHandle * mhandles = NULL;
+    MemoryBlock() : pages(0), handler_pages(0), reported_pages(0),
+        reported_pages_4gb(0), phandlers(NULL), mhandles(NULL), lfb(), lfb_mmio(),
+        a20(), mem_alias_pagemask(0), mem_alias_pagemask_active(0), address_bits(0),
+        hw_next_assign(0) {}
+
+    Bitu pages;
+    Bitu handler_pages;
+    Bitu reported_pages;
+    Bitu reported_pages_4gb;
+    PageHandler * * phandlers;
+    MemHandle * mhandles;
     struct {
         Bitu        start_page;
         Bitu        end_page;
         Bitu        pages;
         PageHandler *handler;
-    } lfb = {};
+    } lfb;
     struct {
         Bitu        start_page;
         Bitu        end_page;
         Bitu        pages;
         PageHandler *handler;
-    } lfb_mmio = {};
+    } lfb_mmio;
     struct {
         bool enabled;
         uint8_t controlport;
-    } a20 = {};
-    uint32_t mem_alias_pagemask = 0;
-    uint32_t mem_alias_pagemask_active = 0;
-    uint32_t address_bits = 0;
-    uint32_t hw_next_assign = 0;
+    } a20;
+    uint32_t mem_alias_pagemask;
+    uint32_t mem_alias_pagemask_active;
+    uint32_t address_bits;
+    uint32_t hw_next_assign;
 } memory;
 
 uint32_t MEM_get_address_bits() {
@@ -264,11 +268,11 @@ size_t MemSize = 0;
 class UnmappedPageHandler : public PageHandler {
 public:
     UnmappedPageHandler() : PageHandler(PFLAG_INIT|PFLAG_NOCODE) {}
-    uint8_t readb(PhysPt addr) override {
+    uint8_t readb(PhysPt addr) DBX_OVERRIDE {
         (void)addr;//UNUSED
         return 0xFF; /* Real hardware returns 0xFF not 0x00 */
     } 
-    void writeb(PhysPt addr,uint8_t val) override {
+    void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
         (void)addr;//UNUSED
         (void)val;//UNUSED
     }
@@ -277,7 +281,7 @@ public:
 class IllegalPageHandler : public PageHandler {
 public:
     IllegalPageHandler() : PageHandler(PFLAG_INIT|PFLAG_NOCODE) {}
-    uint8_t readb(PhysPt addr) override {
+    uint8_t readb(PhysPt addr) DBX_OVERRIDE {
         (void)addr;
 #if C_DEBUG
         LOG_MSG("Warning: Illegal read from %lx (lin=%x), CS:IP %8x:%8x",(unsigned long)PAGING_GetPhysicalAddress64(addr),addr,SegValue(cs),reg_eip);
@@ -290,7 +294,7 @@ public:
 #endif
         return 0xFF; /* Real hardware returns 0xFF not 0x00 */
     } 
-    void writeb(PhysPt addr,uint8_t val) override {
+    void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
         (void)addr;//UNUSED
         (void)val;//UNUSED
 #if C_DEBUG
@@ -309,13 +313,13 @@ class RAMPageHandler : public PageHandler {
 public:
     RAMPageHandler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE) {}
     RAMPageHandler(Bitu flags) : PageHandler(flags) {}
-    HostPt GetHostReadPt(PageNum phys_page) override {
+    HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
         if (!a20_fast_changeable || (phys_page & (~0xFul/*64KB*/)) == 0x100ul/*@1MB*/)
             return MemBase+(phys_page&memory.mem_alias_pagemask_active)*MEM_PAGESIZE;
 
         return MemBase+phys_page*MEM_PAGESIZE;
     }
-    HostPt GetHostWritePt(PageNum phys_page) override {
+    HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
         if (!a20_fast_changeable || (phys_page & (~0xFul/*64KB*/)) == 0x100ul/*@1MB*/)
             return MemBase+(phys_page&memory.mem_alias_pagemask_active)*MEM_PAGESIZE;
 
@@ -328,10 +332,10 @@ public:
     ROMAliasPageHandler() {
         flags=PFLAG_READABLE|PFLAG_HASROM;
     }
-    HostPt GetHostReadPt(PageNum phys_page) override {
+    HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
         return MemBase+((phys_page&0xF)+0xF0)*MEM_PAGESIZE;
     }
-    HostPt GetHostWritePt(PageNum phys_page) override {
+    HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
         return MemBase+((phys_page&0xF)+0xF0)*MEM_PAGESIZE;
     }
 };
@@ -341,19 +345,19 @@ public:
     ROMPageHandler() {
         flags=PFLAG_READABLE|PFLAG_HASROM;
     }
-    void writeb(PhysPt addr,uint8_t val) override {
+    void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
         else
             LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr));
     }
-    void writew(PhysPt addr,uint16_t val) override {
+    void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
         else
             LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr));
     }
-    void writed(PhysPt addr,uint32_t val) override {
+    void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
         else
@@ -833,13 +837,13 @@ class Mem4GBPageHandler : public PageHandler {
 	public:
 		Mem4GBPageHandler() : PageHandler(PFLAG_READABLE|PFLAG_WRITEABLE) {}
 		Mem4GBPageHandler(Bitu flags) : PageHandler(flags) {}
-		HostPt GetHostReadPt(PageNum phys_page) override {
+		HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 			assert(memory_file_base != NULL);
 			const size_t ofs = size_t(phys_page) * size_t(4096u);
 			assert(ofs < memory_file_size);
 			return (unsigned char*)memory_file_base + ofs;
 		}
-		HostPt GetHostWritePt(PageNum phys_page) override {
+		HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 			assert(memory_file_base != NULL);
 			const size_t ofs = size_t(phys_page) * size_t(4096u);
 			assert(ofs < memory_file_size);
@@ -852,8 +856,10 @@ static Mem4GBPageHandler mem4gb_handler;
 PageHandler * MEM_GetPageHandler(Bitu phys_page) {
 	phys_page &= memory.mem_alias_pagemask_active;
 
+#if !C_OPENSTEP
 	if (glide.enabled && (phys_page>=(GLIDE_LFB>>12)) && (phys_page<(GLIDE_LFB>>12)+GLIDE_PAGES))
 		return (PageHandler*)glide.lfb_pagehandler;
+#endif
 
 	if (phys_page<memory.handler_pages) {
 		if (memory.phandlers[phys_page] != NULL) /*likely*/
@@ -1817,7 +1823,7 @@ HostPt GetMemBase(void) { return MemBase; }
 class REDOS : public Program {
 	public:
 		/*! \brief      Program entry point, when the command is run */
-		void Run(void) override {
+		void Run(void) DBX_OVERRIDE {
 			if (cmd->FindExist("/?", false) || cmd->FindExist("-?", false)) {
 				WriteOut("Reboots the kernel of DOSBox-X's emulated DOS.\n\nRE-DOS\n");
 				return;
@@ -1841,7 +1847,7 @@ void REDOS_ProgramStart(Program * * make) {
 class A20GATE : public Program {
 public:
     /*! \brief      Program entry point, when the command is run */
-    void Run(void) override {
+    void Run(void) DBX_OVERRIDE {
         if (cmd->FindExist("-?", false) || cmd->FindExist("/?", false)) {
             WriteOut("Turns on/off or changes the A20 gate mode.\n\n");
             WriteOut("A20GATE [ON | OFF | SET [off | off_fake | on | on_fake | mask | fast]]\n\n"
@@ -2288,7 +2294,7 @@ void Init_RAM() {
         uint32_t maxsz32 = 0xF8000000ul;
         uint64_t maxsz;
 
-        static_assert( sizeof(size_t) >= sizeof(void*), "why is size_t smaller than a pointer?" );
+        DBX_STATIC_ASSERT( sizeof(size_t) >= sizeof(void*), "why is size_t smaller than a pointer?" );
 
         /* Leave 128MB of space at the top for the BIOS, S3 VGA, and Voodoo 3Dfx emulation.
          * There was a known bug 2024/12/21 where setting the maximum memory size and installing
@@ -2359,7 +2365,7 @@ void Init_RAM() {
      * so we then must zero the buffer. */
     memory_file_size = size_t(memory.pages) * size_t(4096u);
     if (memory.reported_pages_4gb > 0 && sizeof(void*) > 4) {
-        size_t noff = size_t(0x100000000ul) + (size_t(4096u) * size_t(memory.reported_pages_4gb));
+        size_t noff = size_t(UINT64_C(0x100000000)) + (size_t(4096u) * size_t(memory.reported_pages_4gb));
         if (memory_file_size < noff) memory_file_size = noff;
     }
     if (!memory_file.empty()) LOG_MSG("Memory file size will be %lluKB",(unsigned long long)memory_file_size >> 10ull);
@@ -2831,7 +2837,7 @@ public:
 	{}
 
 private:
-	void getBytes(std::ostream& stream) override
+	void getBytes(std::ostream& stream) DBX_OVERRIDE
 	{
 		uint8_t pagehandler_idx[0x40000] = {0};
 		unsigned int size_table;
@@ -2877,7 +2883,7 @@ private:
 		WRITE_POD( &pagehandler_idx, pagehandler_idx );
 	}
 
-	void setBytes(std::istream& stream) override
+	void setBytes(std::istream& stream) DBX_OVERRIDE
 	{
 		uint8_t pagehandler_idx[0x40000];
 		void *old_ptrs[4];

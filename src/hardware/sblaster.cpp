@@ -406,6 +406,10 @@ static INLINE uint8_t decode_ADPCM_2_sample(uint8_t sample,uint8_t & reference,B
 	((((_WHICH_[0] & 0x1e) << 3) | ((_WHICH_[1] & 0x1e) >> 1)) |	\
 		((type==SBT_PRO1 || type==SBT_PRO2) ? 0x11:0))
 
+static std::string sb_decimal(unsigned long value) {
+    char text[32]; snprintf(text, sizeof(text), "%lu", value); return text;
+}
+
 struct SB_INFO {
 	Bitu freq;
 	uint8_t timeconst;
@@ -530,28 +534,30 @@ struct SB_INFO {
 		uint8_t valadd;
 		uint8_t valxor;
 	} e2;
-	double last_dma_callback = 0.0f;
-	unsigned int recording_source = REC_SILENCE;
-	bool listen_to_recording_source = false;
+	double last_dma_callback;
+	unsigned int recording_source;
+	bool listen_to_recording_source;
 	uint8_t ASP_regs[256];
-	uint8_t ASP_mode = 0x00;
-	unsigned char ESSregs[0x20] = {0}; /* 0xA0-0xBF */
+	uint8_t ASP_mode;
+	unsigned char ESSregs[0x20]; /* 0xA0-0xBF */
 	MixerChannel * chan;
-	unsigned int gen_input_ofs = 0;
-	unsigned long long gen_tone_angle = 0;
-	unsigned int gen_hiss_rand[2] = {0,0};
-	size_t card_index = 0;
-	int gen_last_hiss = 0;
+	unsigned int gen_input_ofs;
+	unsigned long long gen_tone_angle;
+	unsigned int gen_hiss_rand[2];
+	size_t card_index;
+	int gen_last_hiss;
 
 	/* SB16 cards have a 256-byte block of 8051 internal RAM accessible through DSP commands 0xF9 (Read) and 0xFA (Write) */
 	unsigned char sb16_8051_mem[256];
 
 	/* The SB16 ASP appears to have a mystery 2KB RAM block that is accessible through register 0x83 of the ASP.
 	 * This array represents the initial contents as seen on my SB16 non-PnP ASP chip (version ID 0x10). */
-	unsigned int sb16asp_ram_contents_index = 0;
+	unsigned int sb16asp_ram_contents_index;
 	unsigned char sb16asp_ram_contents[2048];
-	pic_tickindex_t next_check_record_settings = 0;
-	unsigned char pc98_mixctl_reg = 0x14;
+	pic_tickindex_t next_check_record_settings;
+	unsigned char pc98_mixctl_reg;
+
+	SB_INFO() : last_dma_callback(0.0f), recording_source(REC_SILENCE), listen_to_recording_source(false), ASP_mode(0x00), ESSregs(), gen_input_ofs(0), gen_tone_angle(0), gen_hiss_rand(), card_index(0), gen_last_hiss(0), sb16asp_ram_contents_index(0), next_check_record_settings(0), pc98_mixctl_reg(0x14) {}
 
 	void gen_input_reset(void);
 	int gen_hiss(unsigned int mask);
@@ -1497,7 +1503,7 @@ void SB_INFO::DSP_Reset(void) {
 		if (chan) {
 			if (chan->callback == DSP_SC400_E6_DMA_CallBack || chan->callback == DSP_E2_DMA_CallBack) {
 				LOG(LOG_SB,LOG_DEBUG)("DSP reset interrupting E2/E5h DMA commands");
-				chan->Register_Callback(nullptr);
+				chan->Register_Callback(NULL);
 			}
 		}
 	}
@@ -3435,8 +3441,8 @@ static const unsigned char ViBRA_sysdev[] = {
 
 class ViBRA_PnP : public ISAPnPDevice {
 	public:
-		size_t ci = 0;
-		ViBRA_PnP(const size_t n_ci) : ISAPnPDevice() {
+		size_t ci;
+		ViBRA_PnP(const size_t n_ci) : ISAPnPDevice(), ci(0) {
 			resource_ident = 0;
 			host_writed(ident+0,ISAPNP_ID('C','T','L',0x0,0x0,0x7,0x0)); /* CTL0070: ViBRA C */
 			host_writed(ident+4,0xFFFFFFFFUL);
@@ -3453,7 +3459,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 			write_Logical_Device_ID('C','T','L',0x0,0x0,0x0,0x1); // CTL0001
 			write_Identifier_String("Audio");
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::PreferredDependentConfiguration);
+			write_Dependent_Function_Start(ISAPnPDevice::PreferredDependentConfiguration);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5));
 			write_DMA_Format(
@@ -3476,7 +3482,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 				write_IO_Port(/*min*/0x388,/*max*/0x388,/*count*/0x04,/*align*/0x01);
 			}
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::AcceptableDependentConfiguration,true);
+			write_Dependent_Function_Start(ISAPnPDevice::AcceptableDependentConfiguration,true);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5,7,9,10));
 			write_DMA_Format(
@@ -3499,7 +3505,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 				write_IO_Port(/*min*/0x388,/*max*/0x388,/*count*/0x04,/*align*/0x01);
 			}
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::AcceptableDependentConfiguration,true);
+			write_Dependent_Function_Start(ISAPnPDevice::AcceptableDependentConfiguration,true);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5,7,9,10));
 			write_DMA_Format(
@@ -3521,7 +3527,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 				write_IO_Port(/*min*/0x300,/*max*/0x330,/*count*/0x02,/*align*/0x30);
 			}
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::SubOptimalDependentConfiguration);
+			write_Dependent_Function_Start(ISAPnPDevice::SubOptimalDependentConfiguration);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5,7,9,10));
 			write_DMA_Format(
@@ -3540,7 +3546,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 					DMASpeedSupported_Compat);
 			write_IO_Port(/*min*/0x220,/*max*/0x280,/*count*/0x10,/*align*/0x20);
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::SubOptimalDependentConfiguration);
+			write_Dependent_Function_Start(ISAPnPDevice::SubOptimalDependentConfiguration);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5,7,9,10));
 			write_DMA_Format(
@@ -3556,7 +3562,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 				write_IO_Port(/*min*/0x388,/*max*/0x388,/*count*/0x04,/*align*/0x01);
 			}
 
-			write_Dependent_Function_Start(ISAPnPDevice::DependentFunctionConfig::SubOptimalDependentConfiguration);
+			write_Dependent_Function_Start(ISAPnPDevice::SubOptimalDependentConfiguration);
 			write_IRQ_Format(
 					ISAPnPDevice::irq2mask(5,7,9,10));
 			write_DMA_Format(
@@ -3580,10 +3586,10 @@ class ViBRA_PnP : public ISAPnPDevice {
 
 			end_write_res();        // END
 		}
-		void select_logical_device(Bitu val) override {
+		void select_logical_device(Bitu val) DBX_OVERRIDE {
 			logical_device = val;
 		}
-		uint8_t read(Bitu addr) override {
+		uint8_t read(Bitu addr) DBX_OVERRIDE {
 			uint8_t ret = 0xFF;
 			if (logical_device == 0) {
 				switch (addr) {
@@ -3619,7 +3625,7 @@ class ViBRA_PnP : public ISAPnPDevice {
 
 			return ret;
 		}
-		void write(Bitu addr,Bitu val) override {
+		void write(Bitu addr,Bitu val) DBX_OVERRIDE {
 			if (logical_device == 0) {
 				switch (addr) {
 					case 0x30:  /* activate range */
@@ -3683,17 +3689,17 @@ std::string GetSBbase() {
 
 std::string GetSBirq() {
 	const size_t ci = 0;
-	return sb[ci].hw.irq==0xff?"None":std::to_string(sb[ci].hw.irq);
+	return sb[ci].hw.irq==0xff?"None":sb_decimal(sb[ci].hw.irq);
 }
 
 std::string GetSBldma() {
 	const size_t ci = 0;
-	return sb[ci].hw.dma8==0xff?"None":std::to_string((int)sb[ci].hw.dma8);
+	return sb[ci].hw.dma8==0xff?"None":sb_decimal((int)sb[ci].hw.dma8);
 }
 
 std::string GetSBhdma() {
 	const size_t ci = 0;
-	return sb[ci].hw.dma16==0xff?"None":std::to_string((int)sb[ci].hw.dma16);
+	return sb[ci].hw.dma16==0xff?"None":sb_decimal((int)sb[ci].hw.dma16);
 }
 
 static void DSP_DMA_CallBack(DmaChannel * chan, DMAEvent event) {
@@ -3904,7 +3910,7 @@ static void DSP_E2_DMA_CallBack(DmaChannel *chan, DMAEvent event) {
 	assert(ci < MAX_CARDS);
 	if (event==DMA_UNMASKED) {
 		uint8_t val = sb[ci].e2.valadd;
-		chan->Register_Callback(nullptr);
+		chan->Register_Callback(NULL);
 		chan->Write(1,&val);
 	}
 }
@@ -3915,7 +3921,7 @@ static void DSP_SC400_E6_DMA_CallBack(DmaChannel *chan, DMAEvent event) {
 	if (event==DMA_UNMASKED) {
 		static const char *string = "\x01\x02\x04\x08\x10\x20\x40\x80"; /* Confirmed response via DMA from actual Reveal SC400 card */
 		LOG(LOG_SB,LOG_DEBUG)("SC400 returning DMA test pattern on DMA channel=%u",sb[ci].hw.dma8);
-		chan->Register_Callback(nullptr);
+		chan->Register_Callback(NULL);
 		chan->Write(8,(uint8_t*)string);
 		chan->Clear_Request();
 		if (!chan->tcount) LOG(LOG_SB,LOG_DEBUG)("SC400 warning: DMA did not reach terminal count");
@@ -3933,7 +3939,7 @@ static void DSP_ADC_CallBack(DmaChannel *chan, DMAEvent event) {
 		chan->Write(1,&val);
 
 	sb[ci].SB_RaiseIRQ(SB_IRQ_8);
-	chan->Register_Callback(nullptr);
+	chan->Register_Callback(NULL);
 }
 
 template <const size_t ci> static void SBLASTER_CallBack(Bitu len) {
@@ -3976,7 +3982,7 @@ class SBLASTER: public Module_base {
 		MixerObject MixerChan;
 		MixerObject MixerChanAwe;
 		OPL_Mode oplmode;
-		size_t ci = 0;
+		size_t ci;
 
 		/* Support Functions */
 		void Find_Type_And_Opl(Section_prop* config,SB_TYPES& type, OPL_Mode& opl_mode) const {
@@ -4136,7 +4142,7 @@ class SBLASTER: public Module_base {
 			if (enable) InstallDSPPorts();
 		}
 
-		SBLASTER(const size_t n_ci,Section* configuration):Module_base(configuration) {
+		SBLASTER(const size_t n_ci,Section* configuration):Module_base(configuration), ci(0) {
 			bool bv;
 			string s;
 			Bitu i;
@@ -4358,7 +4364,7 @@ class SBLASTER: public Module_base {
 				case SBT_GB:
 					   if(!sb[ci].cms) {
 						   LOG(LOG_SB, LOG_WARN)("'cms' setting is 'off', but is forced to 'auto' on the Game Blaster.");
-						   auto* sect_updater = sbGetSection(ci);
+						   Section_prop* sect_updater = sbGetSection(ci);
 						   sect_updater->Get_prop("cms")->SetValue("auto");
 					   }
 					   sb[ci].cms = true; // Game Blaster is CMS
@@ -4366,7 +4372,7 @@ class SBLASTER: public Module_base {
 				default:
 					   if(sb[ci].cms) {
 						   LOG(LOG_SB, LOG_WARN)("'cms' setting 'on' not supported on this card, forcing 'auto'.");
-						   auto* sect_updater = sbGetSection(ci);
+						   Section_prop* sect_updater = sbGetSection(ci);
 						   sect_updater->Get_prop("cms")->SetValue("auto");
 					   }
 					   sb[ci].cms = false;

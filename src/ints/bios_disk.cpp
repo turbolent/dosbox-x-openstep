@@ -106,7 +106,7 @@ bool DriveFileIterator(DOS_Drive* drv, void(*func)(const char* path, bool is_dir
 				bool is_dir = !!(dta_attr & DOS_ATTR_DIRECTORY);
 				//if (is_dir) printf("[%s] [%s] %s (size: %u - date: %u - time: %u - attr: %u)\n", (const char*)data, (dta_attr == 8 ? "V" : (is_dir ? "D" : "F")), full_path, dta_size, dta_date, dta_time, dta_attr);
 				if (dta_name[0] == '.' && dta_name[dta_name[1] == '.' ? 2 : 1] == '\0') continue;
-				if (is_dir) dirs.emplace_back(full_path);
+				if (is_dir) dirs.push_back(full_path);
 				func(full_path, is_dir, dta_size, dta_date, dta_time, dta_attr, data);
 			}
 			dos.dta(save_dta);
@@ -114,7 +114,7 @@ bool DriveFileIterator(DOS_Drive* drv, void(*func)(const char* path, bool is_dir
 		}
 	};
 	std::vector<std::string> dirs;
-	dirs.emplace_back("");
+	dirs.push_back("");
 	std::string dir;
 	while (dirs.size())
 	{
@@ -358,7 +358,7 @@ struct fatFromDOSDrive
 {
 	DOS_Drive* drive;
 
-	enum ffddDefs : uint32_t
+	enum ffddDefs
 	{
 		BYTESPERSECTOR    = 512,
 		HEADCOUNT         = 255, // needs to be >128 to fit 4GB into CHS
@@ -378,8 +378,8 @@ struct fatFromDOSDrive
 	SASIHDD    sasi;
 	uint8_t    fatSz;
 	uint8_t    fsinfosec[BYTESPERSECTOR];
-	uint32_t   sectorsPerCluster, codepage = 0;
-	bool       tryconvcp = false, readOnly = false, success = false, tomany = false;
+	uint32_t   sectorsPerCluster, codepage;
+	bool       tryconvcp, readOnly, success, tomany;
 
 	struct ffddFile { char path[DOS_PATHLENGTH+1]; uint32_t firstSect; };
 	std::vector<direntry> root, dirs;
@@ -389,24 +389,24 @@ struct fatFromDOSDrive
 	uint32_t sect_boot_pc98, sect_disk_end, sect_files_end, sect_files_start, sect_dirs_start, sect_root_start, sect_fat2_start, sect_fat1_start;
 
 	struct ffddBuf { uint8_t data[BYTESPERSECTOR]; };
-	struct ffddSec { uint32_t cursor = NULL_CURSOR; };
+	struct ffddSec { uint32_t cursor; ffddSec() : cursor(NULL_CURSOR) {} };
 	std::vector<ffddBuf>  diffSectorBufs;
 	std::vector<ffddSec>  diffSectors;
 	std::vector<uint32_t>   diffFreeCursors;
-	uint32_t                saveEndCursor = 0;
+	uint32_t                saveEndCursor;
 	uint8_t                 cacheSectorData[CACHECOUNT][BYTESPERSECTOR];
 	uint32_t                cacheSectorNumber[CACHECOUNT];
 	DOS_File*             openFiles[KEEPOPENCOUNT];
 	uint32_t                openIndex[KEEPOPENCOUNT];
-	uint32_t                openCursor = 0;
+	uint32_t                openCursor;
 
 	~fatFromDOSDrive()
 	{
-		for (DOS_File* df : openFiles)
-			if (df) { df->Close(); delete df; }
+		for (unsigned i = 0; i < KEEPOPENCOUNT; ++i)
+            if (openFiles[i]) { openFiles[i]->Close(); delete openFiles[i]; }
 	}
 
-	fatFromDOSDrive(DOS_Drive* drv, uint32_t freeMB, int timeout) : drive(drv)
+	fatFromDOSDrive(DOS_Drive* drv, uint32_t freeMB, int timeout) : drive(drv), codepage(0), tryconvcp(false), readOnly(false), success(false), tomany(false), saveEndCursor(0), openCursor(0)
 	{
 		cacheSectorNumber[0] = 1; // must not state that sector 0 is already cached
 		memset(&cacheSectorNumber[1], 0, sizeof(cacheSectorNumber) - sizeof(cacheSectorNumber[0]));
@@ -731,8 +731,10 @@ struct fatFromDOSDrive
 		uint32_t fileCluster = (uint32_t)(2 + dirs.size() / entriesPerCluster);
 		for (uint32_t fileSect = 0, rootOrDir = 0; rootOrDir != 2; rootOrDir++)
 		{
-			for (direntry& e : (rootOrDir ? dirs : root))
+			std::vector<direntry> &entries = rootOrDir ? dirs : root;
+            for (std::vector<direntry>::iterator ei = entries.begin(); ei != entries.end(); ++ei)
 			{
+                direntry &e = *ei;
 				if (!e.entrysize || (e.attrib & DOS_ATTR_LONG_NAME_MASK) == DOS_ATTR_LONG_NAME) continue;
 				var_write(&e.hiFirstClust, (uint16_t)(fileCluster >> 16));
 				var_write(&e.loFirstClust, (uint16_t)(fileCluster));
@@ -806,8 +808,8 @@ struct fatFromDOSDrive
 		if (IS_PC98_ARCH && tsize/BYTESPERSECTOR-8 > sect_disk_end) sect_disk_end = tsize/BYTESPERSECTOR-8;
 		if (sect_disk_end < sect_files_end) return;
 
-		for (ffddFile& f : files)
-			f.firstSect += sect_files_start;
+		for (std::vector<ffddFile>::iterator f = files.begin(); f != files.end(); ++f)
+            f->firstSect += sect_files_start;
 
 		uint32_t serial = 0;
 		if (!serial)
@@ -1468,7 +1470,8 @@ Int13Status imageDisk::Read_AbsoluteSector(uint32_t sectnum, void * data) {
 
     //LOG_MSG("Reading sectors %ld at bytenum %I64d", sectnum, bytenum);
 
-    fseeko64(diskimg,(fseek_ofs_t)bytenum,SEEK_SET);
+    if (fseeko64(diskimg,(fseek_ofs_t)bytenum,SEEK_SET) != 0)
+        return Int13Status::SeekFailed;
     res = (uint64_t)ftello64(diskimg);
     if (res != bytenum) {
         LOG_MSG("fseek() failed in Read_AbsoluteSector for sector %lu. Want=%llu Got=%llu\n",
@@ -1514,9 +1517,11 @@ Int13Status imageDisk::Write_AbsoluteSector(uint32_t sectnum, const void *data) 
 
     //LOG_MSG("Writing sectors to %ld at bytenum %d", sectnum, bytenum);
 
-    fseeko64(diskimg,(fseek_ofs_t)bytenum,SEEK_SET);
-    if ((uint64_t)ftello64(diskimg) != bytenum)
+    if (fseeko64(diskimg,(fseek_ofs_t)bytenum,SEEK_SET) != 0 ||
+        (uint64_t)ftello64(diskimg) != bytenum) {
         LOG_MSG("WARNING: fseek() failed in Write_AbsoluteSector for sector %lu\n",(unsigned long)sectnum);
+        return Int13Status::SeekFailed;
+    }
 
     size_t ret=fwrite(data, sector_size, 1, diskimg);
 
@@ -1532,11 +1537,20 @@ uint32_t imageDisk::Get_Reserved_Cylinders() {
     return reserved_cylinders;
 }
 
-imageDisk::imageDisk(IMAGE_TYPE class_id) : class_id(class_id) {
+imageDisk::imageDisk(IMAGE_TYPE class_id) :
+    ffdd(NULL), drvnum(DOS_DRIVES), class_id(class_id), active(false),
+    sector_size(512), heads(0), cylinders(0), sectors(0),
+    hardDrive(false), diskSizeK(0), diskimg(NULL), diskChangeFlag(false),
+    LBA(0), floppytype(0), reserved_cylinders(0), image_base(0),
+    image_length(0), refcount(0), current_fpos(0) {
 }
 
-imageDisk::imageDisk(FILE* diskimg, const char* diskName, uint32_t cylinders, uint32_t heads, uint32_t sectors, uint32_t sector_size, bool hardDrive)
-{
+imageDisk::imageDisk(FILE* diskimg, const char* diskName, uint32_t cylinders, uint32_t heads, uint32_t sectors, uint32_t sector_size, bool hardDrive) :
+    ffdd(NULL), drvnum(DOS_DRIVES), class_id(ID_BASE), active(false),
+    sector_size(512), heads(0), cylinders(0), sectors(0),
+    hardDrive(false), diskSizeK(0), diskimg(NULL), diskChangeFlag(false),
+    LBA(0), floppytype(0), reserved_cylinders(0), image_base(0),
+    image_length(0), refcount(0), current_fpos(0) {
     if (diskName) this->diskname = diskName;
     this->cylinders = cylinders;
     this->heads = heads;
@@ -1571,7 +1585,12 @@ void imageDisk::UpdateFloppyType(void) {
 	}
 }
 
-imageDisk::imageDisk(FILE* imgFile, const char* imgName, uint64_t imgSize, bool isHardDisk) : diskSizeK(imgSize/1024), diskimg(imgFile), image_length(imgSize) {
+imageDisk::imageDisk(FILE* imgFile, const char* imgName, uint64_t imgSize, bool isHardDisk) :
+    ffdd(NULL), drvnum(DOS_DRIVES), class_id(ID_BASE), active(false),
+    sector_size(512), heads(0), cylinders(0), sectors(0),
+    hardDrive(false), diskSizeK(imgSize/1024), diskimg(imgFile), diskChangeFlag(false),
+    LBA(0), floppytype(0), reserved_cylinders(0), image_base(0),
+    image_length(imgSize), refcount(0), current_fpos(0) {
     if (imgName != NULL)
         diskname = imgName;
     uint64_t imgSizeK = diskSizeK;
@@ -1777,8 +1796,12 @@ imageDisk::imageDisk(FILE* imgFile, const char* imgName, uint64_t imgSize, bool 
     }
 }
 
-imageDisk::imageDisk(class DOS_Drive *useDrive, unsigned int letter, uint32_t freeMB, int timeout)
-{
+imageDisk::imageDisk(class DOS_Drive *useDrive, unsigned int letter, uint32_t freeMB, int timeout) :
+    ffdd(NULL), drvnum(DOS_DRIVES), class_id(ID_BASE), active(false),
+    sector_size(512), heads(0), cylinders(0), sectors(0),
+    hardDrive(false), diskSizeK(0), diskimg(NULL), diskChangeFlag(false),
+    LBA(0), floppytype(0), reserved_cylinders(0), image_base(0),
+    image_length(0), refcount(0), current_fpos(0) {
 	ffdd = new fatFromDOSDrive(useDrive, freeMB, timeout);
 	if (!ffdd->success) {
 		LOG_MSG("FAT conversion failed");
@@ -2500,7 +2523,7 @@ static Bitu INT13_DiskHandler(void) {
                 segat = dap.seg;
                 bufptr = dap.off;
                 for(i=0;i<dap.num;i++) {
-                        static_assert( sizeof(sectbuf) >= 2048, "not big enough" );
+                        DBX_STATIC_ASSERT( sizeof(sectbuf) >= 2048, "not big enough" );
                         diskio_delay(512);
                         if (killRead || !src_drive->ReadSectorsHost(sectbuf, false, dap.sector+i, 1)) {
                                 real_writew(SegValue(ds),reg_si+2,i); // According to RBIL this should update the number of blocks field to what was successfully transferred

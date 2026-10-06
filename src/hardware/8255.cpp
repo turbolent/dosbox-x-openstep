@@ -3,7 +3,12 @@
 #include "setup.h"
 #include "8255.h"
 
-Intel8255::Intel8255() {
+Intel8255::Intel8255() :
+    portAWriteMask(0), portBWriteMask(0), portCWriteMask(0), latchOutPortA(0),
+    latchOutPortB(0), latchOutPortC(0), mode(0), IBF_A(false),
+    IBF_B(false), OBF_A(false), OBF_B(false), INTR_A(false),
+    INTR_B(false), pINTR_A(false), pINTR_B(false), INTE_1(false),
+    INTE_2(false), INTE_A(false), INTE_B(false) {
     ppiName = NULL;
     pINTR_A = pINTR_B = 0;
     for (unsigned int c=0;c < 3;c++) {

@@ -3,9 +3,9 @@
 // #define WEAK_EXCEPTIONS
 
 #ifdef WEAK_EXCEPTIONS
-static constexpr uint16_t sw_mask = FPUStatusWord::conditionMask;
+static const uint16_t sw_mask = FPUStatusWord::conditionMask;
 #else
-static constexpr uint16_t sw_mask = FPUStatusWord::conditionAndExceptionMask;
+static const uint16_t sw_mask = FPUStatusWord::conditionAndExceptionMask;
 #endif
 
 #if defined (_MSC_VER)

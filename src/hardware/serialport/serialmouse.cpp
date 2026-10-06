@@ -91,7 +91,7 @@ void CSerialMouse::on_mouse_event(int delta_x,int delta_y,uint8_t buttonstate) {
 	else xmit_another_packet = true;
 }
 
-CSerialMouse::CSerialMouse(Bitu id,	CommandLine* cmd):CSerial(id, cmd) {
+CSerialMouse::CSerialMouse(Bitu id,	CommandLine* cmd):CSerial(id, cmd), packet() {
 	CSerial::Init_Registers();
 	setRI(false);
 	setDSR(false);

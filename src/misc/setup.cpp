@@ -43,7 +43,9 @@
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
+#if !C_OPENSTEP
 #include <libgen.h>  // dirname
+#endif
 #define PATH_SEPARATOR '/'
 #endif
 
@@ -473,15 +475,12 @@ bool Prop_double::CheckValue(Value const& in, bool warn)
 	if (suggested_values.empty() && Property::CheckValue(in, warn)) 
 		return true;
 
-	const auto mi = static_cast<double>(min);
-	const auto ma = static_cast<double>(max);
-	const auto va = static_cast<double>(Value(in));
-	const auto same = [](const double a, const double b, const double epsilon) {
-		return (a - b < epsilon);
-	};
-	const auto tolerance = 0.0000001;
+	const double mi = static_cast<double>(min);
+	const double ma = static_cast<double>(max);
+	const double va = static_cast<double>(Value(in));
+	const double tolerance = 0.0000001;
 	
-	if (same(mi, -1.0, tolerance) && same(ma, -1.0, tolerance)) 
+	if ((mi - (-1.0) < tolerance) && (ma - (-1.0) < tolerance))
 		return true;
 
 	if (va >= mi && va <= ma)
@@ -1088,8 +1087,9 @@ bool Config::PrintConfig(char const * const configfilename,int everything,bool n
 		}
         fprintf(outfile,"\n");      /* Always an empty line between sections */
     }
-    fclose(outfile);
-    return true;
+    bool written = !ferror(outfile);
+    if (fclose(outfile) != 0) written = false;
+    return written;
 }
 
 
@@ -1119,14 +1119,14 @@ void Null_Init(Section *sec);
 
 void AddExitFunction(SectionFunction func,const char *name,bool canchange) {
     /* NTS: Add functions so that iterating front to back executes them in First In Last Out order. */
-    exitfunctions.emplace_front(Function_wrapper(func,canchange,name));
+    exitfunctions.push_front(Function_wrapper(func,canchange,name));
 }
 
 void AddVMEventFunction(enum vm_event event,SectionFunction func,const char *name,bool canchange) {
     assert(event < VM_EVENT_MAX);
 
     /* NTS: First In First Out order */
-    vm_event_functions[event].emplace_back(Function_wrapper(func,canchange,name));
+    vm_event_functions[event].push_back(Function_wrapper(func,canchange,name));
 }
 
 const char *VM_EVENT_string[VM_EVENT_MAX] = {
@@ -1228,7 +1228,7 @@ bool Config::ParseConfigFile(char const * const configfilename) {
     }
     const char * settings_type;
     settings_type = (configfiles.size() == 0)? "primary":"additional";
-    configfiles.emplace_back(configfilename);
+    configfiles.push_back(configfilename);
 
     LOG(LOG_MISC,LOG_NORMAL)("CONFIG: Loading %s settings from config file %s", settings_type,configfilename);
 
@@ -1282,7 +1282,7 @@ bool Config::ParseConfigFile(char const * const configfilename) {
 					}
 				}
             } catch(const char* message) {
-                message = nullptr;
+                message = NULL;
                 //EXIT with message
             }
             break;
@@ -1379,7 +1379,7 @@ void CommandLine::DebugDump(const int debuglevel) {
     else
         LOG_MSG("CommandLine::DebugDump(this=%p)",(void*)this);
 
-    for (auto it=cmds.begin();it!=cmds.end();it++,i++) {
+    for (cmd_it it=cmds.begin();it!=cmds.end();it++,i++) {
         if (debuglevel >= 0)
             LOG(LOG_MISC,(LOG_SEVERITIES)debuglevel)("  [%u] = \"%s\"",i,(*it).c_str());
         else
@@ -1426,14 +1426,14 @@ bool CommandLine::FindStringFullBegin(char const* const begin,std::string & valu
             if (remove) cmds.erase(it);
             if (q) {
                 std::string str=value;
-                if (str.size() && str.back()==c)
-                    value.pop_back();
+                if (str.size() && str[str.size()-1]==c)
+                    value.erase(value.size()-1);
                 else while (str.size()&&++it!=cmds.end()) {
                     str=(*it);
                     if (remove) cmds.erase(it);
                     value+=" "+str;
-                    if (str.size()&&str.back()==c) {
-                        value.pop_back();
+                    if (str.size()&&str[str.size()-1]==c) {
+                        value.erase(value.size()-1);
                         break;
                     }
                 }
@@ -1591,8 +1591,8 @@ bool CommandLine::GetOpt(std::string &name) {
         else if ((opt_style == CommandLine::either || opt_style == CommandLine::either_except || opt_style == CommandLine::gnu || opt_style == CommandLine::gnu_getopt) && *str == '-') {
             str++; /* step past '-' */
             if (str[0] == '-' && str[1] == 0) { /* '--' means to stop parsing */
+                if (opt_eat_argv) cmds.erase(opt_scan);
                 opt_scan = cmds.end();
-                if (opt_eat_argv) opt_scan = cmds.erase(opt_scan);
                 break;
             }
 
@@ -1703,7 +1703,7 @@ int CommandLine::GetParameterFromList(const char* const params[], std::vector<st
     return retval;
 }
 
-CommandLine::CommandLine(int argc,char const * const argv[],enum opt_style opt) {
+CommandLine::CommandLine(int argc,char const * const argv[],enum opt_style opt) : opt_eat_argv(false) {
     if (argc>0) {
         file_name=argv[0];
     }
@@ -1713,7 +1713,7 @@ CommandLine::CommandLine(int argc,char const * const argv[],enum opt_style opt) 
         if (!raw_cmdline.empty()) raw_cmdline += " ";
         raw_cmdline += argv[i];
 
-        cmds.emplace_back(argv[i]);
+        cmds.push_back(argv[i]);
         i++;
     }
 }
@@ -1730,7 +1730,7 @@ uint16_t CommandLine::Get_arglength() {
     return --i;
 }
 
-CommandLine::CommandLine(char const * const name,char const * const cmdline,enum opt_style opt, bool squote) {
+CommandLine::CommandLine(char const * const name,char const * const cmdline,enum opt_style opt, bool squote) : opt_eat_argv(false) {
     if (name) file_name=name;
     /* Parse the cmds and put them in the list */
     bool inword,inquote;char c;

@@ -164,7 +164,7 @@ static bool umb_available = false;
 static bool umb_init = false;
 uint16_t desired_ems_segment = 0;
 #else
-static constexpr bool umb_available = false;
+static const bool umb_available = false;
 #endif
 
 static XMS_Block xms_handles[XMS_HANDLES_MAX];
@@ -180,7 +180,7 @@ bool XMS_GetHandleInfo(Bitu &phys_location,Bitu &size,Bitu &lockcount,bool &free
         free = true;
         size = 0;
 
-        auto &x = xms_handles[handle];
+        XMS_Block &x = xms_handles[handle];
 
         if (!x.free) {
             free = false;

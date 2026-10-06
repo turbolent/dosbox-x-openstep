@@ -7,6 +7,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#if defined(C_OPENSTEP)
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAXPATHLEN
+#endif
+#endif
 
 #if defined(WIN32)
 # include <windows.h>
@@ -294,7 +300,10 @@ extern NP2CFG pccore;
 #define CopyMemory(d,s,n)   memcpy((d), (s), (n))
 #endif
 
+#ifndef NP2_FILEH_DEFINED
+#define NP2_FILEH_DEFINED
 typedef FILE *			FILEH;
+#endif
 
 #ifndef	FASTCALL
 #define	FASTCALL

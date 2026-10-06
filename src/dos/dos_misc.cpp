@@ -27,10 +27,11 @@
 #include "support.h"
 #include "cpu.h"
 
-#include <array>
 #include <cstring>
 #include <list>
+#if !C_OPENSTEP
 #include <SDL.h>
+#endif
 
 uint32_t DOS_HMA_LIMIT();
 uint32_t DOS_HMA_FREE_START();
@@ -465,14 +466,14 @@ static bool DOS_MultiplexFunctions(void) {
 	case 0x1700:
 		if(control->SecureMode()||!clipboard_dosapi) return false;
         {
-			static constexpr std::array<const char*, 7> blacklisted {
+			static const char *const blacklisted[] = {
 				"DEFRAG", "DISKEDIT", "NDD", "NDIAGS", "UNERASE", "UNFORMAT", "WINCHECK"
 			};
             std::string psp_name;
             DOS_MCB psp_mcb(dos.psp()-1);
             psp_name = psp_mcb.GetFileName();
 	    	// NTS: DEFRAG.EXE for MS-DOS 6.22 assumes Windows is running if this call responds affirmatively, because it would mean WINOLDAP is resident.
-            for (auto prog : blacklisted) if (psp_name == prog) return false;
+            for (size_t pi = 0; pi < sizeof(blacklisted)/sizeof(blacklisted[0]); ++pi) if (psp_name == blacklisted[pi]) return false;
             // Special case for INSTALL/INSTALLD
             if (((psp_name == "INSTALL" || psp_name == "INSTALLD") && reg_sp >= 0xD000 && mem_readw(SegPhys(ss)+reg_sp)/0x100 == 0x1E)) return false;
         }

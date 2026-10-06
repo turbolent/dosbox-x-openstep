@@ -179,7 +179,7 @@ static EMM_Mapping emm_segmentmappings[0x40];
 #if !defined(OSFREE)
 bool EMS_GetMapping(Bitu &handle,uint16_t &log_page,Bitu ems_page) {
     if (ems_page < EMM_MAX_PHYS) {
-        auto &x = emm_mappings[ems_page];
+        EMM_Mapping &x = emm_mappings[ems_page];
 
         if (x.handle != NULL_HANDLE && x.page != NULL_PAGE) {
             handle = x.handle;
@@ -195,7 +195,7 @@ bool EMS_GetMapping(Bitu &handle,uint16_t &log_page,Bitu ems_page) {
 #if !defined(OSFREE)
 bool EMS_GetHandle(Bitu &size,PhysPt &addr,std::string &name,Bitu handle) {
     if (handle < EMM_MAX_HANDLES) {
-        auto &x = emm_handles[handle];
+        EMM_Handle &x = emm_handles[handle];
 
         if (x.pages != NULL_HANDLE) {
             {
@@ -239,19 +239,19 @@ public:
 		SetName("EMMXXXX0");
 		GEMMIS_seg=0;
 	}
-	bool Read(uint8_t * /*data*/,uint16_t * /*size*/) override { return false;}
-	bool Write(const uint8_t * /*data*/,uint16_t * /*size*/) override {
+	bool Read(uint8_t * /*data*/,uint16_t * /*size*/) DBX_OVERRIDE { return false;}
+	bool Write(const uint8_t * /*data*/,uint16_t * /*size*/) DBX_OVERRIDE {
 		LOG(LOG_IOCTL,LOG_NORMAL)("EMS:Write to device");	
 		return false;
 	}
-	bool Seek(uint32_t * /*pos*/,uint32_t /*type*/) override {return false;}
-	bool Close() override {return false;}
-	uint16_t GetInformation(void) override
+	bool Seek(uint32_t * /*pos*/,uint32_t /*type*/) DBX_OVERRIDE {return false;}
+	bool Close() DBX_OVERRIDE {return false;}
+	uint16_t GetInformation(void) DBX_OVERRIDE
 	{
 		return DeviceInfoFlags::Device | DeviceInfoFlags::IoctlSupport;
 	}
-	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override;
-	bool WriteToControlChannel(PhysPt /*bufptr*/,uint16_t /*size*/,uint16_t * /*retcode*/) override {return true;}
+	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE;
+	bool WriteToControlChannel(PhysPt /*bufptr*/,uint16_t /*size*/,uint16_t * /*retcode*/) DBX_OVERRIDE {return true;}
 private:
 //	uint8_t cache;
 	bool is_emm386;
@@ -1785,10 +1785,10 @@ Bitu call_int67 = 0;
 #if !defined(OSFREE)
 class EMS: public Module_base {
 private:
-    uint16_t ems_baseseg = 0;
-    DOS_Device* emm_device = NULL;
-    unsigned int oshandle_memsize_16kb = 0;
-    RealPt /*old4b_pointer,*/old67_pointer = 0/*NULL*/;
+    uint16_t ems_baseseg;
+    DOS_Device* emm_device;
+    unsigned int oshandle_memsize_16kb;
+    RealPt /*old4b_pointer,*/old67_pointer;
 	CALLBACK_HandlerObject call_vdma,call_vcpi,call_v86mon,call_win_vm86_ctl;
 
 public:
@@ -1799,7 +1799,8 @@ public:
 			return 0;
 	}
 
-	EMS(Section* configuration):Module_base(configuration) {
+	EMS(Section* configuration):Module_base(configuration), ems_baseseg(0),
+        emm_device(NULL), oshandle_memsize_16kb(0), old67_pointer(0) {
 
 		/* Virtual DMA interrupt callback */
 		call_vdma.Install(&INT4B_Handler,CB_IRET,"Int 4b vdma");

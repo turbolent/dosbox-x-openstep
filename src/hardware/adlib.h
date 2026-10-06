@@ -21,6 +21,7 @@
 #define DOSBOX_ADLIB_H
 
 #include "dosbox.h"
+#include <math.h>
 #include "mixer.h"
 #include "inout.h"
 #include "setup.h"
@@ -32,18 +33,18 @@ namespace Adlib {
 
 class Timer {
 	//Rounded down start time
-	double start = 0;
+	double start;
 	//Time when you overflow
-	double trigger = 0;
+	double trigger;
 	//Clock interval
-	double clockInterval = 0;
+	double clockInterval;
 	//cycle interval
-	double counterInterval = 0;
-	uint8_t counter = 0;
-	bool masked = false;
+	double counterInterval;
+	uint8_t counter;
+	bool masked;
 public:
-	bool enabled = false;
-	bool overflow = false;
+	bool enabled;
+	bool overflow;
 
 	Timer( int16_t micros ) {
 		overflow = false;
@@ -132,8 +133,8 @@ struct Chip {
 
 	Chip();
 	//poll counter
-	double last_poll = 0;
-	unsigned int poll_counter = 0;
+	double last_poll;
+	unsigned int poll_counter;
 };
 
 //The type of handler this is
@@ -178,32 +179,32 @@ class Module: public Module_base {
 	MixerObject mixerObject;
 
 	//Mode we're running in
-	Mode mode = MODE_OPL2;
+	Mode mode;
 	//Last selected address in the chip for the different modes
 	union {
 		uint32_t normal;
 		uint8_t dual[2];
-	} reg = {};
+	} reg;
 	struct {
 		bool active;
 		uint8_t index;
 		uint8_t lvol;
 		uint8_t rvol;
 		bool mixer;
-	} ctrl = {};
+	} ctrl;
 	void CacheWrite( uint32_t reg, uint8_t val );
 	void DualWrite( uint8_t index, uint8_t reg, uint8_t val );
 	void CtrlWrite( uint8_t val );
 	Bitu CtrlRead( void );
 public:
 	static OPL_Mode oplmode;
-	MixerChannel* mixerChan = NULL;
-	uint32_t lastUsed = 0;				//Ticks when adlib was last used to turn of mixing after a few second
-	bool esfm_nativemode = false;			// When using MODE_ESFM, whether the synth is in native mode or not - affects port mapping
+	MixerChannel* mixerChan;
+	uint32_t lastUsed;				//Ticks when adlib was last used to turn of mixing after a few second
+	bool esfm_nativemode;			// When using MODE_ESFM, whether the synth is in native mode or not - affects port mapping
 
-	Handler* handler = NULL;				//Handler that will generate the sound
-	RegisterCache cache = {};
-	Capture* capture = NULL;
+	Handler* handler;				//Handler that will generate the sound
+	RegisterCache cache;
+	Capture* capture;
 	Chip	chip[2];
 
 	//Handle port writes

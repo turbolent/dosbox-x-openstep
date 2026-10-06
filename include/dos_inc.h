@@ -40,6 +40,7 @@
   *   SSET_WORD(dos-structure-name, field-name, value);
   *   uint16_t x = SGET_WORD(dos-structure-name, field-name);
   */
+#if __cplusplus >= 201103L
 template <size_t N, typename S, typename T1, typename T2 = T1>
 constexpr PhysPt assert_macro_args_ok()
 {
@@ -55,6 +56,21 @@ constexpr PhysPt assert_macro_args_ok()
 	assert_macro_args_ok<n, s, decltype(s::f), decltype(v)>()
 #define VERIFY_SGET_ARGS(n, s, f)                                              \
 	assert_macro_args_ok<n, s, decltype(s::f)>()
+
+#else
+/* GCC 4.2: retain field/value size checks without decltype or type_traits. */
+template <size_t N, typename T1, typename T2>
+inline PhysPt assert_macro_args_ok()
+{
+    DBX_STATIC_ASSERT(sizeof(T1) == N, "Requested struct field has unexpected size");
+    DBX_STATIC_ASSERT(sizeof(T2) == N, "Type used to save value has unexpected size");
+    return 0;
+}
+#define VERIFY_SSET_ARGS(n, s, f, v) \
+    assert_macro_args_ok<n, __typeof__(((s*)0)->f), __typeof__(v)>()
+#define VERIFY_SGET_ARGS(n, s, f) \
+    assert_macro_args_ok<n, __typeof__(((s*)0)->f), __typeof__(((s*)0)->f)>()
+#endif
 
 #define SSET_BYTE(s, f, v)                                                     \
 	mem_writeb(VERIFY_SSET_ARGS(1, s, f, v) + pt + offsetof(s, f), v)
@@ -209,9 +225,9 @@ extern uint16_t DOS_MEM_START;// 0x158	 // regression to r3437 fixes nascar 2 co
 extern uint16_t DOS_PRIVATE_SEGMENT;// 0xc800
 extern uint16_t DOS_PRIVATE_SEGMENT_END;// 0xd000
 
-constexpr int SftHeaderSize = 6;
-constexpr int SftEntrySize = 59;
-constexpr int SftNumEntries = 16;
+const int SftHeaderSize = 6;
+const int SftEntrySize = 59;
+const int SftNumEntries = 16;
 
 /* internal Dos Tables */
 
@@ -234,37 +250,37 @@ enum { HAND_NONE=0,HAND_FILE,HAND_DEVICE};
 namespace DeviceInfoFlags
 {
 	// Device flags
-	constexpr uint16_t StdIn            = 1<<0;
-	constexpr uint16_t StdOut           = 1<<1;
-	constexpr uint16_t Nul              = 1<<2;
-	constexpr uint16_t Clock            = 1<<3;
-	constexpr uint16_t Special          = 1<<4;
-	constexpr uint16_t Binary           = 1<<5;
-	constexpr uint16_t EofOnInput       = 1<<6;
-	constexpr uint16_t Device           = 1<<7;
-	constexpr uint16_t ExternalDevice   = 1<<9;
-	constexpr uint16_t OpenCloseSupport = 1<<11;
-	constexpr uint16_t OutputUntilBusy  = 1<<13;
-	constexpr uint16_t IoctlSupport     = 1<<14;
+	const uint16_t StdIn            = 1<<0;
+	const uint16_t StdOut           = 1<<1;
+	const uint16_t Nul              = 1<<2;
+	const uint16_t Clock            = 1<<3;
+	const uint16_t Special          = 1<<4;
+	const uint16_t Binary           = 1<<5;
+	const uint16_t EofOnInput       = 1<<6;
+	const uint16_t Device           = 1<<7;
+	const uint16_t ExternalDevice   = 1<<9;
+	const uint16_t OpenCloseSupport = 1<<11;
+	const uint16_t OutputUntilBusy  = 1<<13;
+	const uint16_t IoctlSupport     = 1<<14;
 
 	// File flags
-	constexpr uint16_t NotWritten       = 1<<6;
-	constexpr uint16_t NotRemovable     = 1<<11;
-	constexpr uint16_t NoTimeUpdate     = 1<<14;
-	constexpr uint16_t Remote           = 1<<15;
+	const uint16_t NotWritten       = 1<<6;
+	const uint16_t NotRemovable     = 1<<11;
+	const uint16_t NoTimeUpdate     = 1<<14;
+	const uint16_t Remote           = 1<<15;
 }
 namespace DeviceAttributeFlags
 {
-	constexpr uint16_t CurrentStdIn      = 1<<0;
-	constexpr uint16_t CurrentStdOut     = 1<<1;
-	constexpr uint16_t CurrentNul        = 1<<2;
-	constexpr uint16_t CurrentClock      = 1<<3;
-	constexpr uint16_t SupportsRemovable = 1<<11;
-	constexpr uint16_t NonIBM            = 1<<13;
-	constexpr uint16_t SupportsIoctl     = 1<<14;
-	constexpr uint16_t CharacterDevice   = 1<<15;
+	const uint16_t CurrentStdIn      = 1<<0;
+	const uint16_t CurrentStdOut     = 1<<1;
+	const uint16_t CurrentNul        = 1<<2;
+	const uint16_t CurrentClock      = 1<<3;
+	const uint16_t SupportsRemovable = 1<<11;
+	const uint16_t NonIBM            = 1<<13;
+	const uint16_t SupportsIoctl     = 1<<14;
+	const uint16_t CharacterDevice   = 1<<15;
 
-	constexpr uint16_t CoreDevicesMask   = CurrentStdIn | CurrentStdOut | CurrentNul | CurrentClock;
+	const uint16_t CoreDevicesMask   = CurrentStdIn | CurrentStdOut | CurrentNul | CurrentClock;
 }
 
 /* Routines for File Class */
@@ -403,7 +419,13 @@ static INLINE uint16_t DOS_PackDate(uint16_t year,uint16_t mon,uint16_t day) {
 }
 
 /* fopen64, ftello64, fseeko64 */
-#if defined(__linux__)
+#if C_OPENSTEP
+ #include "openstep/host.h"
+ #define fopen64 fopen
+ #define ftello64 OSHostTell
+ #define fseeko64 OSHostSeek
+ #define fseek_ofs_t long long
+#elif defined(__linux__)
  #define fseek_ofs_t long
 #elif defined (_MSC_VER)
  #define fopen64 fopen
@@ -560,7 +582,7 @@ public:
 
 class DOS_ParamBlock:public MemStruct {
 public:
-	DOS_ParamBlock(PhysPt addr) {pt=addr;}
+	DOS_ParamBlock(PhysPt addr) : exec(), overlay() {pt=addr;}
 	void Clear(void);
 	void LoadData(void);
 	void SaveData(void);		/* Save it as an exec block */
@@ -582,13 +604,13 @@ public:
 	#ifdef _MSC_VER
 	#pragma pack()
 	#endif
-    sExec exec = {};
-    sOverlay overlay = {};
+    sExec exec;
+    sOverlay overlay;
 };
 
 class DOS_InfoBlock:public MemStruct {
 public:
-    DOS_InfoBlock() {};
+    DOS_InfoBlock() : seg(0) {};
 	void SetLocation(uint16_t  segment);
 	void SetFirstDPB(uint32_t _first_dpb);
 	void SetFirstMCB(uint16_t _firstmcb);
@@ -667,7 +689,7 @@ public:
 	#ifdef _MSC_VER
 	#pragma pack ()
 	#endif
-	uint16_t	seg = 0;
+	uint16_t	seg;
 };
 
 class DOS_DTA:public MemStruct{
@@ -706,10 +728,10 @@ private:
 		uint32_t size;
 		char name[DOS_NAMELENGTH_ASCII];
 	} GCC_ATTRIBUTE(packed);
-	static_assert(offsetof(sDTA,dirID) == 0x0D,"oops");
-	static_assert(offsetof(sDTA,dirCluster) == 0x0F,"oops");
-	static_assert(offsetof(sDTA,fill) == 0x13,"oops");
-	static_assert(offsetof(sDTA,attr) == 0x15,"oops");
+	DBX_STATIC_ASSERT(offsetof(sDTA,dirID) == 0x0D,"oops");
+	DBX_STATIC_ASSERT(offsetof(sDTA,dirCluster) == 0x0F,"oops");
+	DBX_STATIC_ASSERT(offsetof(sDTA,fill) == 0x13,"oops");
+	DBX_STATIC_ASSERT(offsetof(sDTA,attr) == 0x15,"oops");
 	#ifdef _MSC_VER
 	#pragma pack()
 	#endif
@@ -740,7 +762,7 @@ public:
 	bool Valid(void);
 	void ClearBlockRecsize(void);
 private:
-	bool extended = false;
+	bool extended;
 	PhysPt real_pt;
 	#ifdef _MSC_VER
 	#pragma pack (1)
@@ -811,25 +833,25 @@ private:
 	#endif
 };
 
-static constexpr uint32_t NONEXTDEV = 0xFFFFFFFFul;
+static const uint32_t NONEXTDEV = 0xFFFFFFFFul;
 
-static constexpr uint16_t DEVATTR_ISCHAR = 1u << 15u;/*which determines which of the following flags apply*/
+static const uint16_t DEVATTR_ISCHAR = 1u << 15u;/*which determines which of the following flags apply*/
 
-static constexpr uint16_t DEVATTRCHR_IOCTL_CTLSTRINGS = 1u << 14u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS IOCTL CONTROL STRINGS*/
-static constexpr uint16_t DEVATTRCHR_IOCTL_OUTPUT_UNTIL_BUSY = 1u << 13u;/*MS-DOS 4.0: 1 IF THE DEVICE SUPPORTS OUTPUT-UNTIL-BUSY*/
-static constexpr uint16_t DEVATTRCHR_OPENCLOSE = 1u << 11u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS OPEN/CLOSE*/
-static constexpr uint16_t DEVATTRCHR_INT29 = 1u << 4u;/*MS-DOS 4.0: 1 IF DEVICE IS RECIPIENT OF INT 29H*/
-static constexpr uint16_t DEVATTRCHR_CLOCK = 1u << 3u;/*MS-DOS 4.0: 1 IF DEVICE IS CLOCK DEVICE*/
-static constexpr uint16_t DEVATTRCHR_NULL = 1u << 2u;/*MS-DOS 4.0: 1 IF DEVICE IS NULL DEVICE*/
-static constexpr uint16_t DEVATTRCHR_CONOUT = 1u << 1u;/*MS-DOS 4.0: 1 IF DEVICE IS CONSOLE OUTPUT*/
-static constexpr uint16_t DEVATTRCHR_CONIN = 1u << 0u;/*MS-DOS 4.0: 1 IF DEVICE IS CONSOLE INPUT*/
+static const uint16_t DEVATTRCHR_IOCTL_CTLSTRINGS = 1u << 14u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS IOCTL CONTROL STRINGS*/
+static const uint16_t DEVATTRCHR_IOCTL_OUTPUT_UNTIL_BUSY = 1u << 13u;/*MS-DOS 4.0: 1 IF THE DEVICE SUPPORTS OUTPUT-UNTIL-BUSY*/
+static const uint16_t DEVATTRCHR_OPENCLOSE = 1u << 11u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS OPEN/CLOSE*/
+static const uint16_t DEVATTRCHR_INT29 = 1u << 4u;/*MS-DOS 4.0: 1 IF DEVICE IS RECIPIENT OF INT 29H*/
+static const uint16_t DEVATTRCHR_CLOCK = 1u << 3u;/*MS-DOS 4.0: 1 IF DEVICE IS CLOCK DEVICE*/
+static const uint16_t DEVATTRCHR_NULL = 1u << 2u;/*MS-DOS 4.0: 1 IF DEVICE IS NULL DEVICE*/
+static const uint16_t DEVATTRCHR_CONOUT = 1u << 1u;/*MS-DOS 4.0: 1 IF DEVICE IS CONSOLE OUTPUT*/
+static const uint16_t DEVATTRCHR_CONIN = 1u << 0u;/*MS-DOS 4.0: 1 IF DEVICE IS CONSOLE INPUT*/
 
-static constexpr uint16_t DEVATTRBLK_IOCTL_CTLSTRINGS = 1u << 14u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS IOCTL CONTROL STRINGS*/
-static constexpr uint16_t DEVATTRBLK_IOCTL_MEDIA_FAT_BYTE = 1u << 13u;/*MS-DOS 4.0: 1 IF THE DEVICE DETERMINES MEDIA BY EXAMINING THE FAT ID BYTE*/
-static constexpr uint16_t DEVATTRBLK_OPENCLOSEREMOVABLE = 1u << 11u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS OPEN/CLOSE/REMOVABLE MEDIA*/
-static constexpr uint16_t DEVATTRBLK_IBM_DRIVE_SHARED = 1u << 9u;/*MS-DOS 4.0: ... IS CURRENTLY USED ON IBM SYSTEMS TO INDICATE "DRIVE IS SHARED" ... THIS USE IS NOT DOCUMENTED ... used by utilities like FORMAT which are supposed to fail on shared drives on server machines */
-static constexpr uint16_t DEVATTRBLK_IOCTL_GEN = 1u << 6u;/*MS-DOS 4.0: IF DEVICE HAS SUPPORT FOR GETMAP/SETMAP OF LOGICAL DRIVES / UNDERSTANDS GENERIC IOCTL FUNCTION CALLS*/
-static constexpr uint16_t DEVATTRBLK_EXTENDED = 1u << 1u;/*MS-DOS 4.0: Extended block device (>=32MB) aka EXTDRVR*/
+static const uint16_t DEVATTRBLK_IOCTL_CTLSTRINGS = 1u << 14u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS IOCTL CONTROL STRINGS*/
+static const uint16_t DEVATTRBLK_IOCTL_MEDIA_FAT_BYTE = 1u << 13u;/*MS-DOS 4.0: 1 IF THE DEVICE DETERMINES MEDIA BY EXAMINING THE FAT ID BYTE*/
+static const uint16_t DEVATTRBLK_OPENCLOSEREMOVABLE = 1u << 11u;/*MS-DOS 4.0: 1 IF THE DEVICE UNDERSTANDS OPEN/CLOSE/REMOVABLE MEDIA*/
+static const uint16_t DEVATTRBLK_IBM_DRIVE_SHARED = 1u << 9u;/*MS-DOS 4.0: ... IS CURRENTLY USED ON IBM SYSTEMS TO INDICATE "DRIVE IS SHARED" ... THIS USE IS NOT DOCUMENTED ... used by utilities like FORMAT which are supposed to fail on shared drives on server machines */
+static const uint16_t DEVATTRBLK_IOCTL_GEN = 1u << 6u;/*MS-DOS 4.0: IF DEVICE HAS SUPPORT FOR GETMAP/SETMAP OF LOGICAL DRIVES / UNDERSTANDS GENERIC IOCTL FUNCTION CALLS*/
+static const uint16_t DEVATTRBLK_EXTENDED = 1u << 1u;/*MS-DOS 4.0: Extended block device (>=32MB) aka EXTDRVR*/
 
 enum DEVFUNC {
 	DEVFUNC_INIT=0,
@@ -933,52 +955,65 @@ public:
 extern DOS_InfoBlock dos_infoblock;
 
 struct DOS_Block {
-    DOS_Date date = {};
-    DOS_Version version = {};
-    uint16_t firstMCB = 0;
-    uint16_t errorcode = 0;
+    DOS_Block() : date(), version(), firstMCB(0), errorcode(0),
+        return_code(0), return_mode(0), current_drive(0), verify(false),
+        breakcheck(false), echo(false), direct_output(false), internal_output(false),
+        loaded_codepage(0)
+#if !defined(OSFREE)
+        , set_jdosv_enabled(false), set_kdosv_enabled(false),
+        set_pdosv_enabled(false), set_tdosv_enabled(false), set_j3100_enabled(false)
+#endif
+    {}
+
+    DOS_Date date;
+    DOS_Version version;
+    uint16_t firstMCB;
+    uint16_t errorcode;
     uint16_t psp() const;//{return DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).GetPSP();};
     void psp(uint16_t _seg) const;//{ DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).SetPSP(_seg);};
     RealPt dta() const;//{return DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).GetDTA();};
     void dta(RealPt _dta) const;//{DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).SetDTA(_dta);};
-    uint8_t return_code = 0, return_mode = 0;
+    uint8_t return_code, return_mode;
 
-    uint8_t current_drive = 0;
-    bool verify = false;
-    bool breakcheck = false;
-    bool echo = false;          // if set to true dev_con::read will echo input
-    bool direct_output = false;
-    bool internal_output = false;
-    struct {
-        RealPt mediaid = 0;
-        RealPt tempdta = 0;
-        RealPt tempdta_fcbdelete = 0;
-        RealPt dbcs = 0;
-        RealPt filenamechar = 0;
-        RealPt collatingseq = 0;
-        RealPt upcase = 0;
-        uint8_t* country = NULL;//Will be copied to dos memory. resides in real mem
-        uint16_t dpb = 0; //Fake Disk parameter system using only the first entry so the drive letter matches
-        uint16_t dpb_size = 0x21; // bytes per DPB entry (MS-DOS 4.x-6.x size)
-        uint16_t mediaid_offset = 0x17; // media ID offset in DPB (MS-DOS 4.x-6.x case)
+    uint8_t current_drive;
+    bool verify;
+    bool breakcheck;
+    bool echo;          // if set to true dev_con::read will echo input
+    bool direct_output;
+    bool internal_output;
+    struct TableData {
+        TableData() : mediaid(0), tempdta(0), tempdta_fcbdelete(0), dbcs(0),
+            filenamechar(0), collatingseq(0), upcase(0), country(NULL),
+            dpb(0), dpb_size(0x21), mediaid_offset(0x17) {}
+        RealPt mediaid;
+        RealPt tempdta;
+        RealPt tempdta_fcbdelete;
+        RealPt dbcs;
+        RealPt filenamechar;
+        RealPt collatingseq;
+        RealPt upcase;
+        uint8_t* country;//Will be copied to dos memory. resides in real mem
+        uint16_t dpb; //Fake Disk parameter system using only the first entry so the drive letter matches
+        uint16_t dpb_size; // bytes per DPB entry (MS-DOS 4.x-6.x size)
+        uint16_t mediaid_offset; // media ID offset in DPB (MS-DOS 4.x-6.x case)
     } tables;
-    uint16_t loaded_codepage = 0;
+    uint16_t loaded_codepage;
 #if !defined(OSFREE)
-    bool set_jdosv_enabled = false;
-    bool set_kdosv_enabled = false;
-    bool set_pdosv_enabled = false;
-    bool set_tdosv_enabled = false;
-    bool set_j3100_enabled = false;
+    bool set_jdosv_enabled;
+    bool set_kdosv_enabled;
+    bool set_pdosv_enabled;
+    bool set_tdosv_enabled;
+    bool set_j3100_enabled;
 #else
-    static constexpr bool set_jdosv_enabled = false;
-    static constexpr bool set_kdosv_enabled = false;
-    static constexpr bool set_pdosv_enabled = false;
-    static constexpr bool set_tdosv_enabled = false;
-    static constexpr bool set_j3100_enabled = false;
+    static const bool set_jdosv_enabled = false;
+    static const bool set_kdosv_enabled = false;
+    static const bool set_pdosv_enabled = false;
+    static const bool set_tdosv_enabled = false;
+    static const bool set_j3100_enabled = false;
 #endif
     bool im_enable_flag;
     uint16_t dcp;	// Device command packet
-    static constexpr uint16_t dcp_size_seg = 3;//allocated size of DCP buffer
+    static const uint16_t dcp_size_seg = 3;//allocated size of DCP buffer
 };
 
 extern DOS_Block dos;
@@ -989,8 +1024,9 @@ static INLINE uint8_t RealHandle(uint16_t handle) {
 }
 
 struct DOS_GetMemLog_Entry {
-    uint16_t      segbase = 0;
-    uint16_t      pages = 0;
+    DOS_GetMemLog_Entry() : segbase(0), pages(0) {}
+    uint16_t      segbase;
+    uint16_t      pages;
     std::string who;
 };
 
@@ -1071,129 +1107,7 @@ enum COUNTRYNO {
 	Uzbekistan = 998,
 };
 
-const std::map<std::string, int> country_code_map {
-	// reference: https://gitlab.com/FreeDOS/base/keyb_lay/-/blob/master/DOC/KEYB/LAYOUTS/LAYOUTS.TXT
-	{"ar462",  COUNTRYNO::Arabic         },
-	{"ar470",  COUNTRYNO::Arabic         },
-	{"az",     COUNTRYNO::Azerbaijan     },
-	{"ba",     COUNTRYNO::Bosnia         },
-	{"be",     COUNTRYNO::Belgium        },
-	{"bg",     COUNTRYNO::Bulgaria       }, // 101-key
-	{"bg103",  COUNTRYNO::Bulgaria       }, // 101-key, Phonetic
-	{"bg241",  COUNTRYNO::Bulgaria       }, // 102-key
-	{"bl",     COUNTRYNO::Belarus        },
-	{"bn",     COUNTRYNO::Benin          },
-	{"br",     COUNTRYNO::Brazil         }, // ABNT layout
-	{"br274",  COUNTRYNO::Brazil         }, // US layout
-	{"bx",     COUNTRYNO::Belgium        }, // International
-	{"by",     COUNTRYNO::Belarus        },
-	{"ca",     COUNTRYNO::Candian_French }, // Standard
-	{"ce",     COUNTRYNO::Russia         }, // Chechnya Standard
-	{"ce443",  COUNTRYNO::Russia         }, // Chechnya Typewriter
-	{"cg",     COUNTRYNO::Montenegro     },
-	{"cf",     COUNTRYNO::Candian_French }, // Standard
-	{"cf445",  COUNTRYNO::Candian_French }, // Dual-layer
-	{"co",     COUNTRYNO::United_States  }, // Colemak
-	{"cz",     COUNTRYNO::Czech_Slovak   }, // Czechia, QWERTY
-	{"cz243",  COUNTRYNO::Czech_Slovak   }, // Czechia, Standard
-	{"cz489",  COUNTRYNO::Czech_Slovak   }, // Czechia, Programmers
-	{"de",     COUNTRYNO::Germany        }, // Standard
-	{"dk",     COUNTRYNO::Denmark        },
-	{"dv",     COUNTRYNO::United_States  }, // Dvorak
-	{"ee",     COUNTRYNO::Estonia        },
-	{"el",     COUNTRYNO::Greece         }, // 319
-	{"es",     COUNTRYNO::Spain          },
-	{"et",     COUNTRYNO::Estonia        },
-	{"fi",     COUNTRYNO::Finland        },
-	{"fo",     COUNTRYNO::Faeroe_Islands },
-	{"fr",     COUNTRYNO::France         }, // Standard
-	{"fx",     COUNTRYNO::France         }, // International
-	{"gk",     COUNTRYNO::Greece         }, // 319
-	{"gk220",  COUNTRYNO::Greece         }, // 220
-	{"gk459",  COUNTRYNO::Greece         }, // 101-key
-	{"gr",     COUNTRYNO::Germany        }, // Standard
-	{"gr453",  COUNTRYNO::Germany        }, // Dual-layer
-	{"hr",     COUNTRYNO::Croatia        },
-	{"hu",     COUNTRYNO::Hungary        }, // 101-key
-	{"hu208",  COUNTRYNO::Hungary        }, // 102-key
-	{"hy",     COUNTRYNO::Armenia        },
-	{"il",     COUNTRYNO::Israel         },
-	{"is",     COUNTRYNO::Iceland        }, // 101-key
-	{"is161",  COUNTRYNO::Iceland        }, // 102-key
-	{"it",     COUNTRYNO::Italy          }, // Standard
-	{"it142",  COUNTRYNO::Italy          }, // Comma on Numeric Pad
-	{"ix",     COUNTRYNO::Italy          }, // International
-	{"jp",     COUNTRYNO::Japan          },
-	{"ka",     COUNTRYNO::Georgia        },
-	{"kk",     COUNTRYNO::Kazakhstan     },
-	{"kk476",  COUNTRYNO::Kazakhstan     },
-	{"kx",     COUNTRYNO::United_Kingdom }, // International
-	{"ky",     COUNTRYNO::Kyrgyzstan     },
-	{"la",     COUNTRYNO::Latin_America  },
-	{"lh",     COUNTRYNO::United_States  }, // Left-Hand Dvorak
-	{"lt",     COUNTRYNO::Lithuania      }, // Baltic
-	{"lt210",  COUNTRYNO::Lithuania      }, // 101-key, Programmers
-	{"lt211",  COUNTRYNO::Lithuania      }, // AZERTY
-	{"lt221",  COUNTRYNO::Lithuania      }, // Standard
-	{"lt456",  COUNTRYNO::Lithuania      }, // Dual-layout
-	{"lv",     COUNTRYNO::Latvia         }, // Standard
-	{"lv455",  COUNTRYNO::Latvia         }, // Dual-layout
-	{"ml",     COUNTRYNO::Malta          }, // UK-based
-	{"mk",     COUNTRYNO::Macedonia      },
-	{"mn",     COUNTRYNO::Mongolia       },
-	{"mo",     COUNTRYNO::Mongolia       },
-	{"mt",     COUNTRYNO::Malta          }, // UK-based
-	{"mt103",  COUNTRYNO::Malta          }, // US-based
-	{"ne",     COUNTRYNO::Niger          },
-	{"ng",     COUNTRYNO::Nigeria        },
-	{"nl",     COUNTRYNO::Netherlands    }, // 102-key
-	{"no",     COUNTRYNO::Norway         },
-	{"ph",     COUNTRYNO::Philippines    },
-	{"pl",     COUNTRYNO::Poland         }, // 101-key, Programmers
-	{"pl214",  COUNTRYNO::Poland         }, // 102-key
-	{"po",     COUNTRYNO::Portugal       },
-	{"px",     COUNTRYNO::Portugal       }, // International
-	{"ro",     COUNTRYNO::Romania        }, // Standard
-	{"ro446",  COUNTRYNO::Romania        }, // QWERTY
-	{"rh",     COUNTRYNO::United_States  }, // Right-Hand Dvorak
-	{"ru",     COUNTRYNO::Russia         }, // Standard
-	{"ru443",  COUNTRYNO::Russia         }, // Typewriter
-	{"rx",     COUNTRYNO::Russia         }, // Extended Standard
-	{"rx443",  COUNTRYNO::Russia         }, // Extended Typewriter
-	{"sd",     COUNTRYNO::Switzerland    }, // German
-	{"sf",     COUNTRYNO::Switzerland    }, // French
-	{"sg",     COUNTRYNO::Switzerland    }, // German
-	{"si",     COUNTRYNO::Slovenia       },
-	{"sk",     COUNTRYNO::Czech_Slovak   }, // Slovakia
-	{"sp",     COUNTRYNO::Spain          },
-	{"sq",     COUNTRYNO::Albania        }, // No-deadkeys
-	{"sq448",  COUNTRYNO::Albania        }, // Deadkeys
-	{"sr",     COUNTRYNO::Serbia         }, // Deadkey
-	{"su",     COUNTRYNO::Finland        },
-	{"sv",     COUNTRYNO::Sweden         },
-	{"sx",     COUNTRYNO::Spain          }, // International
-	{"tj",     COUNTRYNO::Tadjikistan    },
-	{"tm",     COUNTRYNO::Turkmenistan   },
-	{"tr",     COUNTRYNO::Turkey         }, // QWERTY
-	{"tr440",  COUNTRYNO::Turkey         }, // Non-standard
-	{"tt",     COUNTRYNO::Russia         }, // Tatarstan Standard
-	{"tt443",  COUNTRYNO::Russia         }, // Tatarstan Typewriter
-	{"ua",     COUNTRYNO::Ukraine        }, // 101-key
-	{"uk",     COUNTRYNO::United_Kingdom }, // Standard
-	{"uk168",  COUNTRYNO::United_Kingdom }, // Alternate
-	{"ur",     COUNTRYNO::Ukraine        }, // 101-key
-	{"ur465",  COUNTRYNO::Ukraine        }, // 101-key
-	{"ur1996", COUNTRYNO::Ukraine        }, // 101-key
-	{"ur2001", COUNTRYNO::Ukraine        }, // 102-key
-	{"ur2007", COUNTRYNO::Ukraine        }, // 102-key
-	{"us",     COUNTRYNO::United_States  }, // Standard
-	{"ux",     COUNTRYNO::United_States  }, // International
-	{"uz",     COUNTRYNO::Uzbekistan     },
-	{"vi",     COUNTRYNO::Vietnam        },
-	{"yc",     COUNTRYNO::Serbia         }, // Deadkey
-	{"yc450",  COUNTRYNO::Serbia         }, // No-deadkey
-	{"yu",     COUNTRYNO::Yugoslavia     },
-};
+extern const std::map<std::string, int> country_code_map;
 
 void DOS_FlushSTDIN(void);
 

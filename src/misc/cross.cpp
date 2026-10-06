@@ -26,7 +26,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#if !C_OPENSTEP
 #include <regex>
+#endif
 
 #if defined(MACOSX)
 std::string MacOSXEXEPath;
@@ -66,6 +68,25 @@ bool isKanji1_gbk(uint8_t chr), CodePageHostToGuestUTF16(char *d/*CROSS_LEN*/,co
 
 int resolveopt = 1;
 void autoExpandEnvironmentVariables(std::string & text, bool dosvar) {
+#if C_OPENSTEP
+    const std::string opening = dosvar ? "%" : "${";
+    const char closing = dosvar ? '%' : '}';
+    // Bound recursive expansion so a self-referencing variable cannot hang startup.
+    for (unsigned expansion = 0; expansion < 64; ++expansion) {
+        size_t start = 0, end = 0;
+        for (;;) {
+            start = text.find(opening, start);
+            if (start == std::string::npos) return;
+            end = text.find(closing, start + opening.size());
+            if (end == std::string::npos) return;
+            if (end > start + opening.size()) break;
+            ++start;
+        }
+        const std::string name = text.substr(start + opening.size(), end - start - opening.size());
+        const char *value = getenv(name.c_str());
+        text.replace(start, end - start + 1, value ? value : "");
+    }
+#else
     static std::regex env(dosvar?"\\%([^%]+)%":"\\$\\{([^}]+)\\}");
     std::smatch match;
     while (std::regex_search(text, match, env)) {
@@ -73,6 +94,7 @@ void autoExpandEnvironmentVariables(std::string & text, bool dosvar) {
         const std::string var(s == NULL ? "" : s);
         text.replace(static_cast<size_t>(match.position(0)), static_cast<size_t>(match.length(0)), var);
     }
+#endif
 }
 
 // Resolve environment variables (%VAR% [DOS/Windows] or ${VAR} [Linux/macOS]), and tilde (~) in Linux/macOS
@@ -198,6 +220,10 @@ std::string Cross::GetPlatformConfigDir()
     dir = W32_ConfDir(false);
     dir += "\\DOSBox-X";
 
+#elif C_OPENSTEP
+    dir = "~/Library/Preferences/DOSBox-X";
+    ResolveHomedir(dir);
+
 #elif defined(MACOSX)
     dir = "~/Library/Preferences";
     ResolveHomedir(dir);
@@ -232,6 +258,8 @@ std::string Cross::GetPlatformConfigName()
 
 #ifdef WIN32
 #define DEFAULT_CONFIG_FILE "dosbox-x-" VERSION ".conf"
+#elif C_OPENSTEP
+#define DEFAULT_CONFIG_FILE "dosbox-x.conf"
 #elif defined(MACOSX)
 #define DEFAULT_CONFIG_FILE "DOSBox-X " VERSION " Preferences"
 #elif defined(OS2) && defined(C_SDL2)
@@ -252,6 +280,15 @@ std::string Cross::CreatePlatformConfigDir()
     path = W32_ConfDir(true);
     path += "\\DOSBox-X";
     _mkdir(path.c_str());
+
+#elif C_OPENSTEP
+    path = "~/Library";
+    ResolveHomedir(path);
+    mkdir(path.c_str(), 0700);
+    path += "/Preferences";
+    mkdir(path.c_str(), 0700);
+    path += "/DOSBox-X";
+    mkdir(path.c_str(), 0700);
 
 #elif defined(MACOSX)
     path = "~/Library/Preferences";
@@ -321,9 +358,9 @@ bool Cross::IsPathAbsolute(std::string const& in) {
 
 std::string Cross::GetCurDir(void) {
     std::string cur_dir;
-    std::unique_ptr<char[]> cwd(new char[PATH_MAX]);
-    if(getcwd(cwd.get(), PATH_MAX) != nullptr) {
-        cur_dir = std::string(cwd.get()) + CROSS_FILESPLIT;
+    std::vector<char> cwd(PATH_MAX);
+    if(getcwd(&cwd[0], PATH_MAX) != NULL) {
+        cur_dir = std::string(&cwd[0]) + CROSS_FILESPLIT;
     }
     else {
         cur_dir.clear();

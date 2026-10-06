@@ -35,8 +35,8 @@ public:
 									// something was wrong, delete it right away.
 	
 	bool fileOpen;
-	DFTYPE filetype = (DFTYPE)0;			// which mode to operate in (capture,fileappend,device)
-	FILE* file = NULL;
+	DFTYPE filetype;			// which mode to operate in (capture,fileappend,device)
+	FILE* file;
 	std::string name;			// name of the thing to open
 	std::string action1, action2, action3, action4; // open with a program or batch script
 	bool shellhide;
@@ -44,31 +44,31 @@ public:
 	bool addLF;					// if set, add line feed after carriage return if not used by app
     bool squote;
 
-	uint8_t lastChar = 0;				// used to save the previous character to decide whether to add LF
+	uint8_t lastChar;				// used to save the previous character to decide whether to add LF
 	const uint16_t* codepage_ptr; // pointer to the translation codepage if not null
 
 	bool OpenFile();
 	
-	bool ack_polarity = false;
+	bool ack_polarity;
 
-	Bitu Read_PR() override;
-	Bitu Read_COM() override;
-	Bitu Read_SR() override;
+	Bitu Read_PR() DBX_OVERRIDE;
+	Bitu Read_COM() DBX_OVERRIDE;
+	Bitu Read_SR() DBX_OVERRIDE;
 
-	uint8_t datareg = 0;
+	uint8_t datareg;
 	uint8_t controlreg;
 
-	void Write_PR(Bitu) override;
-	void Write_CON(Bitu) override;
-	void Write_IOSEL(Bitu) override;
-	bool Putchar(uint8_t) override;
+	void Write_PR(Bitu) DBX_OVERRIDE;
+	void Write_CON(Bitu) DBX_OVERRIDE;
+	void Write_IOSEL(Bitu) DBX_OVERRIDE;
+	bool Putchar(uint8_t) DBX_OVERRIDE;
 
-	bool autofeed = false;
+	bool autofeed;
 	bool ack;
-	unsigned int timeout = 0;
-	Bitu lastUsedTick = 0;
+	unsigned int timeout;
+	Bitu lastUsedTick;
 	void doAction();
-	virtual void handleUpperEvent(uint16_t type) override;
+	virtual void handleUpperEvent(uint16_t type) DBX_OVERRIDE;
 };
 
 #endif	// include guard

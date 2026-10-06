@@ -85,44 +85,52 @@ static INLINE void BCD2BIN(uint16_t& val) {
 
 struct PIT_Block {
     struct read_counter_result {
-        uint16_t          counter = 0xFFFFu;
-        uint16_t          cycle = 0;          // cycle (Mode 3: 0 or 1)
+        uint16_t          counter;
+        uint16_t          cycle;          // cycle (Mode 3: 0 or 1)
+        read_counter_result() : counter(0xFFFFu), cycle(0) {}
     };
 
-    uint8_t latched_timerstatus = 0;
-    bool latched_timerstatus_locked = false;// the timer status can not be overwritten until it is read or the timer was reprogrammed.
-    Bitu cntr = 0;          /* counter value written to 40h-42h as the interval. may take effect immediately (after port 43h) or after count expires */
-    Bitu cntr_cur = 0;      /* current counter value in effect */
-    pic_tickindex_t delay = 0;       /* interval (in ms) between one full count cycle */
-    pic_tickindex_t start = 0;       /* time base (in ms) that cycle started at */
-    pic_tickindex_t now = 0;         /* current time (in ms) */
+    uint8_t latched_timerstatus;
+    bool latched_timerstatus_locked;// the timer status can not be overwritten until it is read or the timer was reprogrammed.
+    Bitu cntr;          /* counter value written to 40h-42h as the interval. may take effect immediately (after port 43h) or after count expires */
+    Bitu cntr_cur;      /* current counter value in effect */
+    pic_tickindex_t delay;       /* interval (in ms) between one full count cycle */
+    pic_tickindex_t start;       /* time base (in ms) that cycle started at */
+    pic_tickindex_t now;         /* current time (in ms) */
 
-    uint16_t read_latch = 0;  /* counter value, latched for read back */
-    uint16_t write_latch = 0; /* counter value, written by host */
+    uint16_t read_latch;  /* counter value, latched for read back */
+    uint16_t write_latch; /* counter value, written by host */
 
-    enum class WriteState : uint8_t {
+    struct WriteState { enum Type {
         WAIT_MSB = 0,   /* 0=write MSB, switch to LSB (midway through 16-bit write) */
         LSB_ONLY = 1,   /* 1=LSB only */
         MSB_ONLY = 2,   /* 2=MSB only */
         WAIT_LSB = 3    /* 3=write LSB, switch to MSB (initial state for 16-bit write) */
-    };
+    }; };
 
-    uint8_t mode = 0;         /* 8254 mode (mode 0 through 5 inclusive) */
-    uint8_t read_state = 0;   /* 0=read MSB, switch to LSB, 1=LSB only, 2=MSB only, 3=read LSB, switch to MSB, latch next value */
-    WriteState write_state = WriteState::WAIT_MSB;
-    uint8_t cycle_base = 0;
+    uint8_t mode;         /* 8254 mode (mode 0 through 5 inclusive) */
+    uint8_t read_state;   /* 0=read MSB, switch to LSB, 1=LSB only, 2=MSB only, 3=read LSB, switch to MSB, latch next value */
+    uint8_t write_state;
+    uint8_t cycle_base;
 
-    bool bcd = false;               /* BCD mode */
-    bool go_read_latch = false;     /* reading should latch another value */
-    bool new_mode = false;          /* a new mode has been written to port 43h for this timer */
-    bool counterstatus_set = false; /* set by status_latch(), when using 8254 command to latch multiple counters */
-    bool counting = false;          /* is counting (?) */
-    bool update_count = false;      /* update count on completion */
+    bool bcd;               /* BCD mode */
+    bool go_read_latch;     /* reading should latch another value */
+    bool new_mode;          /* a new mode has been written to port 43h for this timer */
+    bool counterstatus_set; /* set by status_latch(), when using 8254 command to latch multiple counters */
+    bool counting;          /* is counting (?) */
+    bool update_count;      /* update count on completion */
 
-    bool gate = true;       /* gate signal (IN) */
-    bool output = true;     /* output signal (OUT) */
+    bool gate;       /* gate signal (IN) */
+    bool output;     /* output signal (OUT) */
 
     read_counter_result     last_counter;       /* what to return when gate == false (not counting) */
+
+    PIT_Block() : latched_timerstatus(0), latched_timerstatus_locked(false), cntr(0), cntr_cur(0),
+        delay(0), start(0), now(0), read_latch(0),
+        write_latch(0), mode(0), read_state(0), write_state(WriteState::WAIT_MSB),
+        cycle_base(0), bcd(false), go_read_latch(false), new_mode(false),
+        counterstatus_set(false), counting(false), update_count(false), gate(true),
+        output(true) {}
 
     void set_output(bool on) {
         output = on;
@@ -861,7 +869,7 @@ static void write_p43(Bitu /*port*/,Bitu val,Bitu /*iolen*/) {
 			pit[latch].update_count = false;
 			pit[latch].counting = false;
 			pit[latch].read_state  = (val >> 4) & 0x03;
-			pit[latch].write_state = static_cast<PIT_Block::WriteState>((val >> 4) & 0x03);
+			pit[latch].write_state = static_cast<uint8_t>((val >> 4) & 0x03);
 			uint8_t mode             = (val >> 1) & 0x07;
 			if (mode > 5)
 				mode -= 4; //6,7 become 2 and 3

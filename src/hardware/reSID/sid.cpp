@@ -19,6 +19,10 @@
 
 #include "sid.h"
 #include <math.h>
+#ifndef __APPLE__
+const int SID2::FIR_RES_INTERPOLATE;
+const int SID2::FIR_RES_FAST;
+#endif
 
 // ----------------------------------------------------------------------------
 // Constructor.
@@ -26,8 +30,8 @@
 SID2::SID2()
 {
   // Initialize pointers.
-  sample = nullptr;
-  fir = nullptr;
+  sample = NULL;
+  fir = NULL;
 
   voice[0].set_sync_source(&voice[2]);
   voice[1].set_sync_source(&voice[0]);
@@ -479,8 +483,8 @@ bool SID2::set_sampling_parameters(double clock_freq, sampling_method method,
   {
     delete[] sample;
     delete[] fir;
-    sample = nullptr;
-    fir = nullptr;
+    sample = NULL;
+    fir = NULL;
     return true;
   }
 

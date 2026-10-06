@@ -125,19 +125,20 @@ private:
  *      move on to the next device or mark the I/O port as empty. */
 class MEM_CalloutObject {
 public:
-	MEM_CalloutObject() {};
+	MEM_CalloutObject() : installed(false), mem_mask(0xffffffffU), range_mask(0),
+        alias_mask(0xffffffffU), getcounter(0), m_handler(NULL), m_base(0), alloc(false) {}
 	void InvalidateCachedHandlers(void);
 	void Install(Bitu page,Bitu pagemask/*MEMMASK_ISA_24BIT, etc.*/,MEM_CalloutHandler *handler);
 	void Uninstall();
 public:
-	bool installed = false;
-	Bitu mem_mask = 0xFFFFFFFF;
-	Bitu range_mask = 0;
-	Bitu alias_mask = 0xFFFFFFFF;
-	unsigned int getcounter = 0;
-	MEM_CalloutHandler *m_handler = NULL;
-	Bitu m_base = 0;
-	bool alloc = false;
+	bool installed;
+	Bitu mem_mask;
+	Bitu range_mask;
+	Bitu alias_mask;
+	unsigned int getcounter;
+	MEM_CalloutHandler *m_handler;
+	Bitu m_base;
+	bool alloc;
 public:
 	inline bool MatchPage(const Bitu p) {
 		/* (p & io_mask) == (m_port & io_mask) but this also works.
@@ -212,19 +213,15 @@ void MEM_SetPageHandler(Bitu phys_page, Bitu pages, PageHandler * handler);
 /* Page table TLB. At some point, 64-bit builds will have 64-bit TLB type */
 typedef uint32_t tlbentry_t;
 
-static constexpr size_t tlbentry_bits = bitop::type_bits<tlbentry_t>();
-/* bits 31-30: ACCESS_* contants */
-static constexpr tlbentry_t PHYSPAGE_ACCESS_BITS_SHIFT = tlbentry_bits - 2u;
-static constexpr tlbentry_t PHYSPAGE_ACCESS_BITS = bitop::bitcount2masklsb<2u,PHYSPAGE_ACCESS_BITS_SHIFT,tlbentry_t>();
-/* bit 29: dirty bit */
-static constexpr tlbentry_t PHYSPAGE_DIRTY_SHIFT = tlbentry_bits - 3u;
-static constexpr tlbentry_t PHYSPAGE_DIRTY = bitop::bit2mask<PHYSPAGE_DIRTY_SHIFT,tlbentry_t>();
-/* bits 28: not defined */
-/* bits 27-0: physical page. 40-bit addresses, that's as far as we can go, and the limits of PSE anyway */
-static constexpr tlbentry_t PHYSPAGE_ADDR =
-	build_memlimit_32bit() ?
-		bitop::bitcount2masklsb<20,0,tlbentry_t>() : /* 32-bit builds limited to 1GB no point emulating past 4GB (20+12) = 32 */
-		bitop::bitcount2masklsb<28,0,tlbentry_t>();  /* 64-bit builds allowed up to 1TB (28+12) = 40 */
+static const size_t tlbentry_bits = sizeof(tlbentry_t) * CHAR_BIT;
+/* Top two bits are access flags; the next bit marks a dirty page. */
+static const tlbentry_t PHYSPAGE_ACCESS_BITS_SHIFT = tlbentry_bits - 2u;
+static const tlbentry_t PHYSPAGE_ACCESS_BITS = tlbentry_t(3u) << PHYSPAGE_ACCESS_BITS_SHIFT;
+static const tlbentry_t PHYSPAGE_DIRTY_SHIFT = tlbentry_bits - 3u;
+static const tlbentry_t PHYSPAGE_DIRTY = tlbentry_t(1u) << PHYSPAGE_DIRTY_SHIFT;
+/* Keep the original 32-bit/64-bit host address limits, as integer constants. */
+static const tlbentry_t PHYSPAGE_ADDR = sizeof(void*) < 8 ?
+    tlbentry_t(0x000fffffU) : tlbentry_t(0x0fffffffU);
 
 struct X86_PageEntryBlock{ // Page Table Entry, though it keeps the PageEntryBlock name to avoid breaking all this code
 #ifdef WORDS_BIGENDIAN
@@ -349,7 +346,7 @@ union X86PageEntry {
 	}
 };
 
-static_assert( sizeof(X86PageEntry) == 4, "oops" );
+DBX_STATIC_ASSERT( sizeof(X86PageEntry) == 4, "oops" );
 
 struct PagingBlock {
 	uint32_t		cr3;
@@ -543,7 +540,7 @@ extern bool dosbox_allow_nonrecursive_page_fault;	/* when set, do nonrecursive m
 
 class GuestPageFaultException : public std::exception {
 public:
-	const char *what() const throw() override {
+	const char *what() const throw() DBX_OVERRIDE {
 		return "Guest page fault exception";
 	}
 	GuestPageFaultException(LinearPt n_lin_addr, Bitu n_page_addr, Bitu n_faultcode) : lin_addr(n_lin_addr), page_addr(n_page_addr), faultcode(n_faultcode) {
@@ -556,7 +553,7 @@ public:
 
 class GuestGenFaultException : public std::exception {
 public:
-	virtual const char *what() const throw() override {
+	virtual const char *what() const throw() DBX_OVERRIDE {
 		return "Guest general protection fault exception";
 	}
 	GuestGenFaultException() {

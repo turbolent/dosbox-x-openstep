@@ -21,7 +21,11 @@
 #include <string.h>
 #include <algorithm> //std::copy
 #include <iterator>  //std::front_inserter
+#if C_OPENSTEP
+#include "openstep/shell_env.h"
+#else
 #include <regex>
+#endif
 
 #include "logging.h"
 #include "shell.h"
@@ -292,14 +296,14 @@ bool DOS_Shell::BuildCompletions(char * line, uint16_t str_len) {
 
         if (strcmp(name, ".") && strcmp(name, "..")) {
             if (dir_only) { //Handle the dir only case different (line starts with cd)
-                if(att & DOS_ATTR_DIRECTORY) l_completion.emplace_back(qlname);
+                if(att & DOS_ATTR_DIRECTORY) l_completion.push_back(qlname);
             } else {
                 const char *ext = strrchr(name, '.'); // file extension
                 if ((ext && (strcmp(ext, ".BAT") == 0 || strcmp(ext, ".COM") == 0 || strcmp(ext, ".EXE") == 0)) || hasAssociation(name).size())
                     // we add executables to a separate list and place that list in front of the normal files
-                    executable.emplace_front(qlname);
+                    executable.push_front(qlname);
                 else
-                    l_completion.emplace_back(qlname);
+                    l_completion.push_back(qlname);
             }
         }
         res=DOS_FindNext();
@@ -348,7 +352,7 @@ static uint16_t GetLastCount(char *line, uint16_t str_index)
 			if(isKanji2(line[pos])) {
 				bool found=false;
 				if (IS_PC98_ARCH && line[pos-1] == 0xFFFFFF86) {
-                    for (auto it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
+                    for (std::map<int, int>::const_iterator it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
                         if (it->second ==line[pos]) {
                             found=true;
                             break;
@@ -376,7 +380,7 @@ static uint16_t GetRemoveCount(char *line, uint16_t str_index)
 			if(isKanji2(line[pos])) {
 				bool found=false;
 				if (IS_PC98_ARCH && line[pos-1] == 0xFFFFFF86) {
-                    for (auto it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
+                    for (std::map<int, int>::const_iterator it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
                         if (it->second ==line[pos]) {
                             found=true;
                             break;
@@ -700,9 +704,9 @@ void DOS_Shell::InputCommand(char * line) {
 
 			case 0x7400: /*CTRL + RIGHT : cmd.exe-like next word*/
 				{
-					auto pos = line + str_index;
-					auto spc = *pos == ' ';
-					const auto end = line + str_len;
+					char *pos = line + str_index;
+					bool spc = *pos == ' ';
+					char *const end = line + str_len;
 
 					while (pos < end) {
 						if (spc && *pos != ' ')
@@ -712,17 +716,17 @@ void DOS_Shell::InputCommand(char * line) {
 						pos++;
 					}
 					
-					const auto lgt = MIN(pos, end) - (line + str_index);
+					const ptrdiff_t lgt = MIN(pos, end) - (line + str_index);
 					
-					for (auto i = 0; i < lgt; i++)
+					for (ptrdiff_t i = 0; i < lgt; i++)
 						outc(static_cast<uint8_t>(line[str_index++]));
 				}	
         		break;
 			case 0x7300: /*CTRL + LEFT : cmd.exe-like previous word*/
 				{
-					auto pos = line + str_index - 1;
-					const auto beg = line;
-					const auto spc = *pos == ' ';
+					char *pos = line + str_index - 1;
+					char *const beg = line;
+					const bool spc = *pos == ' ';
 
 					if (spc) {
 						while(*pos == ' ') pos--;
@@ -734,9 +738,9 @@ void DOS_Shell::InputCommand(char * line) {
 						pos++;
 					}
 					
-					const auto lgt = std::abs(MAX(pos, beg) - (line + str_index));
+					const ptrdiff_t lgt = std::abs(MAX(pos, beg) - (line + str_index));
 					
-					for (auto i = 0; i < lgt; i++) {
+					for (ptrdiff_t i = 0; i < lgt; i++) {
 						backone();
 						str_index--;
 						MoveCaretBackwards();
@@ -826,7 +830,7 @@ void DOS_Shell::InputCommand(char * line) {
                 // store current command in history if we are at beginning
                 if (it_history == l_history.begin() && !current_hist) {
                     current_hist=true;
-                    l_history.emplace_front(line);
+                    l_history.push_front(line);
                 }
 
                 // ensure we're at end to handle all cases
@@ -1351,7 +1355,7 @@ void DOS_Shell::InputCommand(char * line) {
 
 	// add command line to history. Win95 behavior with DOSKey suggests
 	// that the original string is preserved, not the expanded string.
-	l_history.emplace_front(line); it_history = l_history.begin();
+	l_history.push_front(line); it_history = l_history.begin();
 	if (l_completion.size()) l_completion.clear();
 
 	/* DOS %variable% substitution */
@@ -1361,7 +1365,27 @@ void DOS_Shell::InputCommand(char * line) {
 void XMS_DOS_LocalA20DisableIfNotEnabled(void);
 
 /* Note: Buffer pointed to by "line" must be at least CMD_MAXLINE+1 bytes long! */
+#if C_OPENSTEP
+static bool lookup_shell_env(void *context, const std::string &name, std::string &value) {
+    DOS_Shell *shell = static_cast<DOS_Shell*>(context);
+    std::string entry;
+    if (!shell->GetEnvStr(name.c_str(), entry)) return false;
+    const size_t equal = entry.find('=');
+    value = equal == std::string::npos ? "" : entry.substr(equal+1);
+    return true;
+}
+#endif
+
 void DOS_Shell::ProcessCmdLineEnvVarStitution(char *line) {
+#if C_OPENSTEP
+    std::string text(line);
+    if (!OSExpandDOSEnv(text, lookup_shell_env, this, CMD_MAXLINE)) {
+        *line = 0;
+        WriteOut("Command input error: cyclic variable or string expansion overflow\n");
+        return;
+    }
+    memcpy(line, text.c_str(), text.size()+1);
+#else
     // Wengier: Rewrote the code using regular expressions (a lot shorter)
     // Tested by both myself and kcgen with various boundary cases
 
@@ -1445,6 +1469,7 @@ void DOS_Shell::ProcessCmdLineEnvVarStitution(char *line) {
 	}
 	assert(text.size() <= CMD_MAXLINE);
 	strcpy(line, text.c_str());
+#endif
 }
 
 int infix=-1;
@@ -1802,14 +1827,14 @@ std::string DOS_Shell::hasAssociation(const char* name) {
 }
 
 bool DOS_Shell::hasExecutableExtension(const char* name) {
-    auto extension = strrchr(name, '.');
+    const char *extension = strrchr(name, '.');
     if (!extension) return false;
     return (!strcasecmp(extension, com_ext) || !strcasecmp(extension, exe_ext) || !strcasecmp(extension, bat_ext));
 }
 
 char * DOS_Shell::Which(char * name) {
 	size_t name_len = strlen(name);
-	if(name_len >= DOS_PATHLENGTH) return nullptr;
+	if(name_len >= DOS_PATHLENGTH) return NULL;
 
 	/* Parse through the Path to find the correct entry */
 	/* Check if name is already ok but just misses an extension */
@@ -1840,11 +1865,11 @@ char * DOS_Shell::Which(char * name) {
 
 	/* No Path in filename look through path environment string */
 	char path[DOS_PATHLENGTH];std::string temp;
-	if (!GetEnvStr("PATH",temp)) return nullptr;
+	if (!GetEnvStr("PATH",temp)) return NULL;
 	const char * pathenv=temp.c_str();
-	if (!pathenv) return nullptr;
+	if (!pathenv) return NULL;
 	pathenv = strchr(pathenv,'=');
-	if (!pathenv) return nullptr;
+	if (!pathenv) return NULL;
 	pathenv++;
 	while (*pathenv) {
 		/* remove ; and ;; at the beginning. (and from the second entry etc) */
@@ -1908,5 +1933,5 @@ char * DOS_Shell::Which(char * name) {
 			}
 		}
 	}
-	return nullptr;
+	return NULL;
 }

@@ -336,7 +336,7 @@ static void PS1SN76496Update(Bitu length)
 	int16_t* outputs = buffer;
 
 	device_sound_interface::sound_stream stream;
-	static_cast<device_sound_interface&>(*ps1_sn).sound_stream_update(stream, nullptr, &outputs, (int)length);
+	static_cast<device_sound_interface&>(*ps1_sn).sound_stream_update(stream, NULL, &outputs, (int)length);
 	ps1.chanSN->AddSamples_m16(length, buffer);
 }
 
@@ -352,7 +352,7 @@ private:
 	IO_WriteHandleObject WriteHandler[2];
 	MixerObject MixerChanDAC, MixerChanSN;
 public:
-	PS1SOUND(Section* configuration):Module_base(configuration), sn(machine_config(), nullptr, nullptr, PS1_PSG_CLOCK){
+	PS1SOUND(Section* configuration):Module_base(configuration), sn(machine_config(), NULL, NULL, PS1_PSG_CLOCK){
 		Section_prop * section=static_cast<Section_prop *>(configuration);
 
 		PS1AudioCard=false;

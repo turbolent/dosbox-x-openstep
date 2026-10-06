@@ -47,7 +47,13 @@
 #include "../ints/int10.h"
 #include "bios_disk.h"
 #include "imagedisk_msdosblockdev.h"
+#if C_OPENSTEP
+#include "video.h"
+#include "openstep/input.h"
+std::string GetDefaultOutput();
+#else
 #include "sdlmain.h"
+#endif
 #include "cpu.h"
 #if defined(WIN32)
 #include "windows.h"
@@ -55,8 +61,14 @@ RECT monrect;
 int curscreen;
 #endif
 
+#if !C_OPENSTEP
 #include <output/output_tools.h>
+#endif
 #include <output/output_ttf.h>
+
+static std::string config_decimal(long value) {
+    std::ostringstream text; text << value; return text.str();
+}
 
 Bitu call_program;
 extern char lastmount;
@@ -179,7 +191,7 @@ static Bitu PROGRAMS_Handler(void) {
 
 /* Main functions used in all program */
 
-Program::Program(const unsigned int fl) {
+Program::Program(const unsigned int fl) : cmd(NULL), psp(NULL) {
 	if (dos_kernel_disabled && !(fl & prg_nopsp))
 		LOG(LOG_MISC,LOG_DEBUG)("Program constructor: DOS kernel disabled and prg_nopsp was not specified");
 
@@ -731,7 +743,7 @@ class CONFIG : public Program {
 public:
     /*! \brief      Program entry point, when the command is run
      */
-	void Run(void) override;
+	void Run(void) DBX_OVERRIDE;
 private:
 	void restart(const char* useconfig);
 	
@@ -866,8 +878,12 @@ void ApplySetting(std::string pvar, std::string inputline, bool quiet) {
                 }
                 if (!strcasecmp(inputline.substr(0, 12).c_str(), "sensitivity=")) {
                     Prop_multival* p3 = static_cast<Section_prop *>(section)->Get_multival("sensitivity");
+#if C_OPENSTEP
+                    OSInputSensitivity(p3->GetSection()->Get_int("xsens"), p3->GetSection()->Get_int("ysens"));
+#else
                     sdl.mouse.xsensitivity = p3->GetSection()->Get_int("xsens");
                     sdl.mouse.ysensitivity = p3->GetSection()->Get_int("ysens");
+#endif
                 }
 #if C_GAMELINK
                 if (!strcasecmp(inputline.substr(0, 22).c_str(), "gamelink load address=")) {
@@ -921,7 +937,11 @@ void ApplySetting(std::string pvar, std::string inputline, bool quiet) {
 #endif
                 if (!strcasecmp(inputline.substr(0, 8).c_str(), "display=")) {
                     void SetDisplayNumber(int display);
+                    #if C_OPENSTEP
+                    int numscreen = OSVideoScreenCount();
+#else
                     int numscreen = GetNumScreen();
+#endif
                     const int display = section->Get_int("display");
                     if (display >= 0 && display <= numscreen)
                         SetDisplayNumber(display);
@@ -1882,9 +1902,9 @@ void CONFIG::Run(void) {
 		switch(presult) {
 
 		case P_DEVPARM:
-			for (const auto &p : pvars) {
+			for (std::vector<std::string>::const_iterator p = pvars.begin(); p != pvars.end(); ++p) {
 				if (!devparm.empty()) devparm += " ";
-				devparm += p;
+				devparm += *p;
 			}
 			break;
 
@@ -2270,55 +2290,55 @@ void CONFIG::Run(void) {
 						if (!strcasecmp(pvars[0].c_str(), "screenwidth")) {
 							GetMaxWidthHeight(&maxWidth, &maxHeight);
 							WriteOut("%d\n",maxWidth);
-							first_shell->SetEnv("CONFIG",std::to_string(maxWidth).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(maxWidth).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "screenheight")) {
 							GetMaxWidthHeight(&maxWidth, &maxHeight);
 							WriteOut("%d\n",maxHeight);
-							first_shell->SetEnv("CONFIG",std::to_string(maxHeight).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(maxHeight).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "drawwidth")) {
 							GetDrawWidthHeight(&maxWidth, &maxHeight);
 							WriteOut("%d\n",maxWidth);
-							first_shell->SetEnv("CONFIG",std::to_string(maxWidth).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(maxWidth).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "drawheight")) {
 							GetDrawWidthHeight(&maxWidth, &maxHeight);
 							WriteOut("%d\n",maxHeight);
-							first_shell->SetEnv("CONFIG",std::to_string(maxHeight).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(maxHeight).c_str());
 #if defined(C_SDL2)
 						} else if (!strcasecmp(pvars[0].c_str(), "clientwidth")) {
 							int w = 640,h = 480;
 							SDL_Window* GFX_GetSDLWindow(void);
 							SDL_GetWindowSize(GFX_GetSDLWindow(), &w, &h);
 							WriteOut("%d\n",w);
-							first_shell->SetEnv("CONFIG",std::to_string(w).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(w).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "clientheight")) {
 							int w = 640,h = 480;
 							SDL_Window* GFX_GetSDLWindow(void);
 							SDL_GetWindowSize(GFX_GetSDLWindow(), &w, &h);
 							WriteOut("%d\n",h);
-							first_shell->SetEnv("CONFIG",std::to_string(h).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(h).c_str());
 #elif defined(WIN32)
 						} else if (!strcasecmp(pvars[0].c_str(), "clientwidth")) {
 							RECT rect;
 							GetClientRect(GetHWND(), &rect);
 							WriteOut("%d\n",rect.right-rect.left);
-							first_shell->SetEnv("CONFIG",std::to_string(rect.right-rect.left).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(rect.right-rect.left).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "clientheight")) {
 							RECT rect;
 							GetClientRect(GetHWND(), &rect);
 							WriteOut("%d\n",rect.bottom-rect.top);
-							first_shell->SetEnv("CONFIG",std::to_string(rect.bottom-rect.top).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(rect.bottom-rect.top).c_str());
 #endif
 #if defined(WIN32)
 						} else if (!strcasecmp(pvars[0].c_str(), "windowwidth")) {
 							RECT rect;
 							GetWindowRect(GetHWND(), &rect);
 							WriteOut("%d\n",rect.right-rect.left);
-							first_shell->SetEnv("CONFIG",std::to_string(rect.right-rect.left).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(rect.right-rect.left).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "windowheight")) {
 							RECT rect;
 							GetWindowRect(GetHWND(), &rect);
 							WriteOut("%d\n",rect.bottom-rect.top);
-							first_shell->SetEnv("CONFIG",std::to_string(rect.bottom-rect.top).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(rect.bottom-rect.top).c_str());
 #endif
 						} else if (!strcasecmp(pvars[0].c_str(), "system")) {
 							WriteOut("%s\n",PACKAGE);
@@ -2390,12 +2410,12 @@ void CONFIG::Run(void) {
 							first_shell->SetEnv("CONFIG",date);
 						} else if (!strcasecmp(pvars[0].c_str(), "errorlevel")) {
 							WriteOut("%d\n",dos.return_code);
-							first_shell->SetEnv("CONFIG",std::to_string((unsigned int)dos.return_code).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal((unsigned int)dos.return_code).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "random")) {
 							initRand();
 							int random = rand()%32768;
-							WriteOut("%s\n",std::to_string(random).c_str());
-							first_shell->SetEnv("CONFIG",std::to_string(random).c_str());
+							WriteOut("%s\n",config_decimal(random).c_str());
+							first_shell->SetEnv("CONFIG",config_decimal(random).c_str());
 						} else if (!strcasecmp(pvars[0].c_str(), "time")) {
 							uint32_t hour, min, sec;
 							char c=dos.tables.country[13];

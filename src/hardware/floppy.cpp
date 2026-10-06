@@ -44,7 +44,7 @@ class FloppyController;
 
 class FloppyDevice {
 public:
-	FloppyController *controller = NULL;
+	FloppyController *controller;
 public:
 	unsigned char current_track;
 	bool select,motor;
@@ -123,12 +123,12 @@ public:
 	bool register_pnp;
 	/* FDC internal registers */
 	uint8_t ST[4];			/* ST0..ST3 */
-	uint8_t current_cylinder[4] = {};
+	uint8_t current_cylinder[4];
 	/* buffers */
-	uint8_t in_cmd[16] = {};
+	uint8_t in_cmd[16];
 	uint8_t in_cmd_len;
 	uint8_t in_cmd_pos;
-	uint8_t out_res[16] = {};
+	uint8_t out_res[16];
 	uint8_t out_res_len;
 	uint8_t out_res_pos;
 	unsigned int motor_steps;
@@ -374,7 +374,7 @@ void FloppyController::on_reset() {
 FloppyDevice::~FloppyDevice() {
 }
 
-FloppyDevice::FloppyDevice(FloppyController *c) {
+FloppyDevice::FloppyDevice(FloppyController *c) : controller(NULL) {
 	(void)c;//UNUSED
 	motor = select = false;
 	current_track = 0;
@@ -557,7 +557,7 @@ void FloppyController::register_isapnp() {
 	}
 }
 
-FloppyController::FloppyController(Section* configuration,unsigned char index):Module_base(configuration){
+FloppyController::FloppyController(Section* configuration,unsigned char index):Module_base(configuration), current_cylinder(), in_cmd(), out_res(){
 	Section_prop * section=static_cast<Section_prop *>(configuration);
 	int i;
 
@@ -879,7 +879,7 @@ void FloppyController::on_fdc_in_command() {
 					}
 
 					/* DMA transfer */
-					dma->Register_Callback(nullptr);
+					dma->Register_Callback(NULL);
 					if (dma->Read(sector_size_bytes,sector) != sector_size_bytes) {
 						LOG(LOG_MISC,LOG_DEBUG)("FDC: DMA read failed");
 						fail = true;
@@ -1006,7 +1006,7 @@ void FloppyController::on_fdc_in_command() {
 					}
 
 					/* DMA transfer */
-					dma->Register_Callback(nullptr);
+					dma->Register_Callback(NULL);
 					if (dma->Write(sector_size_bytes,sector) != sector_size_bytes) {
 						LOG(LOG_MISC,LOG_DEBUG)("FDC: DMA write failed during read");
 						fail = true;

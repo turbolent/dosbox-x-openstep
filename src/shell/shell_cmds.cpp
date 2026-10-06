@@ -48,7 +48,11 @@
 #include <cstdlib>
 #include <vector>
 #include <string>
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 #include "menudef.h"
 #include "build_timestamp.h"
 #include "version_string.h"
@@ -135,7 +139,7 @@ SHELL_Cmd cmd_list[]={
 //{	"ADDKEY",		1,		&DOS_Shell::CMD_ADDKEY,		"SHELL_CMD_ADDKEY_HELP"}, // ADDKEY as a program (Z:\BIN\ADDKEY.COM) instead of shell command
 {	"DX-CAPTURE",		1,		&DOS_Shell::CMD_DXCAPTURE,	"SHELL_CMD_DXCAPTURE_HELP"},
 #endif
-{ nullptr, 0, nullptr, nullptr }
+{ NULL, 0, NULL, NULL }
 };
 
 const char *GetCmdName(int i) {
@@ -727,16 +731,16 @@ struct DtaResult {
 
 	static bool groupDef(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && strcmp(lhs.name, rhs.name) < 0); }
 	static bool groupExt(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && strcmp(lhs.getExtension(), rhs.getExtension()) < 0); }
-	static bool groupSize(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && lhs.size+lhs.hsize*0x100000000 < rhs.size+rhs.hsize*0x100000000); }
+	static bool groupSize(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && lhs.size+lhs.hsize*UINT64_C(0x100000000) < rhs.size+rhs.hsize*UINT64_C(0x100000000)); }
 	static bool groupDate(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && (lhs.date < rhs.date || (lhs.date == rhs.date && lhs.time < rhs.time))); }
 	static bool groupRevDef(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && strcmp(lhs.name, rhs.name) > 0); }
 	static bool groupRevExt(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && strcmp(lhs.getExtension(), rhs.getExtension()) > 0); }
-	static bool groupRevSize(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && lhs.size+lhs.hsize*0x100000000 > rhs.size+rhs.hsize*0x100000000); }
+	static bool groupRevSize(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && lhs.size+lhs.hsize*UINT64_C(0x100000000) > rhs.size+rhs.hsize*UINT64_C(0x100000000)); }
 	static bool groupRevDate(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY)?true:((((lhs.attr & DOS_ATTR_DIRECTORY) && (rhs.attr & DOS_ATTR_DIRECTORY)) || (!(lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY))) && (lhs.date > rhs.date || (lhs.date == rhs.date && lhs.time > rhs.time))); }
 	static bool groupDirs(const DtaResult &lhs, const DtaResult &rhs) { return (lhs.attr & DOS_ATTR_DIRECTORY) && !(rhs.attr & DOS_ATTR_DIRECTORY); }
 	static bool compareName(const DtaResult &lhs, const DtaResult &rhs) { return strcmp(lhs.name, rhs.name) < 0; }
 	static bool compareExt(const DtaResult &lhs, const DtaResult &rhs) { return strcmp(lhs.getExtension(), rhs.getExtension()) < 0; }
-	static bool compareSize(const DtaResult &lhs, const DtaResult &rhs) { return lhs.size+lhs.hsize*0x100000000 < rhs.size+rhs.hsize*0x100000000; }
+	static bool compareSize(const DtaResult &lhs, const DtaResult &rhs) { return lhs.size+lhs.hsize*UINT64_C(0x100000000) < rhs.size+rhs.hsize*UINT64_C(0x100000000); }
 	static bool compareDate(const DtaResult &lhs, const DtaResult &rhs) { return lhs.date < rhs.date || (lhs.date == rhs.date && lhs.time < rhs.time); }
 
 	const char * getExtension() const {
@@ -813,7 +817,7 @@ static bool doDeltree(DOS_Shell * shell, char * args, DOS_DTA dta, bool optY, bo
                         fdir=true;
                         strcat(spath, name);
                         strcat(spath, "\\*.*");
-                        cdirs.emplace_back(std::string(spath));
+                        cdirs.push_back(std::string(spath));
                     }
                 } else {
                     if (!optY&&first) {
@@ -893,7 +897,7 @@ void DOS_Shell::CMD_DELTREE(char * args) {
 	dos.dta(dos.tables.tempdta);
 	DOS_DTA dta(dos.dta());
 	tdirs.clear();
-	tdirs.emplace_back(std::string(args));
+	tdirs.push_back(std::string(args));
 	bool first=true, found=false;
     ctrlbrk=false;
     inshell=true;
@@ -983,7 +987,7 @@ static bool doTree(DOS_Shell * shell, char * args, DOS_DTA dta, bool optA, bool 
     cdirs.clear();
 	while (res) {
         if (CheckBreak(shell)) return false;
-        strcpy(spath,((plast||(level==1&&last)?"-":"")+std::to_string(level+1)+":").c_str());
+        sprintf(spath, "%s%d:", (plast||(level==1&&last)?"-":""), level+1);
         strcat(spath, path);
 		dta.GetResult(name,lname,size,hsize,date,time,attr);
 		if (!((!strcmp(name, ".") || !strcmp(name, "..")) && attr & DOS_ATTR_DIRECTORY)) {
@@ -994,7 +998,7 @@ static bool doTree(DOS_Shell * shell, char * args, DOS_DTA dta, bool optA, bool 
                     if (strcmp(name, ".")&&strcmp(name, "..")) {
                         strcat(spath, name);
                         strcat(spath, "\\*.*");
-                        cdirs.emplace_back(std::string(spath));
+                        cdirs.push_back(std::string(spath));
                         found=true;
                     }
                 } else if (optF) {
@@ -1057,7 +1061,7 @@ void DOS_Shell::CMD_TREE(char * args) {
     ctrlbrk=false;
     inshell=true;
 	tdirs.clear();
-	tdirs.emplace_back(std::string(buffer));
+	tdirs.push_back(std::string(buffer));
 	while (!tdirs.empty()) {
 		if (!doTree(this, (char *)tdirs.begin()->c_str(), dta, optA, optF)) break;
 		tdirs.erase(tdirs.begin());
@@ -1311,9 +1315,9 @@ void DOS_Shell::CMD_RENAME(char * args){
 				strcpy(targs, dir_source);
 				if (uselfn) removeChar(targs, '\"');
 				strcat(targs, arg2);
-				sources.emplace_back(uselfn?((sargs[0]!='"'?"\"":"")+std::string(sargs)+(sargs[strlen(sargs)-1]!='"'?"\"":"")).c_str():sargs);
-				sources.emplace_back(uselfn?((targs[0]!='"'?"\"":"")+std::string(targs)+(targs[strlen(targs)-1]!='"'?"\"":"")).c_str():targs);
-				sources.emplace_back(strlen(sargs)>2&&sargs[0]=='.'&&sargs[1]=='\\'?sargs+2:sargs);
+				sources.push_back(uselfn?((sargs[0]!='"'?"\"":"")+std::string(sargs)+(sargs[strlen(sargs)-1]!='"'?"\"":"")).c_str():sargs);
+				sources.push_back(uselfn?((targs[0]!='"'?"\"":"")+std::string(targs)+(targs[strlen(targs)-1]!='"'?"\"":"")).c_str():targs);
+				sources.push_back(strlen(sargs)>2&&sargs[0]=='.'&&sargs[1]=='\\'?sargs+2:sargs);
 			}
 			lfn_filefind_handle=uselfn?LFN_FILEFIND_INTERNAL:LFN_FILEFIND_NONE;
 		} while ( DOS_FindNext() );
@@ -1395,7 +1399,7 @@ void DOS_Shell::CMD_PUSHD(char * args) {
         if (strlen(args)>1 && args[1]==':') DOS_SetDefaultDrive(toupper(args[0])-'A');
         if (DOS_ChangeDir(sargs)) {
             olddrives.push_back(drive);
-            olddirs.emplace_back(std::string(dir));
+            olddirs.push_back(std::string(dir));
         } else {
             if (strlen(args)>1 && args[1]==':') DOS_SetDefaultDrive(drive-'A');
             WriteOut(MSG_Get("SHELL_CMD_CHDIR_ERROR"),args);
@@ -1832,7 +1836,7 @@ static bool doDir(DOS_Shell * shell, char * args, DOS_DTA dta, char * numformat,
 					if (optW) {
 						shell->WriteOut("%-16s",name);
 					} else {
-						FormatNumber(size+hsize*0x100000000,numformat);
+						FormatNumber(size+hsize*UINT64_C(0x100000000),numformat);
 						shell->WriteOut("%-8s %-3s   %16s %s %s",name,ext,numformat,FormatDate(year,month,day),FormatTime(hour,minute,100,100));
                         if (uselfn&&!optZ) {
                             shell->WriteOut(" ");
@@ -1853,10 +1857,10 @@ static bool doDir(DOS_Shell * shell, char * args, DOS_DTA dta, char * numformat,
 					}
 					if (optS) {
 						cfile_count++;
-						cbyte_count+=size+hsize*0x100000000;
+						cbyte_count+=size+hsize*UINT64_C(0x100000000);
 					}
 					file_count++;
-					byte_count+=size+hsize*0x100000000;
+					byte_count+=size+hsize*UINT64_C(0x100000000);
 				}
 				if (optW) w_count++;
 			}
@@ -2130,7 +2134,7 @@ void DOS_Shell::CMD_DIR(char * args) {
 	dos.dta(dos.tables.tempdta);
 	DOS_DTA dta(dos.dta());
 	dirs.clear();
-	dirs.emplace_back(std::string(args));
+	dirs.push_back(std::string(args));
 	inshell=true;
 	while (!dirs.empty()) {
 		ctrlbrk=false;
@@ -2219,7 +2223,7 @@ void DOS_Shell::CMD_LS(char *args) {
 	std::string pattern = args;
 	trim(pattern);
 
-	const char last_char = (pattern.length() > 0 ? pattern.back() : '\0');
+	const char last_char = (pattern.length() > 0 ? pattern[pattern.size()-1] : '\0');
 	switch (last_char) {
 		case '\0': // No arguments, search for all.
 			pattern = "*.*";
@@ -2289,7 +2293,8 @@ void DOS_Shell::CMD_LS(char *args) {
 		if (optL) col=1;
 		if (col==1) break;
 		w_count=0;
-		for (const auto &entry : results) {
+		for (std::vector<DtaResult>::const_iterator it = results.begin(); it != results.end(); ++it) {
+			const DtaResult &entry = *it;
 			std::string name = uselfn&&!optZ?entry.lname:entry.name;
 			if (name == "." || name == "..") continue;
 			if (!optA && (entry.attr&DOS_ATTR_SYSTEM || entry.attr&DOS_ATTR_HIDDEN)) continue;
@@ -2303,7 +2308,8 @@ void DOS_Shell::CMD_LS(char *args) {
 	ctrlbrk=false;
 	w_count = p_count = 0;
 
-	for (const auto &entry : results) {
+	for (std::vector<DtaResult>::const_iterator it = results.begin(); it != results.end(); ++it) {
+		const DtaResult &entry = *it;
 		if (CheckBreak(this)) {dos.dta(save_dta);return;}
 		std::string name = uselfn&&!optZ?entry.lname:entry.name;
 		if (name == "." || name == "..") continue;
@@ -2543,7 +2549,7 @@ void DOS_Shell::CMD_COPY(char * args) {
 		size_t pathTargetLen = strlen(pathTarget);
 
 		// See if we have to substitute filename or extension
-		char * ext = nullptr;
+		char * ext = NULL;
 		size_t replacementOffset = 0;
 		if (pathTarget[pathTargetLen-1]!='\\') {
 			// only if it's not a directory
@@ -2585,7 +2591,7 @@ void DOS_Shell::CMD_COPY(char * args) {
 					*ext = 0;
 				} else if (ext[-1]) {
 					// we don't substitute anything, clear up
-					ext = nullptr;
+					ext = NULL;
 				}
 			}
 		}
@@ -3434,7 +3440,7 @@ void DOS_Shell::CMD_SUBST(char * args) {
 		strcpy(mountstring,"MOUNT ");
 		StripSpaces(args);
 		std::string arg;
-		CommandLine command(nullptr, args);
+		CommandLine command(NULL, args);
 		if (!command.GetCount()) {
 			char name[DOS_NAMELENGTH_ASCII],lname[LFN_NAMELENGTH];
 			uint32_t size,hsize;uint16_t date;uint16_t time;uint8_t attr;
@@ -3633,9 +3639,9 @@ void DOS_Shell::CMD_CHOICE(char * args){
 
 	// TO-DO: Find out how real DOS handles /T option for making a choice after delay; use AUTOTYPE for now
 	std::vector<std::string> sequence;
-	bool in_char = optS ? (strchr(rem, waitchar) != nullptr) : (strchr(rem, toupper(waitchar)) || strchr(rem, tolower(waitchar)));
+	bool in_char = optS ? (strchr(rem, waitchar) != NULL) : (strchr(rem, toupper(waitchar)) || strchr(rem, tolower(waitchar)));
 	if (waitchar && *rem && in_char && waitsec > 0) {
-		sequence.emplace_back(std::string(1, optS?waitchar:tolower(waitchar)));
+		sequence.push_back(std::string(1, optS?waitchar:tolower(waitchar)));
 		MAPPER_AutoType(sequence, waitsec * 1000, 500, true);
 	}
 	uint16_t n=1;
@@ -3791,7 +3797,7 @@ void DOS_Shell::CMD_ATTRIB(char *args){
 	dos.dta(dos.tables.tempdta);
 	DOS_DTA dta(dos.dta());
 	adirs.clear();
-	adirs.emplace_back(std::string(args));
+	adirs.push_back(std::string(args));
 	bool found=false;
 	inshell=true;
 	while (!adirs.empty()) {
@@ -4485,7 +4491,7 @@ void DOS_Shell::CMD_HISTORY(char* args) {
     HELP("HISTORY");
     if (ScanCMDBool(args,"C"))
         l_history.clear();
-    for (auto it = l_history.rbegin(); it != l_history.rend(); ++it) {
+    for (std::list<std::string>::reverse_iterator it = l_history.rbegin(); it != l_history.rend(); ++it) {
         WriteOut_NoParsing(it->c_str(), true);
         WriteOut("\n");
     }
@@ -4746,7 +4752,7 @@ int toSetCodePage(DOS_Shell *shell, int newCP, int opt) {
         }
         return missing;
     } else if (opt<1 && shell) {
-       shell->WriteOut(MSG_Get("SHELL_CMD_CHCP_INVALID"), std::to_string(newCP).c_str());
+       { char cp[16]; snprintf(cp, sizeof(cp), "%d", newCP); shell->WriteOut(MSG_Get("SHELL_CMD_CHCP_INVALID"), cp); }
     }
     return -1;
 }
@@ -4778,7 +4784,7 @@ void DOS_Shell::CMD_CHCP(char * args) {
 	int32_t newCP;
 	char buff[256], *r;
     int missing = 0, n = sscanf(args, "%d%s", &newCP, buff);
-    auto iter = langcp_map.find(newCP);
+    std::map<int, std::string>::const_iterator iter = langcp_map.find(newCP);
     const char* layout_name = DOS_GetLoadedLayout();
     int32_t cp = dos.loaded_codepage;
     Bitu keyb_error;

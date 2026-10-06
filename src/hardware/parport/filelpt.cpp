@@ -35,7 +35,8 @@
 extern std::string pathprt;
 void ResolvePath(std::string& in);
 CFileLPT::CFileLPT (Bitu nr, uint8_t initIrq, CommandLine* cmd, bool sq)
-                              :CParallel (cmd, nr,initIrq) {
+                              :CParallel (cmd, nr,initIrq), filetype((DFTYPE)0), file(NULL), lastChar(0),
+    ack_polarity(false), datareg(0), autofeed(false), timeout(0), lastUsedTick(0) {
     bool is_file = false;
 	InstallationSuccessful = false;
 	fileOpen = false;

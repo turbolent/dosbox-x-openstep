@@ -490,7 +490,7 @@
 	CASE_0F_D(0xc1)												/* XADD Gd,Ed */
 		{
 			if (CPU_ArchitectureType<CPU_ARCHTYPE_486OLD) goto illegal_opcode;
-			GetRMrd;auto oldrmrd=lf_var2d=*rmrd;
+			GetRMrd;uint32_t oldrmrd=lf_var2d=*rmrd;
 			if (rm >= 0xc0 ) {GetEArd;lf_var1d=*rmrd=*eard;*eard+=oldrmrd;lf_resd=*eard;}
 			else {GetEAa;lf_var1d=*rmrd=LoadMd(eaa);SaveMd(eaa,lf_resd=*rmrd+oldrmrd);}
 			lflags.type=t_ADDd;

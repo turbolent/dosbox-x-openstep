@@ -1,0 +1,329 @@
+# Native OPENSTEP 4.2 / Intel build. Run from the repository root.
+.DEFAULT_GOAL := app
+CC = gcc-4.2
+CXX = g++-4.2
+PYTHON = /usr/local/bin/python3
+OBJDIR = openstep/output
+CPPFLAGS = -Iopenstep
+CFLAGS = -O2 -g -Wall -fno-strict-aliasing -fwrapv
+FRAMEWORKS = -framework AppKit -framework Foundation -framework SoundKit -F/NextLibrary/PrivateFrameworks -framework Interceptor
+# Link third-party libraries by archive path; installed dylibs must not turn
+# the distributable app into a /usr/local-dependent executable.
+APP_LIBS = /usr/local/lib/libiconv.a /usr/local/lib/libz.a
+CXXFLAGS = -std=gnu++98 -O1 -Wall -fno-strict-aliasing -fwrapv --param ggc-min-expand=10 --param ggc-min-heapsize=4096
+CORE_CPPFLAGS = -I$(OBJDIR) -Iopenstep/include -Iopenstep -Iinclude -Isrc -Isrc/cpu -Isrc/aviwriter -I. -I/usr/local/include -include $(OBJDIR)/config.h
+CPU_INTERPRETERS = core_normal core_normal_8086 core_normal_286 core_prefetch core_prefetch_286 core_prefetch_8086 core_simple core_full
+SOUND_UNITS = pcspeaker sblaster adlib dbopl nukedopl joystick tandy_sound disney gameblaster mpu401 gus pas ps1_sound emu8k cs4231 wss innova mame/sn76496 mame/saa1099 mame/fmopl mame/ymf262
+SOUND_C_UNITS = cqm esfmu/esfm esfmu/esfm_registers
+SOUND_OBJECTS = $(addprefix $(OBJDIR)/core/hardware/,$(addsuffix .o,$(SOUND_UNITS) $(SOUND_C_UNITS)))
+INTS_UNITS = int10 int10_char int10_memory int10_misc int10_modes int10_pal int10_put_pixel int10_vesa int10_video_state int10_vptable bios bios_keyboard mouse ems xms int_dosv pc98_lio
+INTS_OBJECTS = $(addprefix $(OBJDIR)/core/ints/,$(addsuffix .o,$(INTS_UNITS)))
+VGA_UNITS = vga vga_ati vga_attr vga_crtc vga_dac vga_draw vga_gfx vga_memory vga_misc vga_other vga_paradise vga_pc98_cg vga_pc98_crtc vga_pc98_dac vga_pc98_egc vga_pc98_gdc vga_pc98_gdc_draw vga_s3 vga_s3d vga_seq vga_tseng vga_xga
+VGA_OBJECTS = $(addprefix $(OBJDIR)/core/hardware/,$(addsuffix .o,$(VGA_UNITS)))
+CPU_UNITS = cpu callback flags modrm mmx paging core_dyn_x86 $(CPU_INTERPRETERS)
+CPU_OBJECTS = $(addprefix $(OBJDIR)/core/cpu/,$(addsuffix .o,$(CPU_UNITS)))
+DOS_UNITS = dos dos_classes dos_files dos_devices dos_memory dos_misc dos_execute dos_tables dos_ioctl dos_mscdex dos_programs dos_keyboard_layout
+DOS_OBJECTS = $(addprefix $(OBJDIR)/core/dos/,$(addsuffix .o,$(DOS_UNITS)))
+DRIVE_UNITS = drives drive_cache drive_local drive_virtual drive_fat drive_iso drive_overlay drive_physfs cdrom cdrom_image eltorito
+DISK_UNITS = bios_disk bios_memdisk bios_vhd imagedisk_int13 imagedisk_d88 imagedisk_nfd imagedisk_vfd imagedisk_teledisk imagedisk_emptydrive imagedisk_msdosblockdev qcow2_disk
+STORAGE_OBJECTS = $(addprefix $(OBJDIR)/core/dos/,$(addsuffix .o,$(DRIVE_UNITS))) $(addprefix $(OBJDIR)/core/ints/,$(addsuffix .o,$(DISK_UNITS)))
+HARDWARE_UNITS = hardware iohandler memory mixer pic dma timer keyboard 8255 cmos pci_bus ide floppy dongle pc98 pc98_artic hardopl
+MISC_UNITS = cross messages programs setup support savestates shiftjis iconvpp mkdir_p regionalloctracking
+SERIAL_UNITS = serialport serialmouse serialdummy seriallog serialfile
+PARALLEL_UNITS = parport filelpt printer_charmaps
+PC98_C_UNITS = sound/opngenc sound/opngeng sound/pcm86c sound/pcm86g sound/tms3631c sound/tms3631g sound/psggenc sound/psggeng common/parts generic/keydisp sound/adpcmc sound/adpcmg sound/rhythmc sound/sound sound/getsnd/getwave sound/getsnd/getsmix sound/getsnd/getsnd x11/dosio sound/fmboard sound/soundrom cbus/board86 cbus/pcm86io sound/fmtimer cbus/board26k
+PC98_OBJECTS = $(OBJDIR)/core/hardware/pc98_fm.o $(addprefix $(OBJDIR)/core/hardware/snd_pc98/,$(addsuffix .o,$(PC98_C_UNITS)))
+$(PC98_OBJECTS): CORE_CPPFLAGS += -Isrc/hardware/snd_pc98/sound -Isrc/hardware/snd_pc98/common -Isrc/hardware/snd_pc98/generic -Isrc/hardware/snd_pc98/sound/getsnd -Isrc/hardware/snd_pc98/x11 -Isrc/hardware/snd_pc98/cbus
+SHELL_UNITS = shell shell_cmds shell_misc shell_batch
+RESID_UNITS = envelope extfilt filter pot sid version voice wave wave6581_PST wave6581_PS_ wave6581_P_T wave6581__ST wave8580_PST wave8580_PS_ wave8580_P_T wave8580__ST
+AVI_UNITS = guid ksdataformat riff riff_wav_writer avi_rw_iobuf avi_writer
+BUILTIN_SOURCES = $(shell find src/builtin -name '*.cpp' -type f -print)
+CORE_OBJECTS = $(CPU_OBJECTS) $(DOS_OBJECTS) $(STORAGE_OBJECTS) $(VGA_OBJECTS) $(INTS_OBJECTS) $(SOUND_OBJECTS) $(PC98_OBJECTS) \
+    $(addprefix $(OBJDIR)/core/hardware/serialport/,$(addsuffix .o,$(SERIAL_UNITS))) \
+    $(addprefix $(OBJDIR)/core/hardware/parport/,$(addsuffix .o,$(PARALLEL_UNITS))) \
+    $(addprefix $(OBJDIR)/core/hardware/,$(addsuffix .o,$(HARDWARE_UNITS))) \
+    $(addprefix $(OBJDIR)/core/misc/,$(addsuffix .o,$(MISC_UNITS))) \
+    $(addprefix $(OBJDIR)/core/shell/,$(addsuffix .o,$(SHELL_UNITS))) \
+    $(addprefix $(OBJDIR)/core/hardware/reSID/,$(addsuffix .o,$(RESID_UNITS))) \
+    $(addprefix $(OBJDIR)/core/aviwriter/,$(addsuffix .o,$(AVI_UNITS))) \
+    $(patsubst src/%.cpp,$(OBJDIR)/core/%.o,$(BUILTIN_SOURCES)) \
+    $(OBJDIR)/core/dosbox.o $(OBJDIR)/core/gui/menu.o $(OBJDIR)/core/gui/midi.o \
+    $(OBJDIR)/core/debug/debug_gui.o $(OBJDIR)/core/fpu/fpu.o \
+    $(OBJDIR)/core/fpu/fpu_helpers.o $(OBJDIR)/core/fpu/fpu_float80.o
+
+.PHONY: core-objects
+core-objects: $(CORE_OBJECTS)
+
+.PHONY: compiler-test
+# Recompile even when source timestamps are unchanged: the compiler itself
+# may have been replaced. Reject PR33887 before building emulator objects.
+compiler-test: | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -o $(OBJDIR)/compiler-test openstep/tests/compiler_bitfield_probe.cpp
+	$(OBJDIR)/compiler-test
+
+$(CORE_OBJECTS): | compiler-test
+
+.PHONY: descriptor-test
+descriptor-test: $(OBJDIR)/descriptor-test
+	$(OBJDIR)/descriptor-test
+$(OBJDIR)/descriptor-test: openstep/tests/descriptor_test.cpp include/cpu.h $(OBJDIR)/config.h
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $<
+
+NATIVE_UNITS = main emulator frontend menu_state mapper codepage_tables clipboard render render_config display input cdrom_files shell_env cxx_compat
+NATIVE_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(NATIVE_UNITS))) $(addprefix $(OBJDIR)/,host.o video.o audio.o pixels.o libc_compat.o memory.o)
+$(NATIVE_OBJECTS): | compiler-test
+.PHONY: dosbox-x
+dosbox-x: $(OBJDIR)/dosbox-x
+# The assembler tags RDTSC/MMX objects as i586. OPENSTEP loaders require
+# the generic Intel subtype even on hosts that implement those instructions.
+$(OBJDIR)/dosbox-x: $(CORE_OBJECTS) $(NATIVE_OBJECTS) $(APP_LIBS) openstep/Makefile.openstep openstep/DOSBox-X.iconheader openstep/DOSBox-X.tiff
+	$(CXX) -Wl,-force_cpusubtype_ALL -o $@ $(CORE_OBJECTS) $(NATIVE_OBJECTS) $(APP_LIBS) -lm $(FRAMEWORKS) -Wl,-sectcreate,__ICON,__header,openstep/DOSBox-X.iconheader,-segprot,__ICON,r,r,-sectcreate,__ICON,app,openstep/DOSBox-X.tiff
+
+.PHONY: app package package-source
+app: $(OBJDIR)/dosbox-x
+	$(PYTHON) openstep/package.py app
+package: app package-source
+package-source:
+	$(PYTHON) openstep/package.py source
+
+$(OBJDIR)/memory.o: openstep/memory.c openstep/host.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+# The installed GNU make's wildcard function misreads native directory entries
+# and returns directory names instead of matched files. Use find for dependencies.
+CORE_HEADERS = $(shell find include -name '*.h' -type f -print)
+DEPFILES = $(shell test -d $(OBJDIR) && find $(OBJDIR) -name '*.d' -type f -print)
+
+.PHONY: sound-objects
+sound-objects: $(SOUND_OBJECTS)
+
+.PHONY: opl-test
+opl-test: $(OBJDIR)/opl-test
+	$(OBJDIR)/opl-test
+
+$(OBJDIR)/opl-test: openstep/tests/opl_test.cpp $(OBJDIR)/core/hardware/dbopl.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $^ -lm
+
+.PHONY: iconv-test
+iconv-test: $(OBJDIR)/iconv-test
+	$(OBJDIR)/iconv-test
+
+$(OBJDIR)/iconv-test: openstep/tests/iconv_test.cpp include/iconvpp.hpp $(OBJDIR)/config.h $(OBJDIR)/cxx_compat.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $< $(OBJDIR)/cxx_compat.o -L/usr/local/lib -liconv
+
+.PHONY: minizip-test dialog-test
+minizip-test: $(OBJDIR)/minizip-test
+	$(OBJDIR)/minizip-test
+
+$(OBJDIR)/minizip-test: openstep/tests/minizip_test.cpp include/zipcppstdbuf.h include/ioapi.h vs/zlib/contrib/minizip/ioapi.c $(OBJDIR)/host.o $(OBJDIR)/libc_compat.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $< $(OBJDIR)/host.o $(OBJDIR)/libc_compat.o -L/usr/local/lib -lz
+
+dialog-test: $(OBJDIR)/dialog-test
+
+$(OBJDIR)/dialog-test: openstep/tests/dialog_test.m $(OBJDIR)/video.o $(OBJDIR)/pixels.o $(OBJDIR)/audio.o $(OBJDIR)/host.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $^ $(FRAMEWORKS)
+
+.PHONY: ints-objects
+ints-objects: $(INTS_OBJECTS)
+
+.PHONY: vga-objects
+vga-objects: $(VGA_OBJECTS)
+
+.PHONY: cpu-objects
+cpu-objects: $(CPU_OBJECTS)
+
+.PHONY: dos-objects storage-objects
+dos-objects: $(DOS_OBJECTS)
+storage-objects: $(STORAGE_OBJECTS)
+
+.PHONY: shell-env-test
+shell-env-test: $(OBJDIR)/shell-env-test
+	$(OBJDIR)/shell-env-test
+
+$(OBJDIR)/shell-env-test: openstep/tests/shell_env_test.cpp $(OBJDIR)/shell_env.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $^
+
+.PHONY: render-test render-gui-test
+render-test: $(OBJDIR)/render-test
+	$(OBJDIR)/render-test
+
+render-gui-test: $(OBJDIR)/render-gui-test
+
+.PHONY: input-test
+input-test: $(OBJDIR)/input-test
+	$(OBJDIR)/input-test
+
+$(OBJDIR)/input-test: openstep/tests/input_test.cpp $(OBJDIR)/input.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $^
+
+.PHONY: cdrom-test
+cdrom-test: $(OBJDIR)/cdrom-test
+	$(OBJDIR)/cdrom-test
+
+$(OBJDIR)/cdrom-test: openstep/tests/cdrom_test.cpp $(OBJDIR)/core/dos/cdrom_image.o $(OBJDIR)/cdrom_files.o $(OBJDIR)/host.o $(OBJDIR)/libc_compat.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $^
+
+$(OBJDIR)/libc_compat.o: openstep/libc_compat.c openstep/libc_compat.h openstep/vendor/stb_sprintf.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -fno-builtin -c -o $@ $<
+
+$(OBJDIR)/pixels.o: openstep/pixels.c openstep/pixels.h openstep/host.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/host.o: openstep/host.c openstep/host.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/%.o: openstep/%.cpp $(OBJDIR)/config.h
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -Wp,-MMD,$(@:.o=.d),-MP,-MT,$@ -c -o $@ $<
+
+$(OBJDIR)/render-test: openstep/tests/render_test.cpp $(OBJDIR)/render.o $(OBJDIR)/display.o $(OBJDIR)/pixels.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $^
+
+$(OBJDIR)/render-gui-test: openstep/tests/render_test.cpp $(OBJDIR)/render.o $(OBJDIR)/display.o $(OBJDIR)/pixels.o $(OBJDIR)/host.o $(OBJDIR)/video.o $(OBJDIR)/audio.o
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -DOS_RENDER_GUI_TEST -o $@ $^ $(FRAMEWORKS)
+
+.PHONY: host-test native-test core-headers-test clean
+
+.PHONY: build-guard-test
+build-guard-test: $(OBJDIR)/build-guard-probe
+	status=0; $(OBJDIR)/build-guard $< > $(OBJDIR)/build-guard-test.log 2>&1 || status=$$?; test "$$status" = 1 && grep 'Build stopped: memory limit' $(OBJDIR)/build-guard-test.log
+
+$(OBJDIR)/build-guard-probe: openstep/tests/build_guard_probe.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -o $@ $<
+
+.PHONY: libc-test
+libc-test: $(OBJDIR)/libc-test
+	$(OBJDIR)/libc-test
+
+.PHONY: math-test
+math-test: $(OBJDIR)/math-test
+	$(OBJDIR)/math-test
+
+$(OBJDIR)/math-test: openstep/tests/math_test.c openstep/include/math.h | $(OBJDIR)
+	$(CC) -Iopenstep/include $(CFLAGS) -fno-builtin -o $@ $< -lm
+
+$(OBJDIR)/libc-test: openstep/tests/libc_test.c openstep/libc_compat.c openstep/libc_compat.h openstep/vendor/stb_sprintf.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -fno-builtin -o $@ openstep/tests/libc_test.c openstep/libc_compat.c
+
+native-test: $(OBJDIR)/native-test
+
+.PHONY: audio-queue-test
+# Run this executable in the desktop bootstrap namespace (as for native-test).
+audio-queue-test: $(OBJDIR)/audio-queue-test
+$(OBJDIR)/audio-queue-test: openstep/tests/audio_queue_test.m openstep/audio.m openstep/host.h $(OBJDIR)/host.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ openstep/tests/audio_queue_test.m $(OBJDIR)/host.o $(FRAMEWORKS)
+
+.PHONY: tick-backlog-test
+tick-backlog-test: $(OBJDIR)/tick-backlog-test
+	$(OBJDIR)/tick-backlog-test
+$(OBJDIR)/tick-backlog-test: openstep/tests/tick_backlog_test.c openstep/tick_backlog.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
+
+.PHONY: gui-tools
+gui-tools: $(OBJDIR)/generic-exec $(OBJDIR)/screenshot
+
+$(OBJDIR)/generic-exec: openstep/tools/generic-exec.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(OBJDIR)/screenshot: openstep/tools/screenshot.m | $(OBJDIR)
+	$(CC) $(CFLAGS) -o $@ $< -framework AppKit -framework Foundation -F/NextLibrary/PrivateFrameworks -framework Interceptor
+
+host-test: $(OBJDIR)/host-test
+	$(OBJDIR)/host-test
+
+core-headers-test: $(OBJDIR)/core-headers-test
+	$(OBJDIR)/core-headers-test
+
+.PHONY: code-cache-test
+code-cache-test: $(OBJDIR)/code-cache-test
+	$(OBJDIR)/code-cache-test
+
+$(OBJDIR)/code-cache-test: openstep/tests/code_cache_test.c openstep/memory.c openstep/host.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ openstep/tests/code_cache_test.c openstep/memory.c
+
+.PHONY: float80-test
+float80-test: $(OBJDIR)/float80-test
+	$(OBJDIR)/float80-test
+
+$(OBJDIR)/float80-test: openstep/tests/float80_test.cpp src/fpu/fpu_float80.cpp $(OBJDIR)/config.h $(CORE_HEADERS) src/fpu/fpu_float80.h
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ openstep/tests/float80_test.cpp src/fpu/fpu_float80.cpp
+
+$(OBJDIR)/core-headers-test: openstep/tests/core_headers_test.cpp $(OBJDIR)/config.h $(CORE_HEADERS)
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -o $@ $<
+
+$(OBJDIR):
+	test -d $(OBJDIR) || mkdir $(OBJDIR)
+
+$(OBJDIR)/host-test: openstep/tests/host_test.c openstep/host.c openstep/pixels.c openstep/host.h openstep/pixels.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ openstep/tests/host_test.c openstep/host.c openstep/pixels.c
+
+$(OBJDIR)/audio.o: openstep/audio.m openstep/host.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/config.h: openstep/core_config.h | $(OBJDIR)
+	cp $< $@
+
+# Compile real emulator translation units independently during bring-up.
+# The interpreter's huge switch exhausts GCC 4.2's optimizer even at -O1.
+$(addprefix $(OBJDIR)/core/cpu/,$(addsuffix .o,$(CPU_INTERPRETERS))): CXXFLAGS += -O0
+# Thousands of configuration-property calls also overwhelm the old optimizer.
+$(OBJDIR)/core/dosbox.o: CXXFLAGS += -O0
+$(OBJDIR)/core/dos/dos_programs.o: CXXFLAGS += -O0
+
+# Stream embedded binaries through the assembler, keeping only descriptors in
+# C++. The original sources and byte counts remain authoritative.
+$(OBJDIR)/core/builtin/%.o: src/builtin/%.cpp openstep/tools/builtin_data.py $(OBJDIR)/config.h
+	test -d $(dir $@) || /bin/mkdirs $(dir $@)
+	$(PYTHON) openstep/tools/builtin_data.py $< $(@:.o=)
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -c -o $(@:.o=-meta.o) $(@:.o=.cpp)
+	$(CC) -c -o $(@:.o=-data.o) $(@:.o=.s)
+	ld -r -o $@ $(@:.o=-meta.o) $(@:.o=-data.o)
+	rm -f $(@:.o=-meta.o) $(@:.o=-data.o)
+# ESFMu's i386 inline assembly uses memory early-clobber constraints rejected
+# by GCC 4.2. Its existing portable C implementation works on this compiler.
+$(OBJDIR)/core/hardware/esfmu/esfm.o: CORE_CPPFLAGS += -D_ESFMU_DISABLE_ASM_OPTIMIZATIONS
+
+$(OBJDIR)/core/%.o: src/%.cpp $(OBJDIR)/config.h
+	test -d $(dir $@) || /bin/mkdirs $(dir $@)
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -Wp,-MMD,$(@:.o=.d),-MP,-MT,$@ -c -o $@ $<
+
+$(OBJDIR)/core/%.o: src/%.c $(OBJDIR)/config.h
+	test -d $(dir $@) || /bin/mkdirs $(dir $@)
+	$(CC) $(CORE_CPPFLAGS) -std=gnu99 -O1 -Wall -fno-strict-aliasing -fwrapv -Wp,-MMD,$(@:.o=.d),-MP,-MT,$@ -c -o $@ $<
+
+-include $(DEPFILES)
+
+$(OBJDIR)/video.o: openstep/video.m openstep/host.h openstep/pixels.h openstep/InterceptorPrivate.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/native-test: openstep/tests/native_test.c openstep/host.c openstep/pixels.c $(OBJDIR)/audio.o $(OBJDIR)/video.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ openstep/tests/native_test.c openstep/host.c openstep/pixels.c $(OBJDIR)/audio.o $(OBJDIR)/video.o $(FRAMEWORKS)
+
+clean:
+	rm -f $(OBJDIR)/*.o $(OBJDIR)/host-test $(OBJDIR)/native-test
+
+.PHONY: mixer-queue-test
+mixer-queue-test: $(OBJDIR)/mixer-queue-test
+	$(OBJDIR)/mixer-queue-test
+MIXER_TEST_OBJECTS = $(filter-out $(OBJDIR)/core/hardware/mixer.o,$(CORE_OBJECTS)) $(filter-out $(OBJDIR)/main.o,$(NATIVE_OBJECTS)) $(OBJDIR)/mixer-queue-test.o
+$(OBJDIR)/mixer-queue-test.o: openstep/tests/mixer_queue_test.cpp src/hardware/mixer.cpp $(OBJDIR)/config.h
+	$(CXX) $(CORE_CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+$(OBJDIR)/mixer-queue-test: $(MIXER_TEST_OBJECTS)
+	$(CXX) -Wl,-force_cpusubtype_ALL -o $@ $(MIXER_TEST_OBJECTS) -L/usr/local/lib -liconv -lz -lm $(FRAMEWORKS)
+
+.PHONY: builtin-test
+builtin-test: $(OBJDIR)/builtin-test
+	$(OBJDIR)/builtin-test
+$(OBJDIR)/builtin-digest.c: openstep/tests/builtin_digest.py $(BUILTIN_SOURCES) | $(OBJDIR)
+	$(PYTHON) $< $@
+$(OBJDIR)/builtin-test: $(OBJDIR)/builtin-digest.c $(patsubst src/%.cpp,$(OBJDIR)/core/%.o,$(BUILTIN_SOURCES))
+	$(CC) -O1 -o $@ $^
+
+# Instrumented application; never copied into DOSBox-X.app.
+.PHONY: gui-emulator-test
+gui-emulator-test: $(OBJDIR)/dosbox-x-gui-test
+$(OBJDIR)/video-test.o: openstep/video.m openstep/host.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DOSVideoInit=OSVideoInitReal -DOSVideoEvents=OSVideoEventsReal -c -o $@ $<
+$(OBJDIR)/gui-hooks.o: openstep/tests/gui_hooks.m openstep/host.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+GUI_TEST_OBJECTS = $(filter-out $(OBJDIR)/video.o,$(NATIVE_OBJECTS)) $(OBJDIR)/video-test.o $(OBJDIR)/gui-hooks.o
+$(OBJDIR)/dosbox-x-gui-test: $(CORE_OBJECTS) $(GUI_TEST_OBJECTS) openstep/Makefile.openstep
+	$(CXX) -Wl,-force_cpusubtype_ALL -o $@ $(CORE_OBJECTS) $(GUI_TEST_OBJECTS) -L/usr/local/lib -liconv -lz -lm $(FRAMEWORKS)

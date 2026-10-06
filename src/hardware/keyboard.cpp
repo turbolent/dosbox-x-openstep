@@ -2008,7 +2008,7 @@ public:
     /* TODO: Writes to Port A should go to printer emulation */
     /* TODO: Writes to bit 7, Port C should go to printer emulation (strobe pin) */
     /* port B is input */
-    uint8_t inPortB(void) const override {
+    uint8_t inPortB(void) const DBX_OVERRIDE {
         return      0x80 +                                                          /* bits [7:6]   10 = other model */
                     ((PIT_TICK_RATE == PIT_TICK_RATE_PC98_8MHZ) ? 0x20 : 0x00) +    /* bit  [5:5]   1 = 8MHz  0 = 5/10MHz */
                     0x10 +                                                          /* bit  [4:4]   1 = LCD plasma display usage cond. not used */
@@ -2098,7 +2098,7 @@ public:
     }
 public:
     /* port A is input */
-    uint8_t inPortA(void) const override {
+    uint8_t inPortA(void) const DBX_OVERRIDE {
         /* TODO: Improve this! What do the various 2-1 to 2-8 switches do?
          *       It might help to look at the BIOS setup menus of 1990s PC-98 systems
          *       that offer toggling virtual versions of these DIP switches to see
@@ -2109,12 +2109,12 @@ public:
         return 0x63 | (gdc_5mhz_mode_initial ? 0x00 : 0x80); // taken from a PC-9821 Lt2
     }
     /* port B is input */
-    uint8_t inPortB(void) const override {
+    uint8_t inPortB(void) const DBX_OVERRIDE {
         /* TODO: Improve this! */
         return 0xF9; // taken from a PC-9821 Lt2
     }
     /* port C is output (both halves) */
-    void outPortC(const uint8_t mask) override {
+    void outPortC(const uint8_t mask) DBX_OVERRIDE {
         if (mask & 0x80) /* Shutdown flag 0 */
             PC98_SHUT0 = !!(latchOutPortC & 0x80);
 
@@ -2158,9 +2158,10 @@ static Bitu pc98_8255prn_read(Bitu port,Bitu /*iolen*/) {
 }
 
 static struct pc98_keyboard {
-    bool                        caps = false;
-    bool                        kana = false;
-    bool                        num = false;
+    bool                        caps;
+    bool                        kana;
+    bool                        num;
+    pc98_keyboard() : caps(false), kana(false), num(false) {}
 } pc98_keyboard_state;
 
 bool pc98_caps(void) {
@@ -2195,27 +2196,33 @@ static struct pc98_8251_keyboard_uart {
         COMMAND_STATE
     };
 
-    unsigned char               data = 0xFF;
-    unsigned char               txdata = 0xFF;
-    enum cmdreg_state           state = MODE_STATE;
-    unsigned char               mode_byte = 0;
-    bool                        keyboard_reset = false;
-    bool                        rx_enable = false;
-    bool                        tx_enable = false;
-    bool                        valid_state = false;
+    unsigned char               data;
+    unsigned char               txdata;
+    enum cmdreg_state           state;
+    unsigned char               mode_byte;
+    bool                        keyboard_reset;
+    bool                        rx_enable;
+    bool                        tx_enable;
+    bool                        valid_state;
 
-    bool                        rx_busy = false;
-    bool                        rx_ready = false;
-    bool                        tx_busy = false;
-    bool                        tx_empty = true;
+    bool                        rx_busy;
+    bool                        rx_ready;
+    bool                        tx_busy;
+    bool                        tx_empty;
 
     /* io_delay in milliseconds for use with PIC delay code */
-    double                      io_delay_ms = (((1/*start*/ + 8/*data*/ + 1/*parity*/ + 1/*stop*/) * 1000.0) / 19200);
-    double                      tx_load_ms = (((1/*start*/ + 8/*data*/) * 1000.0) / 19200);
+    double                      io_delay_ms;
+    double                      tx_load_ms;
 
     /* recv data from keyboard */
-    unsigned char               recv_buffer[32] = {};
-    unsigned char               recv_in = 0,recv_out = 0;
+    unsigned char               recv_buffer[32];
+    unsigned char               recv_in,recv_out;
+
+    pc98_8251_keyboard_uart() : data(0xFF), txdata(0xFF), state(MODE_STATE),
+        mode_byte(0), keyboard_reset(false), rx_enable(false), tx_enable(false),
+        valid_state(false), rx_busy(false), rx_ready(false), tx_busy(false),
+        tx_empty(true), io_delay_ms((11 * 1000.0) / 19200),
+        tx_load_ms((9 * 1000.0) / 19200), recv_buffer(), recv_in(0), recv_out(0) {}
 
     void reset(void) {
         PIC_RemoveEvents(uart_tx_load);
@@ -2558,7 +2565,7 @@ public:
     }
 public:
     /* port A is input */
-    uint8_t inPortA(void) const override {
+    uint8_t inPortA(void) const DBX_OVERRIDE {
         uint8_t bs;
         Bitu r;
 
@@ -2593,17 +2600,17 @@ public:
         return r;
     }
     /* port B is input */
-    uint8_t inPortB(void) const override {
+    uint8_t inPortB(void) const DBX_OVERRIDE {
         /* TODO */
         return 0x00;
     }
     /* port C is input[3:0] and output[7:4] */
-    uint8_t inPortC(void) const override {
+    uint8_t inPortC(void) const DBX_OVERRIDE {
         /* TODO */
         return 0x00;
     }
     /* port C is input[3:0] and output[7:4] */
-    void outPortC(const uint8_t mask) override {
+    void outPortC(const uint8_t mask) DBX_OVERRIDE {
         if (!enable_pc98_bus_mouse)
             return;
 

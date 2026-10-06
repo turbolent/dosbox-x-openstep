@@ -124,9 +124,9 @@ public:
 
 	~QCow2Disk();
 	
-	Int13Status Read_AbsoluteSector(uint32_t sectnum, void* data) override;
+	Int13Status Read_AbsoluteSector(uint32_t sectnum, void* data) DBX_OVERRIDE;
 
-	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void* data) override;
+	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void* data) DBX_OVERRIDE;
 
 private:
 

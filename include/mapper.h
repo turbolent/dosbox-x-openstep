@@ -42,8 +42,10 @@ void MAPPER_RunEvent(Bitu);
 void MAPPER_RunInternal();
 void MAPPER_LosingFocus(void);
 
+#if !C_OPENSTEP
 union SDL_Event;
 void MAPPER_CheckEvent(SDL_Event *);
+#endif
 
 std::string mapper_event_keybind_string(const std::string &x);
 std::map<std::string, std::string> get_event_map();

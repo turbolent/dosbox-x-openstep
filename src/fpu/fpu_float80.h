@@ -18,21 +18,24 @@ extern const FPU_Reg_80::raw_t LN2;
 extern const uint8_t LN2_Extra2;
 
 struct F32ConversionResult {
-    FPU_Reg_32 value = {};
-    uint16_t exceptions = 0;
-    bool rounded_up = false;
+    F32ConversionResult() : exceptions(0), rounded_up(false) { value.raw = 0; }
+    FPU_Reg_32 value;
+    uint16_t exceptions;
+    bool rounded_up;
 };
 
 struct F64ConversionResult {
-    FPU_Reg_64 value = {};
-    uint16_t exceptions = 0;
-    bool rounded_up = false;
+    F64ConversionResult() : exceptions(0), rounded_up(false) { value.raw = 0; }
+    FPU_Reg_64 value;
+    uint16_t exceptions;
+    bool rounded_up;
 };
 
 struct IntegerConversionResult {
-    int64_t value = 0;
-    uint16_t exceptions = 0;
-    bool rounded_up = false;
+    IntegerConversionResult() : value(0), exceptions(0), rounded_up(false) {  }
+    int64_t value;
+    uint16_t exceptions;
+    bool rounded_up;
 };
 
 F32ConversionResult convertToF32(const FPU_Reg_80& val);

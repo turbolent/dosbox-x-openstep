@@ -23,7 +23,10 @@
 #include "dos_inc.h"
 #include "drives.h"
 #include "logging.h"
-#if !defined(WIN32)
+#if C_OPENSTEP
+#include <sys/param.h>
+#include <sys/mount.h>
+#elif !defined(WIN32)
 #include <sys/statvfs.h>
 #endif
 
@@ -94,14 +97,14 @@ static char *normalize(char * name, const char *basedir) {
 class physfsFile : public DOS_File {
 public:
 	physfsFile(const char* name, PHYSFS_file * handle,uint16_t devinfo, const char* physname, bool write);
-	bool Read(uint8_t * data,uint16_t * size) override;
-	bool Write(const uint8_t * data,uint16_t * size) override;
-	bool Seek(uint32_t * pos,uint32_t type) override;
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
 	bool prepareRead();
 	bool prepareWrite();
-	bool Close() override;
-	uint16_t GetInformation(void) override;
-	bool UpdateDateTimeFromHost(void) override;
+	bool Close() DBX_OVERRIDE;
+	uint16_t GetInformation(void) DBX_OVERRIDE;
+	bool UpdateDateTimeFromHost(void) DBX_OVERRIDE;
 private:
 	PHYSFS_file * fhandle;
 	enum { READ,WRITE } last_action;
@@ -132,12 +135,19 @@ bool physfsDrive::AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_clu
 				freec=dwFreeClusters * dwSectPerClust / ratio;
 			}
 #else
+#if C_OPENSTEP
+		struct statfs stat;
+		res = statfs(wdir, &stat) == 0;
+		unsigned long block_size = res ? stat.f_bsize : 0;
+#else
 		struct statvfs stat;
 		res = statvfs(wdir, &stat) == 0;
+		unsigned long block_size = res ? stat.f_frsize : 0;
+#endif
 		if (res) {
 			int ratio = stat.f_blocks / 65536, tmp=ratio;
 			*_bytes_sector = 512;
-			*_sectors_cluster = stat.f_frsize/512 > 64? 64 : stat.f_frsize/512;
+			*_sectors_cluster = block_size/512 > 64? 64 : block_size/512;
 			if (ratio>1) {
 				if (ratio * (*_sectors_cluster) > 64) tmp = (*_sectors_cluster+63)/(*_sectors_cluster);
 				*_sectors_cluster = ratio * (*_sectors_cluster) > 64? 64 : ratio * (*_sectors_cluster);
@@ -200,7 +210,7 @@ bool physfsDrive::FileStat(const char* name, FileStat_Block * const stat_block) 
     time_t mytime = statbuf.modtime;
 	/* Convert the stat to a FileStat */
 	struct tm *time;
-	if((time=localtime(&mytime))!=nullptr) {
+	if((time=localtime(&mytime))!=NULL) {
 		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	} else {
@@ -660,7 +670,7 @@ again:
 	find_size=(uint32_t)PHYSFS_fileLength(lfull_name);
     time_t mytime = statbuf.modtime;
 	struct tm *time;
-	if((time=localtime(&mytime))!=nullptr){
+	if((time=localtime(&mytime))!=NULL){
 		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 	} else {
@@ -828,7 +838,7 @@ bool physfsFile::Close() {
 	// only close if one reference left
 	if (refCtr==1) {
 		PHYSFS_close(fhandle);
-		fhandle = nullptr;
+		fhandle = NULL;
 		open = false;
 	};
 	return true;
@@ -847,7 +857,7 @@ physfsFile::physfsFile(const char* _name, PHYSFS_file * handle,uint16_t devinfo,
     time_t mytime = statbuf.modtime;
 	/* Convert the stat to a FileStat */
 	struct tm *time;
-	if((time=localtime(&mytime))!=nullptr) {
+	if((time=localtime(&mytime))!=NULL) {
 		this->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 		this->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	} else {
@@ -859,7 +869,7 @@ physfsFile::physfsFile(const char* _name, PHYSFS_file * handle,uint16_t devinfo,
 	last_action=(write?WRITE:READ);
 
 	open=true;
-	name=nullptr;
+	name=NULL;
 	SetName(_name);
 }
 
@@ -870,7 +880,7 @@ bool physfsFile::UpdateDateTimeFromHost(void) {
     time_t mytime = statbuf.modtime;
 	/* Convert the stat to a FileStat */
 	struct tm *time;
-	if((time=localtime(&mytime))!=nullptr) {
+	if((time=localtime(&mytime))!=NULL) {
 		this->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 		this->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	} else {

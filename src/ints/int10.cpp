@@ -1471,24 +1471,26 @@ FILE *Try_Load_FontFile(std::string filename) {
             return fp;
     }
 
-    return nullptr;
+    return NULL;
 }
 
-FILE *Try_Load_FontFiles(std::vector<std::string> filenames) {
+template <size_t N>
+static FILE *Try_Load_FontFiles(const char * const (&filenames)[N]) {
     FILE *fp;
-    for (auto filename : filenames) {
-        if ((fp = Try_Load_FontFile(filename)))
+    for (size_t i = 0; i < N; ++i) {
+        if ((fp = Try_Load_FontFile(filenames[i])))
             return fp;
     }
 
-    return nullptr;
+    return NULL;
 }
 
 bool Load_FONT_ROM(void) {
     unsigned int hibyte,lowbyte,r;
     unsigned char tmp[256*16]; // 8x16 256 cells
 
-    FILE *fp = Try_Load_FontFiles({"FONT.ROM", "font.rom", "FONT.rom", "font.ROM"});
+    const char * const fontnames[] = {"FONT.ROM", "font.rom", "FONT.rom", "font.ROM"};
+    FILE *fp = Try_Load_FontFiles(fontnames);
     if (!fp) {
         LOG_MSG("PC-98 font loading: FONT.ROM not found");
         return false;
@@ -1567,8 +1569,7 @@ void Load_Anex86_Font(const char *fontname, bool &sbcs_ok, bool &dbcs_ok) {
 
     /* attempt to load anex86/freecg98 font files */
     if (!fp) {
-        fp = Try_Load_FontFiles(
-                {
+        const char * const fontnames[] = {
                     /* ANEX86.BMP accurate dump of actual font */
                     "anex86.bmp",
                     "ANEX86.bmp",
@@ -1578,8 +1579,8 @@ void Load_Anex86_Font(const char *fontname, bool &sbcs_ok, bool &dbcs_ok) {
                     "freecg98.bmp",
                     "FREECG98.bmp",
                     "FREECG98.BMP",
-                }
-        );
+                };
+        fp = Try_Load_FontFiles(fontnames);
     }
 
     if (!fp) {

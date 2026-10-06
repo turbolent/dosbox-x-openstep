@@ -42,7 +42,8 @@ typedef struct _dac_channel {
 	double speedcheck_last;
 	bool speedcheck_failed;
 	bool speedcheck_init;
-	uint8_t last_dac = 128;
+	uint8_t last_dac;
+	_dac_channel() : last_dac(128) {}
 } dac_channel;
 
 static struct {
@@ -81,7 +82,7 @@ static void DISNEY_disable(Bitu) {
 			disney.chan->Enable(false);
 		}
 	}
-	disney.leader = nullptr;
+	disney.leader = NULL;
 	disney.last_used = 0;
 	disney.state = DS_IDLE;
 	disney.interface_det = 0;

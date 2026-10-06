@@ -1,0 +1,25 @@
+The DOSBox-X executable includes these static libraries:
+
+libiconv 1.15 (including libcharset): GNU LGPL, see libiconv-COPYING.LIB
+and libcharset-COPYING.LIB. Texts copied from libiconv-1.15.tar.gz,
+libiconv-1.15/COPYING.LIB and libiconv-1.15/libcharset/COPYING.LIB.
+
+zlib 1.2.13: see zlib-LICENSE, copied from zlib-1.2.13.tar.gz,
+zlib-1.2.13/LICENSE.
+
+GCC 4.2.1 compiler runtime (Apple build 5666.3): see GCC-COPYING and
+libgcc-exception.txt. Copied from gcc-5666.3.tar.gz,
+gcc-gcc-5666.3/COPYING and the notice at the start of gcc/libgcc2.c.
+
+GNU libstdc++ 4.2.1: see libstdc++-COPYING and libstdc++-exception.txt.
+Copied from libstdc++-v3-4.2.1.tar.gz, libstdc++-v3/docs/html/17_intro/COPYING
+and the notices at the start of libstdc++-v3/include/bits/stl_vector.h.
+
+The accompanying dosbox-x-openstep-source.tar.gz includes the emulator,
+native port, bundled DOS programs and their source notices. See its
+openstep/README.md for native build requirements and instructions.
+The external library/compiler source archives named above are separate
+build inputs from the OPENSTEP package collection, not runtime requirements.
+
+OPENSTEP's AppKit, Foundation, SoundKit, Interceptor and System frameworks
+are supplied by the operating system and are not distributed in this app.

@@ -148,7 +148,11 @@
 #include "render.h"
 #include "jfont.h"
 #include "bitop.h"
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -166,7 +170,7 @@ bool dosbox_int_pop_save_state(void);
 # pragma warning(disable:4244) /* const fmath::local::uint64_t to double possible loss of data */
 #endif
 
-#include "zipfile.h"
+
 
 #include <output/output_ttf.h>
 
@@ -493,7 +497,7 @@ static void resetSize(Bitu /*val*/) {
 
 class VFRCRATE : public Program {
 	public:
-		void Run(void) override {
+		void Run(void) DBX_OVERRIDE {
 			if (cmd->FindExist("/?", false)) {
 				WriteOut("Locks or unlocks the video refresh rate.\n\n");
 				WriteOut("VFRCRATE [SET [OFF|PAL|NTSC|rate]\n");
@@ -535,7 +539,7 @@ class CGASNOW : public Program {
 	public:
 		/*! \brief      Program entry point, when the command is run
 		*/
-		void Run(void) override {
+		void Run(void) DBX_OVERRIDE {
 			if (cmd->FindExist("/?", false)) {
 				WriteOut("Turns CGA snow emulation on or off.\n\n");
 				WriteOut("CGASNOW [ON|OFF]\n");
@@ -2053,7 +2057,7 @@ public:
 	{}
 
 private:
-	void getBytes(std::ostream& stream) override
+	void getBytes(std::ostream& stream) DBX_OVERRIDE
 	{
 		uint32_t tandy_drawbase_idx, tandy_membase_idx;
 
@@ -2171,7 +2175,7 @@ private:
 		POD_Save_VGA_XGA(stream);
 	}
 
-	void setBytes(std::istream& stream) override
+	void setBytes(std::istream& stream) DBX_OVERRIDE
 	{
 		uint32_t tandy_drawbase_idx, tandy_membase_idx;
 

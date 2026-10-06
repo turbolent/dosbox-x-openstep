@@ -35,12 +35,16 @@
 #include "mame/emu.h"
 #include "mame/fmopl.h"
 #include "mame/ymf262.h"
+#if !C_OPENSTEP
 #include "opl2board/opl2board.h"
 #include "opl3duoboard/opl3duoboard.h"
+#endif
 #include "esfmu/esfm.h"
 
+#if !C_OPENSTEP
 #define RETROWAVE_USE_BUFFER
 #include "RetroWaveLib/RetroWave_DOSBoX.hpp"
+#endif
 
 #define OPL2_INTERNAL_FREQ    3600000   // The OPL2 operates at 3.6MHz
 #define OPL3_INTERNAL_FREQ    14400000  // The OPL3 operates at 14.4MHz
@@ -143,15 +147,15 @@ namespace OPL2 {
 	#include "opl.cpp"
 
 	struct Handler : public Adlib::Handler {
-		void WriteReg( uint32_t reg, uint8_t val ) override {
+		void WriteReg( uint32_t reg, uint8_t val ) DBX_OVERRIDE {
 			adlib_write(reg,val);
 		}
-		uint32_t WriteAddr( uint32_t port, uint8_t val ) override {
+		uint32_t WriteAddr( uint32_t port, uint8_t val ) DBX_OVERRIDE {
 			(void)port;//UNUSED
 			return val;
 		}
 
-		void Generate( MixerChannel* chan, Bitu samples ) override {
+		void Generate( MixerChannel* chan, Bitu samples ) DBX_OVERRIDE {
 			int16_t buf[1024];
 			while( samples > 0 ) {
 				Bitu todo = samples > 1024 ? 1024 : samples;
@@ -162,11 +166,11 @@ namespace OPL2 {
 			}
 		}
 
-		void Init( Bitu rate ) override {
+		void Init( Bitu rate ) DBX_OVERRIDE {
 			adlib_init((uint32_t)rate);
 		}
 
-		void SaveState( std::ostream& stream ) override {
+		void SaveState( std::ostream& stream ) DBX_OVERRIDE {
 			const char pod_name[32] = "OPL2";
 
 			if( stream.fail() ) return;
@@ -181,7 +185,7 @@ namespace OPL2 {
 			adlib_savestate(stream);
 		}
 
-		void LoadState( std::istream& stream ) override {
+		void LoadState( std::istream& stream ) DBX_OVERRIDE {
 			char pod_name[32] = {0};
 
 			if( stream.fail() ) return;
@@ -211,14 +215,14 @@ namespace OPL3 {
 	#include "opl.cpp"
 
 	struct Handler : public Adlib::Handler {
-		void WriteReg( uint32_t reg, uint8_t val ) override {
+		void WriteReg( uint32_t reg, uint8_t val ) DBX_OVERRIDE {
 			adlib_write(reg,val);
 		}
-		uint32_t WriteAddr( uint32_t port, uint8_t val ) override {
+		uint32_t WriteAddr( uint32_t port, uint8_t val ) DBX_OVERRIDE {
 			adlib_write_index(port, val);
 			return opl_index;
 		}
-		void Generate( MixerChannel* chan, Bitu samples ) override {
+		void Generate( MixerChannel* chan, Bitu samples ) DBX_OVERRIDE {
 			int16_t buf[1024*2];
 			while( samples > 0 ) {
 				Bitu todo = samples > 1024 ? 1024 : samples;
@@ -229,11 +233,11 @@ namespace OPL3 {
 			}
 		}
 
-		void Init( Bitu rate ) override {
+		void Init( Bitu rate ) DBX_OVERRIDE {
 			adlib_init((uint32_t)rate);
 		}
 
-		void SaveState( std::ostream& stream ) override {
+		void SaveState( std::ostream& stream ) DBX_OVERRIDE {
 			const char pod_name[32] = "OPL3";
 
 			if( stream.fail() ) return;
@@ -248,7 +252,7 @@ namespace OPL3 {
 			adlib_savestate(stream);
 		}
 
-		void LoadState( std::istream& stream ) override {
+		void LoadState( std::istream& stream ) DBX_OVERRIDE {
 			char pod_name[32] = {0};
 
 			if( stream.fail() ) return;
@@ -276,22 +280,23 @@ namespace OPL3 {
 namespace ESFMu {
 
 struct Handler : public Adlib::Handler {
-	esfm_chip chip = {};
+	esfm_chip chip;
+	Handler() : chip() {}
 
-	void WriteReg(uint32_t reg, uint8_t val) override {
+	void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 		ESFM_write_reg_buffered_fast(&chip, (uint16_t)reg, val);
 	}
 
-	uint8_t ReadbackReg( uint32_t reg ) override {
+	uint8_t ReadbackReg( uint32_t reg ) DBX_OVERRIDE {
 		uint8_t val = ESFM_readback_reg(&chip, (uint16_t)reg);
 		return val;
 	}
 
-	void ESFMSetEmulationMode() override {
+	void ESFMSetEmulationMode() DBX_OVERRIDE {
 		ESFM_write_port(&chip, 0, 0);
 	}
 
-	uint32_t WriteAddr(uint32_t port, uint8_t val) override {
+	uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE {
 		uint16_t addr;
 		if (chip.native_mode) {
 			ESFM_write_port(&chip, (port & 3) | 2, val);
@@ -345,7 +350,7 @@ struct Handler : public Adlib::Handler {
 	}
 #endif
 
-	void Generate(MixerChannel *chan, Bitu samples) override {
+	void Generate(MixerChannel *chan, Bitu samples) DBX_OVERRIDE {
 		int16_t buf[1024 * 2];
 
 		while (samples > 0) {
@@ -356,7 +361,7 @@ struct Handler : public Adlib::Handler {
 		}
 	}
 
-	void Init(Bitu rate) override {
+	void Init(Bitu rate) DBX_OVERRIDE {
 		// ESFMu only ever runs at ~49716 Hz.
 		(void)rate;
 		ESFM_init(&chip);
@@ -371,16 +376,17 @@ struct Handler : public Adlib::Handler {
 namespace NukedOPL {
 
 struct Handler : public Adlib::Handler {
-	opl3_chip chip = {};
-	uint8_t newm = 0;
+	opl3_chip chip;
+	uint8_t newm;
+	Handler() : chip(), newm(0) {}
 
-	void WriteReg(uint32_t reg, uint8_t val) override {
+	void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 		OPL3_WriteRegBuffered(&chip, (uint16_t)reg, val);
 		if (reg == 0x105)
 			newm = val & 0x01;
 	}
 
-	uint32_t WriteAddr(uint32_t port, uint8_t val) override {
+	uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE {
 		uint16_t addr;
 		addr = val;
 		if ((port & 2) && (addr == 0x05 || newm)) {
@@ -389,7 +395,7 @@ struct Handler : public Adlib::Handler {
 		return addr;
 	}
 
-	void Generate(MixerChannel *chan, Bitu samples) override {
+	void Generate(MixerChannel *chan, Bitu samples) DBX_OVERRIDE {
 		int16_t buf[1024 * 2];
 		while (samples > 0) {
 			uint32_t todo = samples > 1024 ? 1024 : (uint32_t)samples;
@@ -399,7 +405,7 @@ struct Handler : public Adlib::Handler {
 		}
 	}
 
-	void Init(Bitu rate) override {
+	void Init(Bitu rate) DBX_OVERRIDE {
 		newm = 0;
 		OPL3_Reset(&chip, (uint32_t)rate);
 	}
@@ -413,16 +419,17 @@ struct Handler : public Adlib::Handler {
 namespace NukedCQM {
 
     struct Handler : public Adlib::Handler {
-        cqm_t chip = {};
+        cqm_t chip;
+        Handler() : chip() {}
 
-        void WriteReg(uint32_t reg, uint8_t val) override
+        void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE
         {
             CQM_WriteRegBuffered(&chip,
                 static_cast<uint16_t>(reg),
                 val);
         }
 
-        uint32_t WriteAddr(uint32_t port, uint8_t val) override
+        uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE
         {
             uint16_t addr = val;
 
@@ -432,7 +439,7 @@ namespace NukedCQM {
             return addr;
         }
 
-        void Generate(MixerChannel* chan, Bitu samples) override
+        void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE
         {
             int16_t buf[1024 * 2];
 
@@ -450,14 +457,14 @@ namespace NukedCQM {
             }
         }
 
-        void Init(Bitu rate) override
+        void Init(Bitu rate) DBX_OVERRIDE
         {
             CQM_Reset(&chip,
                 static_cast<uint32_t>(rate),
                 static_cast<uint32_t>(rate));
         }
 
-        void SaveState(std::ostream& stream) override
+        void SaveState(std::ostream& stream) DBX_OVERRIDE
         {
             const char pod_name[32] = "CQMOPL3";
 
@@ -468,7 +475,7 @@ namespace NukedCQM {
             WRITE_POD(&chip, chip);
         }
 
-        void LoadState(std::istream& stream) override
+        void LoadState(std::istream& stream) DBX_OVERRIDE
         {
             char pod_name[32];
 
@@ -483,7 +490,7 @@ namespace NukedCQM {
             READ_POD(&chip, chip);
         }
 
-        ~Handler() override = default;
+        ~Handler() DBX_OVERRIDE {}
     };
 
 }
@@ -491,16 +498,17 @@ namespace NukedCQM {
 namespace MAMEOPL2 {
 
 struct Handler : public Adlib::Handler {
-	void* chip = NULL;
+	void* chip;
+	Handler() : chip(NULL) {}
 
-	void WriteReg(uint32_t reg, uint8_t val) override {
+	void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 		ym3812_write(chip, 0, (int)reg);
 		ym3812_write(chip, 1, (int)val);
 	}
-	uint32_t WriteAddr(uint32_t /*port*/, uint8_t val) override {
+	uint32_t WriteAddr(uint32_t /*port*/, uint8_t val) DBX_OVERRIDE {
 		return val;
 	}
-	void Generate(MixerChannel* chan, Bitu samples) override {
+	void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE {
 		int16_t buf[1024 * 2];
 		while (samples > 0) {
 			Bitu todo = samples > 1024 ? 1024 : samples;
@@ -509,10 +517,10 @@ struct Handler : public Adlib::Handler {
 			chan->AddSamples_m16(todo, buf);
 		}
 	}
-	void Init(Bitu rate) override {
-		chip = ym3812_init(nullptr, OPL2_INTERNAL_FREQ, (uint32_t)rate);
+	void Init(Bitu rate) DBX_OVERRIDE {
+		chip = ym3812_init(NULL, OPL2_INTERNAL_FREQ, (uint32_t)rate);
 	}
-	void SaveState( std::ostream& stream ) override {
+	void SaveState( std::ostream& stream ) DBX_OVERRIDE {
 		const char pod_name[32] = "MAMEOPL2";
 
 		if( stream.fail() ) return;
@@ -527,7 +535,7 @@ struct Handler : public Adlib::Handler {
 		FMOPL_SaveState(chip, stream);
 	}
 
-	void LoadState( std::istream& stream ) override {
+	void LoadState( std::istream& stream ) DBX_OVERRIDE {
 		char pod_name[32] = {0};
 
 		if( stream.fail() ) return;
@@ -557,16 +565,17 @@ struct Handler : public Adlib::Handler {
 namespace MAMEOPL3 {
 
 struct Handler : public Adlib::Handler {
-	void* chip = NULL;
+	void* chip;
+	Handler() : chip(NULL) {}
 
-	void WriteReg(uint32_t reg, uint8_t val) override {
+	void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 		ymf262_write(chip, 0, (int)reg);
 		ymf262_write(chip, 1, (int)val);
 	}
-	uint32_t WriteAddr(uint32_t /*port*/, uint8_t val) override {
+	uint32_t WriteAddr(uint32_t /*port*/, uint8_t val) DBX_OVERRIDE {
 		return val;
 	}
-	void Generate(MixerChannel* chan, Bitu samples) override {
+	void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE {
 		//We generate data for 4 channels, but only the first 2 are connected on a pc
 		int16_t buf[4][1024];
 		int16_t result[1024][2];
@@ -584,10 +593,10 @@ struct Handler : public Adlib::Handler {
 			chan->AddSamples_s16(todo, result[0]);
 		}
 	}
-	void Init(Bitu rate) override {
-		chip = ymf262_init(nullptr, OPL3_INTERNAL_FREQ, (int)rate);
+	void Init(Bitu rate) DBX_OVERRIDE {
+		chip = ymf262_init(NULL, OPL3_INTERNAL_FREQ, (int)rate);
 	}
-	void SaveState( std::ostream& stream ) override {
+	void SaveState( std::ostream& stream ) DBX_OVERRIDE {
     	const char pod_name[32] = "MAMEOPL3";
 
     	if( stream.fail() ) return;
@@ -601,7 +610,7 @@ struct Handler : public Adlib::Handler {
 
 	YMF_SaveState(chip, stream);
 	}
-	void LoadState( std::istream& stream ) override {
+	void LoadState( std::istream& stream ) DBX_OVERRIDE {
 		char pod_name[32] = {0};
 
 		if( stream.fail() ) return;
@@ -627,6 +636,7 @@ struct Handler : public Adlib::Handler {
 
 }
 
+#if !C_OPENSTEP
 namespace OPL2BOARD {
 	OPL2AudioBoard opl2AudioBoard;
 
@@ -634,20 +644,20 @@ namespace OPL2BOARD {
 		Handler(const char* port) {
 			opl2AudioBoard.connect(port);
 		}
-		void WriteReg(uint32_t reg, uint8_t val) override {
+		void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 			opl2AudioBoard.write(reg, val);
 		}
-		uint32_t WriteAddr(uint32_t port, uint8_t val) override {
+		uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE {
 			(void)port;
 			return val;
 		}
 
-		void Generate(MixerChannel* chan, Bitu samples) override {
+		void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE {
 			(void)samples;
 			int16_t buf[1] = { 0 };
 			chan->AddSamples_m16(1, buf);
 		}
-		void Init(Bitu rate) override {
+		void Init(Bitu rate) DBX_OVERRIDE {
 			(void)rate;
 			opl2AudioBoard.reset();
 		}
@@ -665,10 +675,10 @@ namespace OPL3DUOBOARD {
 		Handler(const char* port) {
 			opl3DuoBoard.connect(port);
 		}
-		void WriteReg(uint32_t reg, uint8_t val) override {
+		void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 			opl3DuoBoard.write(reg, val);
 		}
-		uint32_t WriteAddr(uint32_t port, uint8_t val) override {
+		uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE {
 			uint32_t reg = val;
 
 			if ((port&3)!=0) {
@@ -677,12 +687,12 @@ namespace OPL3DUOBOARD {
 			return reg;
 		}
 
-		void Generate(MixerChannel* chan, Bitu samples) override {
+		void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE {
 			(void)samples;//UNUSED
 			int16_t buf[1] = { 0 };
 			chan->AddSamples_m16(1, buf);
 		}
-		void Init(Bitu rate) override {
+		void Init(Bitu rate) DBX_OVERRIDE {
 			(void)rate;//UNUSED
 			opl3DuoBoard.reset();
 		}
@@ -695,7 +705,7 @@ namespace OPL3DUOBOARD {
 
 namespace Retrowave_OPL3 {
 	struct Handler : public Adlib::Handler {
-		void WriteReg(uint32_t reg, uint8_t val) override {
+		void WriteReg(uint32_t reg, uint8_t val) DBX_OVERRIDE {
 //			printf("writereg: 0x%08x 0x%02x\n", reg, val);
 
 			uint16_t port = reg & 0x100;
@@ -721,7 +731,7 @@ namespace Retrowave_OPL3 {
 			}
 		}
 
-		uint32_t WriteAddr(uint32_t port, uint8_t val) override {
+		uint32_t WriteAddr(uint32_t port, uint8_t val) DBX_OVERRIDE {
 //			printf("writeaddr: 0x%08x 0x%02x\n", port, val);
 
 			switch (port & 3) {
@@ -734,7 +744,7 @@ namespace Retrowave_OPL3 {
 			return 0;
 		}
 
-		void Generate(MixerChannel* chan, Bitu samples) override {
+		void Generate(MixerChannel* chan, Bitu samples) DBX_OVERRIDE {
 			(void)samples;//UNUSED
 #ifdef RETROWAVE_USE_BUFFER
 			retrowave_flush(&retrowave_global_context);
@@ -743,7 +753,7 @@ namespace Retrowave_OPL3 {
 			chan->AddSamples_m16(1, &buf);
 		}
 
-		void Init(Bitu rate) override {
+		void Init(Bitu rate) DBX_OVERRIDE {
 			(void)rate;//UNUSED
 			retrowave_opl3_reset(&retrowave_global_context);
 		}
@@ -758,6 +768,8 @@ namespace Retrowave_OPL3 {
 		}
 	};
 }
+
+#endif
 
 #define RAW_SIZE 1024
 
@@ -812,12 +824,12 @@ class Capture {
 	uint8_t ToRaw[256];
 	uint8_t delay256;
 	uint8_t delayShift8;
-	RawHeader header = {};
+	RawHeader header;
 
 	FILE*	handle;				//File used for writing
 	uint32_t	startTicks;			//Start used to check total raw length on end
 	uint32_t	lastTicks;			//Last ticks when last last cmd was added
-	uint8_t   buf[1024] = {};     //16 added for delay commands and what not
+	uint8_t   buf[1024];     //16 added for delay commands and what not
 	uint32_t	bufUsed;
 #if 0//unused
     uint8_t	cmd[2];				//Last cmd's sent to either ports
@@ -945,7 +957,7 @@ class Capture {
 			fseek( handle, 0, SEEK_SET );
 			fwrite( &header, 1, sizeof( header ), handle );
 			fclose( handle );
-			handle = nullptr;
+			handle = NULL;
 		}
 	}
 public:
@@ -1018,9 +1030,9 @@ skipWrite:
 		startTicks = (uint32_t)PIC_Ticks;
 		return true;
 	}
-	Capture( RegisterCache* _cache ) {
+	Capture( RegisterCache* _cache ) : header(), buf() {
 		cache = _cache;
-		handle = nullptr;
+		handle = NULL;
 		bufUsed = 0;
 		startTicks = 0;
 		lastTicks = 0;
@@ -1036,7 +1048,7 @@ skipWrite:
 Chip
 */
 
-Chip::Chip() : timer0(80), timer1(320) {
+Chip::Chip() : timer0(80), timer1(320), last_poll(0), poll_counter(0) {
 }
 
 bool Chip::Write( uint32_t reg, uint8_t val ) {
@@ -1422,7 +1434,7 @@ void Module::Init( Mode m ) {
 
 
 
-static Adlib::Module * module = nullptr;
+static Adlib::Module * module = NULL;
 
 static void OPL_CallBack(Bitu len) {
 	module->handler->Generate( module->mixerChan, len );
@@ -1571,7 +1583,7 @@ void OPL_SaveRawEvent(bool pressed) {
 	std::string message;
 	if ( module->capture ) {
 		delete module->capture;
-		module->capture = nullptr;
+		module->capture = NULL;
 		LOG_MSG("Stopped Raw OPL capturing.");
 		if(show_recorded_filename && pathopl.size()) {
 			message = formatString(MSG_Get("OPL_REC_COMPLETED"), pathopl.c_str());
@@ -1597,7 +1609,9 @@ namespace Adlib {
 
 static std::string usedoplemu = "none";
 
-Module::Module( Section* configuration ) : Module_base(configuration) {
+Module::Module( Section* configuration ) : Module_base(configuration),
+    mode(MODE_OPL2), reg(), ctrl(), mixerChan(NULL), lastUsed(0),
+    esfm_nativemode(false), handler(NULL), cache(), capture(NULL) {
 	Bitu sb_addr=0,sb_irq=0,sb_dma=0;
 	//	DOSBoxMenu::item *item;
 	lastUsed = 0;
@@ -1619,8 +1633,8 @@ Module::Module( Section* configuration ) : Module_base(configuration) {
 	ctrl.index = 0;
 	ctrl.lvol = 0xff;
 	ctrl.rvol = 0xff;
-	handler = nullptr;
-	capture = nullptr;
+	handler = NULL;
+	capture = NULL;
 	esfm_nativemode = false;
 
 	Section_prop * section=static_cast<Section_prop *>(configuration);
@@ -1664,6 +1678,7 @@ Module::Module( Section* configuration ) : Module_base(configuration) {
     else if(oplemu == "cqm") {
         handler = new NukedCQM::Handler();
     }
+#if !C_OPENSTEP
 	else if (oplemu == "opl2board") {
 		oplmode = OPL_opl2;
 		handler = new OPL2BOARD::Handler(oplport.c_str());
@@ -1675,6 +1690,7 @@ Module::Module( Section* configuration ) : Module_base(configuration) {
 	else if (oplemu == "retrowave_opl3") {
 		handler = new Retrowave_OPL3::Handler(retrowave_bus, retrowave_port, retrowave_spi_cs);
 	}
+#endif
 	else if (oplemu == "mame") {
 		if (oplmode == OPL_opl2) {
 			handler = new MAMEOPL2::Handler();
@@ -1685,7 +1701,7 @@ Module::Module( Section* configuration ) : Module_base(configuration) {
 	}
 	else if (oplemu == "esfmu") {
 		handler = new ESFMu::Handler();
-		// ESFMu only supports 49716 Hz sample rate, override it here.
+		// ESFMu only supports 49716 Hz sample rate, DBX_OVERRIDE it here.
 		rate = 49716;
 	}
 	//Fall back to dbop, will also catch auto
@@ -1817,7 +1833,7 @@ void OPL_Init(Section* sec,OPL_Mode oplmode) {
 void OPL_ShutDown(Section* sec){
 	(void)sec;//UNUSED
 	delete module;
-	module = nullptr;
+	module = NULL;
 }
 
 // savestate support

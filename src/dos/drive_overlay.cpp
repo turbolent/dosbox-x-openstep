@@ -334,7 +334,7 @@ public:
 		overlay_active = false;
 		if (logoverlay) LOG_MSG("constructing OverlayFile: %s",name);
 	}
-	bool Write(const uint8_t * data,uint16_t * size) override {
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE {
 		uint32_t f = flags&0xf;
 		if (!overlay_active && (f == OPEN_READWRITE || f == OPEN_WRITE)) {
 			if (logoverlay) LOG_MSG("write detected, switching file for %s",GetName());
@@ -358,11 +358,22 @@ public:
 };
 #endif
 
+#if C_OPENSTEP
+#include "host.h"
+static FILE *OverlayOpen(const char *path, const char *mode)
+{
+    return !strcmp(mode, "wb+x") ? OSHostCreateFile(path) : fopen_wrap(path, mode);
+}
+#else
+#define OverlayOpen fopen_wrap
+#endif
+
 //Create leading directories of a file being overlaid if they exist in the original (localDrive).
 //This function is used to create copies of existing files, so all leading directories exist in the original.
 
 #if !defined(OSFREE)
-FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const* mode) {
+FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const* mode, std::string *out_host_path) {
+    (void)out_host_path;
 	char newname[CROSS_LEN];
 	strcpy(newname,overlaydir); //TODO GOG make part of class and join in 
 	strcat(newname,dos_filename); //HERE we need to convert it to Linux TODO
@@ -381,11 +392,23 @@ FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const
 #ifdef host_cnv_use_wchar
 		f = _wfopen(host_name,wmode);
 #else
-		f = fopen_wrap(host_name,mode);
+		f = OverlayOpen(host_name,mode);
+#if C_OPENSTEP
+		if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = host_name;
+#endif
 #endif
 	}
 	else {
-		f = fopen_wrap(newname,mode);
+		f = OverlayOpen(newname,mode);
+#if C_OPENSTEP
+		if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = newname;
+#endif
 	}
 	//Check if a directory is part of the name:
 	char* dir = strrchr_dbcs((char *)dos_filename,'\\');
@@ -416,11 +439,26 @@ FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const
 #ifdef host_cnv_use_wchar
 				f = _wfopen(host_name,wmode);
 #else
-				f = fopen_wrap(host_name,mode);
+				f = OverlayOpen(host_name,mode);
+#if C_OPENSTEP
+				if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+				if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = host_name;
+#endif
 #endif
 			}
 			else {
-				f = fopen_wrap(temp_name,mode);
+				f = OverlayOpen(temp_name,mode);
+#if C_OPENSTEP
+				if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = temp_name;
+#endif
 			}
 		}
 		if (!f) {
@@ -435,11 +473,20 @@ FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const
 #ifdef host_cnv_use_wchar
 				f = _wfopen(host_name,wmode);
 #else
-				f = fopen_wrap(host_name,mode);
+				f = OverlayOpen(host_name,mode);
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = host_name;
+#endif
 #endif
 			}
 			else {
-				f = fopen_wrap(newname,mode);
+				f = OverlayOpen(newname,mode);
+#if C_OPENSTEP
+				if (!f && !strcmp(mode, "wb+x") && errno == EEXIST) return NULL;
+#endif
+#if C_OPENSTEP
+            if (f && out_host_path) *out_host_path = newname;
+#endif
 			}
 		}
 	}
@@ -454,6 +501,24 @@ FILE* Overlay_Drive::create_file_in_overlay(const char* dos_filename, char const
 
 #if !defined(OSFREE)
 bool OverlayFile::create_copy() {
+#if C_OPENSTEP
+    uint8_t drive = GetDrive();
+    if (drive == 0xff || drive >= DOS_DRIVES || !Drives[drive]) return false;
+    Overlay_Drive *overlay = dynamic_cast<Overlay_Drive *>(Drives[drive]);
+    if (!overlay) return false;
+    std::string copied_path;
+    FILE *copy = overlay->create_file_in_overlay(GetName(), "wb+x", &copied_path);
+    if (!copy) return false;
+    if (!OSHostCopyFile(fhandle, copy)) {
+        fclose(copy);
+        unlink(copied_path.c_str()); /* This call exclusively created the file. */
+        return false;
+    }
+    fclose(fhandle);
+    fhandle = copy;
+    SetHostPath(copied_path.c_str());
+    return true;
+#else
 	//test if open/valid/etc
 	//ensure file position
 	FILE* lhandle = this->fhandle;
@@ -462,11 +527,12 @@ bool OverlayFile::create_copy() {
 	fseek(lhandle,0L,SEEK_SET);
 	
 	FILE* newhandle = NULL;
+    std::string copied_path;
 	uint8_t drive_set = GetDrive();
 	if (drive_set != 0xff && drive_set < DOS_DRIVES && Drives[drive_set]){
 		Overlay_Drive* od = dynamic_cast<Overlay_Drive*>(Drives[drive_set]);
 		if (od) {
-			newhandle = od->create_file_in_overlay(GetName(),"wb+"); //todo check wb+
+			newhandle = od->create_file_in_overlay(GetName(),"wb+", &copied_path); //todo check wb+
 		}
 	}
  
@@ -478,8 +544,12 @@ bool OverlayFile::create_copy() {
 	//Set copied file handle to position of the old one 
 	fseek(newhandle,location_in_old_file,SEEK_SET);
 	this->fhandle = newhandle;
+#if C_OPENSTEP
+    SetHostPath(copied_path.c_str());
+#endif
 	//Flags ?
 	return true;
+#endif
 }
 #endif
 
@@ -489,6 +559,9 @@ static OverlayFile* ccc(DOS_File* file) {
 	if (!l) E_Exit("overlay input file is not a LocalFile");
 	//Create an overlayFile
 	OverlayFile* ret = new OverlayFile(l->GetName(),l->fhandle);
+	#if C_OPENSTEP
+    ret->SetHostPath(l->GetHostPath().c_str());
+#endif
 	ret->flags = l->flags;
 	ret->refCtr = l->refCtr;
 	delete l;
@@ -498,7 +571,7 @@ static OverlayFile* ccc(DOS_File* file) {
 
 #if !defined(OSFREE)
 Overlay_Drive::Overlay_Drive(const char * startdir,const char* overlay, uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid,uint8_t &error,std::vector<std::string> &options)
-:localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options),special_prefix(prefix_overlay.c_str()) {
+:localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options),ovlnocachedir(false),ovlreadonly(false),special_prefix(prefix_overlay.c_str()) {
 	optimize_cache_v1 = true; //Try to not reread overlay files on deletes. Ideally drive_cache should be improved to handle deletes properly.
 	//Currently this flag does nothing, as the current behavior is to not reread due to caching everything.
 #if defined (WIN32)	
@@ -661,6 +734,9 @@ bool Overlay_Drive::FileOpen(DOS_File * * file,const char * name,uint32_t flags)
 	if (hand) {
 		if (logoverlay) LOG_MSG("overlay file opened %s",newname);
 		*file=new LocalFile(name,hand);
+#if C_OPENSTEP
+        static_cast<LocalFile*>(*file)->SetHostPath(newname);
+#endif
 		(*file)->flags=flags;
 		fileopened = true;
 	} else {
@@ -703,12 +779,16 @@ bool Overlay_Drive::FileCreate(DOS_File * * file,const char * name,uint16_t /*at
 	//check if leading part of filename is a deleted directory
 	if (check_if_leading_is_deleted(name)) return false;
 
-	FILE* f = create_file_in_overlay(name,"wb+");
+	std::string opened_path;
+	FILE* f = create_file_in_overlay(name,"wb+", &opened_path);
 	if(!f) {
 		if (logoverlay) LOG_MSG("File creation in overlay system failed %s",name);
 		return false;
 	}
 	*file = new LocalFile(name,f);
+#if C_OPENSTEP
+    static_cast<LocalFile*>(*file)->SetHostPath(opened_path.c_str());
+#endif
 	(*file)->flags = OPEN_READWRITE;
 	OverlayFile* of = ccc(*file);
 	of->overlay_active = true;
@@ -844,25 +924,25 @@ void Overlay_Drive::update_cache(bool read_directory_contents) {
 		char dir_name[CROSS_LEN], dir_sname[CROSS_LEN];
 		bool is_directory;
 		if (read_directory_first(dirp, dir_name, dir_sname, is_directory)) {
-			if ((strlen(dir_name) > prefix_lengh+5) && strncmp(dir_name,special_prefix.c_str(),prefix_lengh) == 0) specials.emplace_back(dir_name);
+			if ((strlen(dir_name) > prefix_lengh+5) && strncmp(dir_name,special_prefix.c_str(),prefix_lengh) == 0) specials.push_back(dir_name);
 			else if (is_directory) {
-				dirnames.emplace_back(dir_name);
+				dirnames.push_back(dir_name);
 				if (!strlen(dir_sname)) {
 					strcpy(dir_sname, dir_name);
 					upcase(dir_sname);
 				}
-				dirnames.emplace_back(dir_sname);
-			} else filenames.emplace_back(dir_name);
+				dirnames.push_back(dir_sname);
+			} else filenames.push_back(dir_name);
 			while (read_directory_next(dirp, dir_name, dir_sname, is_directory)) {
-				if ((strlen(dir_name) > prefix_lengh+5) && strncmp(dir_name,special_prefix.c_str(),prefix_lengh) == 0) specials.emplace_back(dir_name);
+				if ((strlen(dir_name) > prefix_lengh+5) && strncmp(dir_name,special_prefix.c_str(),prefix_lengh) == 0) specials.push_back(dir_name);
 				else if (is_directory) {
-					dirnames.emplace_back(dir_name);
+					dirnames.push_back(dir_name);
 					if (!strlen(dir_sname)) {
 						strcpy(dir_sname, dir_name);
 						upcase(dir_sname);
 					}
-					dirnames.emplace_back(dir_sname);
-				} else filenames.emplace_back(dir_name);
+					dirnames.push_back(dir_sname);
+				} else filenames.push_back(dir_name);
 			}
 		}
 		closedir(dirp);
@@ -952,7 +1032,7 @@ void Overlay_Drive::update_cache(bool read_directory_contents) {
 			//upcase(dosname);  //Should not be really needed, as uppercase in the overlay is a requirement...
 			CROSS_DOSFILENAME(dosname);
 			if (logoverlay) LOG_MSG("update cache add dosname %s",dosname);
-			DOSnames_cache.emplace_back(dosname);
+			DOSnames_cache.push_back(dosname);
 		}
 	}
 
@@ -1152,8 +1232,8 @@ again:
 	strcpy(lfind_name,ldir_entcopy);
     lfind_name[LFN_NAMELENGTH]=0;
 
-	find_hsize=(uint32_t) (stat_block.st_size / 0x100000000);
-	find_size=(uint32_t) (stat_block.st_size % 0x100000000);
+	find_hsize=(uint32_t) (stat_block.st_size / UINT64_C(0x100000000));
+	find_size=(uint32_t) (stat_block.st_size % UINT64_C(0x100000000));
 	struct tm *time;
 	if((time=
 #if defined(__MINGW32__) && !defined(HX_DOS) && !defined(_WIN32_WINDOWS)
@@ -1161,7 +1241,7 @@ again:
 #else
     localtime
 #endif
-    (&stat_block.st_mtime))!=nullptr){
+    (&stat_block.st_mtime))!=NULL){
 		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 	} else {
@@ -1540,7 +1620,7 @@ void Overlay_Drive::add_deleted_file(const char* name,bool create_on_disk) {
 	else
 		strcat(tname,temp_name);
 	if (!is_deleted_file(tname)) {
-		deleted_files_in_base.emplace_back(tname);
+		deleted_files_in_base.push_back(tname);
 		if (create_on_disk) add_special_file_to_disk(name, "DEL");
 	}
 }
@@ -1698,8 +1778,8 @@ void Overlay_Drive::add_DOSdir_to_cache(const char* name, const char *sname) {
 	if (!name || !*name ) return; //Skip empty file.
 	if (logoverlay) LOG_MSG("Adding name to overlay_only_dir_cache %s",name);
 	if (!is_dir_only_in_overlay(name)) {
-		DOSdirs_cache.emplace_back(name);
-		DOSdirs_cache.emplace_back(sname);
+		DOSdirs_cache.push_back(name);
+		DOSdirs_cache.push_back(sname);
 	}
 }
 #endif
@@ -1758,7 +1838,7 @@ void Overlay_Drive::remove_deleted_file(const char* name,bool create_on_disk) {
 void Overlay_Drive::add_deleted_path(const char* name, bool create_on_disk) {
 	if (!name || !*name ) return; //Skip empty file.
 	if (!is_deleted_path(name)) {
-		deleted_paths_in_base.emplace_back(name);
+		deleted_paths_in_base.push_back(name);
 		//Add it to deleted files as well, so it gets skipped in FindNext. 
 		//Maybe revise that.
 		if (create_on_disk) add_special_file_to_disk(name,"RMD");
@@ -1926,6 +2006,12 @@ bool Overlay_Drive::Rename(const char * oldname,const char * newname) {
 		temp = _wrename(host_nameold,host_namenew);
 #else
 		temp = rename(host_nameold,host_namenew);
+#if C_OPENSTEP
+        if (temp == 0) for (unsigned i = 0; i < DOS_FILES; ++i) {
+            LocalFile *file = dynamic_cast<LocalFile*>(Files[i]);
+            if (file && file->IsOpen()) file->RenameHostPath(host_nameold, host_namenew);
+        }
+#endif
 #endif
 		if (temp==0) {
 			dirCache.EmptyCache();
@@ -2002,6 +2088,12 @@ bool Overlay_Drive::Rename(const char * oldname,const char * newname) {
 		temp = _wrename(host_nameold,host_namenew);
 #else
 		temp = rename(host_nameold,host_namenew);
+#if C_OPENSTEP
+        if (temp == 0) for (unsigned i = 0; i < DOS_FILES; ++i) {
+            LocalFile *file = dynamic_cast<LocalFile*>(Files[i]);
+            if (file && file->IsOpen()) file->RenameHostPath(host_nameold, host_namenew);
+        }
+#endif
 #endif
 		//TODO CHECK if base has a file with same oldname!!!!! if it does mark it as deleted!!
 		if (localDrive::FileExists(oldname)) add_deleted_file(oldname,true);
@@ -2157,7 +2249,7 @@ bool Overlay_Drive::FileStat(const char* name, FileStat_Block * const stat_block
 #else
     localtime
 #endif
-    (&temp_stat.st_mtime))!=nullptr) {
+    (&temp_stat.st_mtime))!=NULL) {
 		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	} else {

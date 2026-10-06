@@ -3,6 +3,8 @@
 
 /* WARNING: This code needs MORE TESTING. So far, it seems to work fine. */
 
+/* Keep explicit specializations private to each CPU core on GCC 4.2. */
+namespace {
 template <class T> static inline bool prefetch_hit(const Bitu w) {
     return pq_valid && (w >= pq_start && (w + sizeof(T)) <= pq_fill);
 }
@@ -32,6 +34,8 @@ template <> uint32_t prefetch_read<uint32_t>(const Bitu w) {
     prefetch_read_check<uint32_t>(w);
     return host_readd(&prefetch_buffer[w - pq_start]);
 }
+
+} // anonymous namespace
 
 static inline void prefetch_init(const Bitu start) {
     /* start must be DWORD aligned */

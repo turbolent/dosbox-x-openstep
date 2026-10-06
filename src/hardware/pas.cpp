@@ -108,7 +108,7 @@ static const uint16_t lmc1982_att_2db_6bit[64] = {
 static uint16_t lmc835_att_1db[128], lmc835_att_05db[128];
 
 static void PAS_BuildLMC835Tables(void) {
-    static const struct { uint8_t code; uint16_t db1, db05; } t[] = {
+    static const struct Attenuation { uint8_t code; uint16_t db1, db05; } t[] = {
         {0x40, 8230, 8230}, {0x60, 9234, 8718}, {0x50,10362, 9234}, {0x48,11626, 9782},
         {0x44,13044,10362}, {0x42,14636,10975}, {0x52,16422,11626}, {0x6a,18426,12315},
         {0x56,20674,13044}, {0x41,23197,13817}, {0x69,26027,14636}, {0x6d,29204,15503},
@@ -119,73 +119,89 @@ static void PAS_BuildLMC835Tables(void) {
     };
     memset(lmc835_att_1db, 0, sizeof(lmc835_att_1db));
     memset(lmc835_att_05db, 0, sizeof(lmc835_att_05db));
-    for (const auto &e : t) {
+    for (size_t i = 0; i < sizeof(t)/sizeof(t[0]); ++i) {
+        const Attenuation &e = t[i];
         lmc835_att_1db[e.code] = e.db1;
         lmc835_att_05db[e.code] = e.db05;
     }
 }
 
 struct PasCounter {
-    uint32_t reload = 0x10000; /* 0 written means 65536 */
-    uint32_t count = 0x10000;  /* counter 1 only: clocked once per DMA transfer */
-    uint16_t latch = 0;
-    uint8_t mode = 0, rw = 3, wlow = 0;
-    bool write_hi = false, read_hi = false, latched = false;
+    uint32_t reload; /* 0 written means 65536 */
+    uint32_t count;  /* counter 1 only: clocked once per DMA transfer */
+    uint16_t latch;
+    uint8_t mode, rw, wlow;
+    bool write_hi, read_hi, latched;
+    PasCounter() :
+        reload(0x10000), count(0x10000), latch(0), mode(0), rw(3),
+        wlow(0), write_hi(false), read_hi(false), latched(false) {}
 };
 
 struct PAS_State {
-    unsigned int type = 0;
-    Bitu base = 0x388, new_base = 0x388;
-    uint8_t board_id = 0;
-    bool master_ff = false;
+    unsigned int type;
+    Bitu base, new_base;
+    uint8_t board_id;
+    bool master_ff;
 
-    uint8_t audiofilt = 0, audio_mixer = 0, irq_stat = 0, irq_ena = 0, pcm_ctrl = 0;
-    uint8_t prescale_div = 0, waitstates = 0, enhancedscsi = 0, timeout_count = 0, timeout_status = 0;
-    uint8_t sys_conf[4] = {};
-    uint8_t io_conf[4] = {};
-    uint8_t compat = 0, compat_base = 0, sb_irqdma = 0;
-    Bitu sb_base = 0x220, sb_irq = 7, sb_dma = 1;
+    uint8_t audiofilt, audio_mixer, irq_stat, irq_ena, pcm_ctrl;
+    uint8_t prescale_div, waitstates, enhancedscsi, timeout_count, timeout_status;
+    uint8_t sys_conf[4];
+    uint8_t io_conf[4];
+    uint8_t compat, compat_base, sb_irqdma;
+    Bitu sb_base, sb_irq, sb_dma;
 
-    int irq = -1, dma = 4;
-    DmaChannel *dma_chan = nullptr;
-    bool stereo_lr = false, dma8_ff = false;
-    uint16_t dma8_dat = 0;
-    unsigned int ticks = 0;
-    uint16_t pcm_l = 0, pcm_r = 0;
+    int irq, dma;
+    DmaChannel *dma_chan;
+    bool stereo_lr, dma8_ff;
+    uint16_t dma8_dat;
+    unsigned int ticks;
+    uint16_t pcm_l, pcm_r;
 
     PasCounter pit[3];
-    pic_tickindex_t c0_start = 0;
+    pic_tickindex_t c0_start;
 
     /* PAS Plus/16 MIDI UART */
-    uint8_t midi_ctrl = 0, midi_stat = 0, midi_data = 0, fifo_stat = 0;
-    bool midi_uart_out = false, midi_uart_in = false;
+    uint8_t midi_ctrl, midi_stat, midi_data, fifo_stat;
+    bool midi_uart_out, midi_uart_in;
 
     /* original PAS YM3802 */
-    uint8_t ym_ivr = 0, ym_rgr = 0, ym_isr = 0, ym_idx = 0;
-    uint8_t ym_reg[4][16] = {};
-    uint16_t ym_gen_timer = 0;
+    uint8_t ym_ivr, ym_rgr, ym_isr, ym_idx;
+    uint8_t ym_reg[4][16];
+    uint16_t ym_gen_timer;
 
     /* LMC1982CIN + LMC835N (PAS, PAS Plus) */
-    uint8_t lmc1982[8] = {};
-    uint8_t lmc835[16] = {};
-    uint8_t im_state = ST_IDLE;
-    uint16_t im_data[4] = {};
+    uint8_t lmc1982[8];
+    uint8_t lmc835[16];
+    uint8_t im_state;
+    uint16_t im_data[4];
 
     /* MV508 (PAS 16): bank 0 output mix, bank 1 input mix, bank 2 volumes */
-    uint8_t mv_index = 0;
-    uint8_t mv_regs[3][128] = {};
+    uint8_t mv_index;
+    uint8_t mv_regs[3][128];
 
-    bool use_mixer = true;
-    float fm_scale = 1.0f;
+    bool use_mixer;
+    float fm_scale;
 
     MixerObject mixobj;
-    MixerChannel *chan = nullptr;
+    MixerChannel *chan;
     IO_ReadHandleObject rd[64];
     IO_WriteHandleObject wr[64];
     IO_WriteHandleObject wr_9a01;
+    PAS_State() :
+        type(0), base(0x388), new_base(0x388), board_id(0), master_ff(false),
+        audiofilt(0), audio_mixer(0), irq_stat(0), irq_ena(0), pcm_ctrl(0),
+        prescale_div(0), waitstates(0), enhancedscsi(0), timeout_count(0), timeout_status(0),
+        sys_conf(), io_conf(), compat(0), compat_base(0), sb_irqdma(0),
+        sb_base(0x220), sb_irq(7), sb_dma(1), irq(-1), dma(4),
+        dma_chan(NULL), stereo_lr(false), dma8_ff(false), dma8_dat(0), ticks(0),
+        pcm_l(0), pcm_r(0), c0_start(0), midi_ctrl(0), midi_stat(0),
+        midi_data(0), fifo_stat(0), midi_uart_out(false), midi_uart_in(false), ym_ivr(0),
+        ym_rgr(0), ym_isr(0), ym_idx(0), ym_reg(), ym_gen_timer(0),
+        lmc1982(), lmc835(), im_state(ST_IDLE), im_data(), mv_index(0),
+        mv_regs(), use_mixer(true), fm_scale(1.0f), chan(NULL) {}
 };
 
-static PAS_State *pas = nullptr;
+static PAS_State *pas = NULL;
 
 static void PAS_RaiseIRQ(void) {
     if (pas->irq >= 0) PIC_ActivateIRQ((Bitu)pas->irq);
@@ -279,15 +295,15 @@ static void PAS_LMC835Update(void) {
 
 /* B88h on PAS/PAS Plus: the driver bit-bangs the LMC1982CIN and LMC835N through
  * IDENT/CLOCK/DATA/STROBE. Straight port of 86Box's state machine. */
+static void PAS_ShiftIn(uint8_t val, unsigned int which, unsigned int bit) {
+    pas->im_data[which] |= (uint16_t)((val & SM_DATA) << bit);
+    pas->im_state++;
+}
+
 static void PAS_SerialMixerWrite(uint8_t val) {
     const uint8_t old = pas->audio_mixer;
     const bool clock_rise = (val & SM_CLOCK) && !(old & SM_CLOCK);
     const unsigned int st = pas->im_state;
-
-    auto shift_in = [&](unsigned int which, unsigned int bit) {
-        pas->im_data[which] |= (uint16_t)((val & SM_DATA) << bit);
-        pas->im_state++;
-    };
 
     if (st == ST_IDLE || st == ST_1982_ADDR) {
         if (val & SM_IDENT) {
@@ -301,11 +317,11 @@ static void PAS_SerialMixerWrite(uint8_t val) {
                 pas->im_data[IM_1982_ADDR] = 0;
                 pas->im_state = ST_1982_ADDR;
             }
-            if (clock_rise && pas->im_state != ST_IDLE) shift_in(IM_1982_ADDR, pas->im_state & 7);
+            if (clock_rise && pas->im_state != ST_IDLE) PAS_ShiftIn(val, IM_1982_ADDR, pas->im_state & 7);
         }
     }
     else if (st > ST_1982_ADDR && st < ST_1982_ADDR_OVER) {
-        if (clock_rise) shift_in(IM_1982_ADDR, st & 7);
+        if (clock_rise) PAS_ShiftIn(val, IM_1982_ADDR, st & 7);
     }
     else if (st == ST_1982_ADDR_OVER) {
         pas->im_data[IM_1982_DATA] = 0;
@@ -314,17 +330,17 @@ static void PAS_SerialMixerWrite(uint8_t val) {
     else if (st == ST_1982_DATA_8) {
         if (val & SM_IDENT) {
             if (!(old & SM_IDENT)) PAS_LMC1982Update(); /* 8-bit transfer ended */
-            else if (clock_rise) shift_in(IM_1982_DATA, st & 0x0f);
+            else if (clock_rise) PAS_ShiftIn(val, IM_1982_DATA, st & 0x0f);
         }
     }
     else if (st >= ST_1982_DATA && st < ST_1982_DATA_OVER) {
-        if (clock_rise) shift_in(IM_1982_DATA, st & 0x0f);
+        if (clock_rise) PAS_ShiftIn(val, IM_1982_DATA, st & 0x0f);
     }
     else if (st == ST_1982_DATA_OVER) {
         if ((val & SM_IDENT) && !(old & SM_IDENT)) PAS_LMC1982Update();
     }
     else if (st >= ST_835_DATA && st < ST_835_DATA_OVER) {
-        if (clock_rise) shift_in(IM_835_DATA, st & 7);
+        if (clock_rise) PAS_ShiftIn(val, IM_835_DATA, st & 7);
     }
     else if (st == ST_835_DATA_OVER) {
         if ((val & SM_STROBE) && !(old & SM_STROBE)) {
@@ -514,9 +530,9 @@ static void PAS_DMA_CallBack(DmaChannel * /*chan*/, DMAEvent event) {
 }
 
 static void PAS_SetDMA(int dma) {
-    if (pas->dma_chan && pas->dma_chan->callback == PAS_DMA_CallBack) pas->dma_chan->Register_Callback(nullptr);
+    if (pas->dma_chan && pas->dma_chan->callback == PAS_DMA_CallBack) pas->dma_chan->Register_Callback(NULL);
     pas->dma = dma;
-    pas->dma_chan = (dma == 4) ? nullptr : GetDMAChannel((uint8_t)dma);
+    pas->dma_chan = (dma == 4) ? NULL : GetDMAChannel((uint8_t)dma);
     if (pas->dma_chan) pas->dma_chan->Register_Callback(PAS_DMA_CallBack);
 }
 
@@ -993,8 +1009,8 @@ void PAS_ShutDown(void) {
     if (!pas) return;
     PIC_RemoveEvents(PAS_YM3802TimerEvent);
     PAS_LowerIRQ();
-    if (pas->dma_chan && pas->dma_chan->callback == PAS_DMA_CallBack) pas->dma_chan->Register_Callback(nullptr);
+    if (pas->dma_chan && pas->dma_chan->callback == PAS_DMA_CallBack) pas->dma_chan->Register_Callback(NULL);
     if (MixerChannel *fm = MIXER_FindChannel("FM")) fm->SetScale(pas->fm_scale);
     delete pas;
-    pas = nullptr;
+    pas = NULL;
 }

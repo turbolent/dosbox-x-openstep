@@ -30,21 +30,21 @@ public:
 	CSerialMouse(Bitu id, CommandLine* cmd);
 	virtual ~CSerialMouse();
 
-	void setRTSDTR(bool rts, bool dtr) override;
-	void setRTS(bool val) override;
-	void setDTR(bool val) override;
+	void setRTSDTR(bool rts, bool dtr) DBX_OVERRIDE;
+	void setRTS(bool val) DBX_OVERRIDE;
+	void setDTR(bool val) DBX_OVERRIDE;
 
-	void updatePortConfig(uint16_t, uint8_t lcr) override;
-	void updateMSR() override;
-	void transmitByte(uint8_t val, bool first) override;
-	void setBreak(bool value) override;
-	void handleUpperEvent(uint16_t type) override;
+	void updatePortConfig(uint16_t, uint8_t lcr) DBX_OVERRIDE;
+	void updateMSR() DBX_OVERRIDE;
+	void transmitByte(uint8_t val, bool first) DBX_OVERRIDE;
+	void setBreak(bool value) DBX_OVERRIDE;
+	void handleUpperEvent(uint16_t type) DBX_OVERRIDE;
 	void onMouseReset();
 	void on_mouse_event(int delta_x,int delta_y,uint8_t buttonstate);
 	void start_packet();
 
 	uint8_t send_ack;
-    uint8_t packet[3] = {};
+    uint8_t packet[3];
 	uint8_t packet_xmit;
 	uint8_t mouse_buttons;	/* bit 0 = left   bit 1 = right     becomes bits 5 (L) and 4 (R) in packet[0] */
 	uint8_t xmit_another_packet;

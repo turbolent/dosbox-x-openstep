@@ -623,7 +623,7 @@ void DEBUG_PICMask(int irq,bool mask) {
 static void AddEntry(PICEntry * entry) {
     PICEntry * find_entry=pic_queue.next_entry;
     if (GCC_UNLIKELY(!find_entry)) {
-        entry->next = nullptr;
+        entry->next = NULL;
         pic_queue.next_entry=entry;
     } else if (find_entry->index>entry->index) {
         pic_queue.next_entry=entry;
@@ -678,7 +678,7 @@ void PIC_AddEvent(PIC_EventHandler handler,pic_tickindex_t delay,Bitu val) {
 
 void PIC_RemoveSpecificEvents(PIC_EventHandler handler, Bitu val) {
     PICEntry * entry=pic_queue.next_entry;
-    PICEntry * prev_entry = nullptr;
+    PICEntry * prev_entry = NULL;
     while (entry) {
         if (GCC_UNLIKELY((entry->pic_event == handler)) && (entry->value == val)) {
             if (prev_entry) {
@@ -702,7 +702,7 @@ void PIC_RemoveSpecificEvents(PIC_EventHandler handler, Bitu val) {
 
 void PIC_RemoveEvents(PIC_EventHandler handler) {
     PICEntry * entry=pic_queue.next_entry;
-    PICEntry * prev_entry = nullptr;
+    PICEntry * prev_entry = NULL;
     while (entry) {
         if (GCC_UNLIKELY(entry->pic_event==handler)) {
             if (prev_entry) {
@@ -807,7 +807,7 @@ struct TickerBlock {
     TickerBlock * next;
 };
 
-static TickerBlock * firstticker = nullptr;
+static TickerBlock * firstticker = NULL;
 
 void TIMER_ShutdownTickHandlers() {
     unsigned int leftovers = 0;
@@ -1053,11 +1053,11 @@ void Init_PIC() {
         pic_queue.entries[i].next=&pic_queue.entries[i+1];
 
         // savestate compatibility
-        pic_queue.entries[i].pic_event = nullptr;
+        pic_queue.entries[i].pic_event = NULL;
     }
-    pic_queue.entries[PIC_QUEUESIZE-1].next = nullptr;
+    pic_queue.entries[PIC_QUEUESIZE-1].next = NULL;
     pic_queue.free_entry=&pic_queue.entries[0];
-    pic_queue.next_entry = nullptr;
+    pic_queue.next_entry = NULL;
 
     AddExitFunction(AddExitFunctionFuncPair(PIC_Destroy));
     AddVMEventFunction(VM_EVENT_RESET,AddVMEventFunctionFuncPair(PIC_Reset));
@@ -1258,7 +1258,7 @@ public:
     {}
 
 private:
-    void getBytes(std::ostream& stream) override
+    void getBytes(std::ostream& stream) DBX_OVERRIDE
     {
 				uint16_t pic_free_idx, pic_next_idx;
 				uint16_t pic_next_ptr[PIC_QUEUESIZE];
@@ -1370,7 +1370,7 @@ private:
 				//test->saveState(stream);
 		}
 
-    void setBytes(std::istream& stream) override
+    void setBytes(std::istream& stream) DBX_OVERRIDE
     {
 				uint16_t free_idx, next_idx;
 				uint16_t ticker_size;

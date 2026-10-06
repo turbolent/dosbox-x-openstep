@@ -20,7 +20,11 @@
 #define DOSBOX_TIMER_H
 
 /* underlying clock rate in HZ */
+#if C_OPENSTEP
+#include "openstep/host.h"
+#else
 #include <SDL.h>
+#endif
 
 #define PIT_TICK_RATE_IBM 1193182
 
@@ -30,7 +34,11 @@
 
 extern unsigned long PIT_TICK_RATE;
 
+#if C_OPENSTEP
+#define GetTicks() OSHostTicks()
+#else
 #define GetTicks() SDL_GetTicks()
+#endif
 
 typedef void (*TIMER_TickHandler)(void);
 

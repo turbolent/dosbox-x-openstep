@@ -2058,7 +2058,7 @@ void XGA_ViRGE_DrawRect(XGAStatus::XGA_VirgeState::reggroup &rset) {
 }
 
 void XGA_ViRGE_BitBlt_Execute(bool commandwrite) {
-	auto &rset = xga.virge.bitblt;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.bitblt;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2082,7 +2082,7 @@ void XGA_ViRGE_BitBlt_Execute(bool commandwrite) {
 }
 
 void XGA_ViRGE_BitBlt_Execute_deferred(void) {
-	auto &rset = xga.virge.bitblt;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.bitblt;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2273,7 +2273,7 @@ void XGA_ViRGE_DrawLine(XGAStatus::XGA_VirgeState::reggroup &rset) {
 }
 
 void XGA_ViRGE_Line2D_Execute(bool commandwrite) {
-	auto &rset = xga.virge.line2d;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.line2d;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2294,7 +2294,7 @@ void XGA_ViRGE_Line2D_Execute(bool commandwrite) {
 }
 
 void XGA_ViRGE_Line2D_Execute_deferred(void) {
-	auto &rset = xga.virge.line2d;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.line2d;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2351,7 +2351,7 @@ void XGA_ViRGE_DrawPoly(XGAStatus::XGA_VirgeState::reggroup &rset) {
 }
 
 void XGA_ViRGE_Poly2D_Execute(bool commandwrite) {
-	auto &rset = xga.virge.poly2d;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.poly2d;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2372,7 +2372,7 @@ void XGA_ViRGE_Poly2D_Execute(bool commandwrite) {
 }
 
 void XGA_ViRGE_Poly2D_Execute_deferred(void) {
-	auto &rset = xga.virge.poly2d;
+	XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.poly2d;
 
 	xga.virge.imgxferport = NULL;
 	xga.virge.imgxferportfunc = NULL;
@@ -2877,7 +2877,7 @@ void XGA_Write(Bitu port, Bitu val, Bitu len) {
 			break;
 		case 0xa500:
 			if (s3Card >= S3_ViRGE) {
-				auto &rg = xga.virge.bitblt_validate_port(port);
+				XGAStatus::XGA_VirgeState::reggroup &rg = xga.virge.bitblt_validate_port(port);
 				rg.set__command_set(val);
 				if (rg.command_set & 1) XGA_ViRGE_BitBlt_Execute_deferred();
 				else XGA_ViRGE_BitBlt_Execute(true);
@@ -2886,7 +2886,7 @@ void XGA_Write(Bitu port, Bitu val, Bitu len) {
 			break;
 		case 0xa900:
 			if (s3Card >= S3_ViRGE) {
-				auto &rg = xga.virge.line2d_validate_port(port);
+				XGAStatus::XGA_VirgeState::reggroup &rg = xga.virge.line2d_validate_port(port);
 				rg.set__command_set(val);
 				if (rg.command_set & 1) XGA_ViRGE_Line2D_Execute_deferred();
 				else XGA_ViRGE_Line2D_Execute(true);
@@ -2895,7 +2895,7 @@ void XGA_Write(Bitu port, Bitu val, Bitu len) {
 			break;
 		case 0xad00:
 			if (s3Card >= S3_ViRGE) {
-				auto &rg = xga.virge.poly2d_validate_port(port);
+				XGAStatus::XGA_VirgeState::reggroup &rg = xga.virge.poly2d_validate_port(port);
 				rg.set__command_set(val);
 				if (rg.command_set & 1) XGA_ViRGE_Poly2D_Execute_deferred();
 				else XGA_ViRGE_Poly2D_Execute(true);
@@ -3033,21 +3033,21 @@ void XGA_Write(Bitu port, Bitu val, Bitu len) {
 		switch (port&0xFC00) {
 			case 0xA400:
 				{
-					auto &rset = xga.virge.bitblt_validate_port(port);
+					XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.bitblt_validate_port(port);
 					if (rset.command_execute_on_register != 0 && rset.command_execute_on_register == (port&0x3FF))
 						XGA_ViRGE_BitBlt_Execute(false);
 				}
 				break;
 			case 0xA800:
 				{
-					auto &rset = xga.virge.line2d_validate_port(port);
+					XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.line2d_validate_port(port);
 					if (rset.command_execute_on_register != 0 && rset.command_execute_on_register == (port&0x3FF))
 						XGA_ViRGE_Line2D_Execute(false);
 				}
 				break;
 			case 0xAC00:
 				{
-					auto &rset = xga.virge.poly2d_validate_port(port);
+					XGAStatus::XGA_VirgeState::reggroup &rset = xga.virge.poly2d_validate_port(port);
 					if (rset.command_execute_on_register != 0 && rset.command_execute_on_register == (port&0x3FF))
 						XGA_ViRGE_Poly2D_Execute(false);
 				}
@@ -3069,7 +3069,7 @@ static bool XGA_ViRGE_Read2D(Bitu port, uint32_t &val) {
 	}
 	if (blk != 0xA400u && blk != 0xA800u && blk != 0xAC00u) return false;
 
-	const auto &r = (blk == 0xA400u) ? xga.virge.bitblt : ((blk == 0xA800u) ? xga.virge.line2d : xga.virge.poly2d);
+	const XGAStatus::XGA_VirgeState::reggroup &r = (blk == 0xA400u) ? xga.virge.bitblt : ((blk == 0xA800u) ? xga.virge.line2d : xga.virge.poly2d);
 	switch (off) {
 		case 0x0D4: val = r.src_base; return true;
 		case 0x0D8: val = r.dst_base; return true;

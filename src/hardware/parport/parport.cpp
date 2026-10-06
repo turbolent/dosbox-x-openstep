@@ -18,6 +18,9 @@
 /* FIXME: At some point I would like to roll the Disney Sound Source emulation into this code */
 
 #include <string.h>
+#include <stdarg.h>
+#include <errno.h>
+#include <limits.h>
 #include <ctype.h>
 
 #include "control.h"
@@ -39,7 +42,11 @@
 #include "directlpt.h"
 #include "printer_redir.h"
 #include "filelpt.h"
+#if !C_OPENSTEP
 #include "extlpt.h"
+#else
+#include "host.h"
+#endif
 #include "dos_inc.h"
 
 uint16_t parallel_baseaddr[9] = {0x378,0x278,0x3bc,0,0,0,0,0,0};
@@ -200,7 +207,7 @@ void CParallel::log_par(bool active, char const* format,...) {
 #endif
 
 // Initialisation
-CParallel::CParallel(CommandLine* cmd, Bitu portnr, uint8_t initirq) {
+CParallel::CParallel(CommandLine* cmd, Bitu portnr, uint8_t initirq) : parallelType(PARALLEL_TYPE_DISABLED) {
     (void)cmd;//UNUSED
     base = parallel_baseaddr[portnr];
     irq = initirq;
@@ -293,9 +300,14 @@ uint8_t CParallel::getPrinterStatus()
 
 void RunIdleTime(Bitu milliseconds)
 {
+#if C_OPENSTEP
+    const OSUInt32 start = OSHostTicks();
+    while ((OSUInt32)(OSHostTicks() - start) < milliseconds) CALLBACK_Idle();
+#else
 	Bitu time=SDL_GetTicks()+milliseconds;
 	while(SDL_GetTicks()<time)
 		CALLBACK_Idle();
+#endif
 }
 
 void CParallel::initialize()
@@ -369,8 +381,8 @@ class PARPORTS:public Module_base {
 			// iterate through all 3 lpt ports
 			for (Bitu i = 0; i < 9; i++) {
 				pname[8] = '1' + (char)i;
-				CommandLine cmd(nullptr, section->Get_string(pname));
-				CommandLine tmp(nullptr, section->Get_string(pname), CommandLine::either, true);
+				CommandLine cmd(NULL, section->Get_string(pname));
+				CommandLine tmp(NULL, section->Get_string(pname), CommandLine::either, true);
 
 				std::string str;
 				bool squote = false;
@@ -400,7 +412,7 @@ class PARPORTS:public Module_base {
 						cmd.GetStringRemain(parallelPortObjects[i]->commandLineString);
 					} else {
 						delete cdlpt;
-						parallelPortObjects[i] = nullptr;
+						parallelPortObjects[i] = NULL;
 					}
 				} else
 #endif
@@ -413,9 +425,10 @@ class PARPORTS:public Module_base {
 							cmd.GetStringRemain(parallelPortObjects[i]->commandLineString);
 						} else {
 							delete cflpt;
-							parallelPortObjects[i] = nullptr;
+							parallelPortObjects[i] = NULL;
 						}
 					} else
+#if !C_OPENSTEP
 						if (str == "extlpt") {
 							CExtLPT* cxlpt = new CExtLPT(i, defaultirq[i], &cmd);
 							if(cxlpt->InstallationSuccessful) {
@@ -425,9 +438,10 @@ class PARPORTS:public Module_base {
 								cmd.GetStringRemain(parallelPortObjects[i]->commandLineString);
 							} else {
 								delete cxlpt;
-								parallelPortObjects[i] = nullptr;
+								parallelPortObjects[i] = NULL;
 							}
 						} else
+#endif
 #if C_PRINTER
 						// allow printer redirection on a single port
 						if (str == "printer" && !printer_used)
@@ -445,14 +459,14 @@ class PARPORTS:public Module_base {
 							{
 								LOG_MSG("Error: printer is not enabled.");
 								delete cprd;
-								parallelPortObjects[i] = nullptr;
+								parallelPortObjects[i] = NULL;
 							}
 						} else
 #endif
 							if(str=="disabled") {
-								parallelPortObjects[i] = nullptr;
+								parallelPortObjects[i] = NULL;
 							} else if (str == "disney") {
-								parallelPortObjects[i] = nullptr;
+								parallelPortObjects[i] = NULL;
 								if (!DISNEY_HasInit()) {
 									LOG_MSG("LPT%d: User explicitly assigned Disney Sound Source to this port",(int)i+1);
 									DISNEY_Init(parallel_baseaddr[i]);
@@ -463,7 +477,7 @@ class PARPORTS:public Module_base {
 								}
 							} else {
 								LOG_MSG ("Invalid type for LPT%d.",(int)i + 1);
-								parallelPortObjects[i] = nullptr;
+								parallelPortObjects[i] = NULL;
 							}
 			} // for lpt 1-9
 #if HAS_CDIRECTLPT && (defined __i386__ || defined __x86_64__) && (defined BSD || defined LINUX)
@@ -483,7 +497,7 @@ class PARPORTS:public Module_base {
 			for (Bitu i = 0; i < 9; i++) {
 				if (parallelPortObjects[i]) {
 					delete parallelPortObjects[i];
-					parallelPortObjects[i] = nullptr;
+					parallelPortObjects[i] = NULL;
 				}
 			}
 #if C_PRINTER
@@ -509,13 +523,13 @@ static const char *parallelTypes[PARALLEL_TYPE_COUNT] = {
 
 class PARALLEL : public Program {
 	public:
-		void Run() override;
+		void Run() DBX_OVERRIDE;
 	private:
 		void showPort(int port);
 };
 
 void PARALLEL::showPort(int port) {
-	if (parallelPortObjects[port] != nullptr)
+	if (parallelPortObjects[port] != NULL)
 		WriteOut("LPT%d: %s %s\n", port + 1, parallelTypes[parallelPortObjects[port]->parallelType], parallelPortObjects[port]->commandLineString.c_str());
 	else if (disneyport==port+1)
 		WriteOut("LPT%d: %s %s\n", port + 1, parallelTypes[PARALLEL_TYPE_DISNEY], "");
@@ -540,10 +554,11 @@ void PARALLEL::Run()
 	if (cmd->GetCount() == 1) {
 		int port = -1;
 		cmd->FindCommand(1, temp_line);
-		try {
-			port = stoi(temp_line);
-		} catch (...) {
-		}
+        char *end = NULL;
+        errno = 0;
+        const long parsed = strtol(temp_line.c_str(), &end, 10);
+        if (end != temp_line.c_str() && errno != ERANGE && parsed >= INT_MIN && parsed <= INT_MAX)
+            port = (int)parsed;
 		if (port >= 1 && port <= 9) {
 			showPort(port-1);
 			return;
@@ -556,10 +571,11 @@ void PARALLEL::Run()
 		// Which LPT did they want to change?
 		int port = -1;
 		cmd->FindCommand(1, temp_line);
-		try {
-			port = stoi(temp_line);
-		} catch (...) {
-		}
+        char *end = NULL;
+        errno = 0;
+        const long parsed = strtol(temp_line.c_str(), &end, 10);
+        if (end != temp_line.c_str() && errno != ERANGE && parsed >= INT_MIN && parsed <= INT_MAX)
+            port = (int)parsed;
 		if (port < 1 || port > 9) {
 			WriteOut(MSG_Get("PROGRAM_PORT_INVALID_NUMBER"));
 			return;
@@ -581,6 +597,12 @@ void PARALLEL::Run()
 			return;
 		}
 		uint8_t defaultirq[] = { 7, 5, 12, 0, 0, 0, 0, 0, 0};
+#if C_OPENSTEP
+        if (mode == PARALLEL_TYPE_EXTLPT) {
+            WriteOut("External LPT forwarding is unavailable on OPENSTEP.\n");
+            return;
+        }
+#endif
 		// Build command line, if any.
 		int i = 3;
 		std::string commandLineString = "";
@@ -621,7 +643,7 @@ void PARALLEL::Run()
 				curpsp.CloseFile(name);
 			}
 			delete parallelPortObjects[port-1];
-			parallelPortObjects[port - 1] = nullptr;
+			parallelPortObjects[port - 1] = NULL;
 #if C_PRINTER
 		} else if (mode==PARALLEL_TYPE_PRINTER&&testParallelPortsBaseclass->printer_used) {
 			WriteOut("Printer is already assigned to a different port.\n");
@@ -642,7 +664,7 @@ void PARALLEL::Run()
 		// Recreate the port with the new mode.
 		switch (mode) {
 			case PARALLEL_TYPE_DISABLED:
-				parallelPortObjects[port - 1] = nullptr;
+				parallelPortObjects[port - 1] = NULL;
 				break;
 #if HAS_CDIRECTLPT
 			case PARALLEL_TYPE_REALLPT:
@@ -658,12 +680,14 @@ void PARALLEL::Run()
 					if(cflpt->InstallationSuccessful) parallelPortObjects[port-1]=cflpt;
 					break;
 				}
+#if !C_OPENSTEP
 			case PARALLEL_TYPE_EXTLPT:
 				{
 					CExtLPT* cxlpt= new CExtLPT(port-1, defaultirq[port-1], &cmd);
 					if(cxlpt->InstallationSuccessful) parallelPortObjects[port-1]=cxlpt;
 					break;
 				}
+#endif
 #if C_PRINTER
 			case PARALLEL_TYPE_PRINTER:
 				if (!testParallelPortsBaseclass->printer_used) {

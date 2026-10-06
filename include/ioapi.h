@@ -44,7 +44,13 @@
 #include <stdlib.h>
 #include "zlib.h"
 
-#if defined(__APPLE__) || defined(USE_FILE32API) || defined(OS2)
+#if C_OPENSTEP
+ #include "openstep/host.h"
+ #define fopen64 fopen
+ #define ftello64 OSHostTell
+ #define fseeko64 OSHostSeek
+ #define fseek_ofs_t long long
+#elif defined(__APPLE__) || defined(USE_FILE32API) || defined(OS2)
  #define fopen64 fopen
  #define ftello64 ftell
  #define fseeko64 fseek

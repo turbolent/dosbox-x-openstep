@@ -264,14 +264,15 @@ void JOYSTICK_Init() {
 		                 stick[1].ytick = PIC_FullIndex();
 		
 		// retrieves axes mapping
-		auto joysticks = 2;
-		auto axes = 8;
-		for (auto i = 0; i < joysticks; i++)
+		int joysticks = 2;
+		int axes = 8;
+		for (int i = 0; i < joysticks; i++)
 		{
-			for (auto j = 0; j < axes; j++)
+			for (int j = 0; j < axes; j++)
 			{
-				auto propname = "joy" + std::to_string(i + 1) + "axis" + std::to_string(j);
-				auto axis = section->Get_int(propname);
+				char propname[32];
+				snprintf(propname, sizeof(propname), "joy%daxis%d", i+1, j);
+				int axis = section->Get_int(propname);
 				if (i == 0)
 				{
 					joy1axes[j] = axis;

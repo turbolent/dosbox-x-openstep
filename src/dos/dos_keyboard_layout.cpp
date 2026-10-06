@@ -38,7 +38,11 @@
 #include "dos_codepages.h"
 #include "dos_keyboard_layout_data.h"
 #endif
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 
 #if defined (WIN32)
 #include <windows.h>
@@ -66,7 +70,7 @@ static FILE* OpenDosboxFile(const char* name) {
 	uint8_t drive;
 	char fullname[DOS_PATHLENGTH];
 
-	localDrive* ldp=nullptr;
+	localDrive* ldp=NULL;
 	// try to build dos name
 	if (DOS_MakeName(name,fullname,&drive)) {
 		try {
@@ -87,7 +91,7 @@ static FILE* OpenDosboxFile(const char* name) {
 #if !defined(OSFREE)
 class keyboard_layout {
 public:
-	keyboard_layout() {
+	keyboard_layout() : additional_planes(0), diacritics() {
 		this->reset();
 		language_codes=NULL;
 		use_foreign_layout=false;
@@ -118,11 +122,11 @@ private:
 		uint16_t required_flags,forbidden_flags;
 		uint16_t required_userflags,forbidden_userflags;
 	} current_layout_planes[layout_pages-4];
-	uint8_t additional_planes = 0;
+	uint8_t additional_planes;
 	uint8_t used_lock_modifiers;
 
 	// diacritics table
-	uint8_t diacritics[2048] = {};
+	uint8_t diacritics[2048];
 	uint16_t diacritics_entries;
 	uint16_t diacritics_character;
 	uint16_t user_keys;
@@ -798,7 +802,7 @@ uint16_t keyboard_layout::extract_codepage(const char* keyboard_file_name) {
 static uint8_t cpi_buf[65536];
 uint32_t VFILE_GetCPIData(const char *filename, std::vector<uint8_t> &cpibuf);
 uint32_t get_builtin_codepage(struct BuiltinFileBlob bfb) {
-    std::vector<uint8_t> cpibuf = {};
+    std::vector<uint8_t> cpibuf;
     uint32_t size = VFILE_GetCPIData(bfb.recommended_file_name, cpibuf);
     if (size)
         for (size_t bct=0; bct<size; bct++) cpi_buf[bct]=cpibuf[bct];
@@ -1914,11 +1918,13 @@ void DOS_KeyboardLayout_Init() {
 #endif
 
 #if !defined(OSFREE)
-static const std::set<int> supportedCodepages =
+static const int supportedCodepageValues[] =
 {
 	437, 737, 775, 808, 850, 852, 853, 855, 856, 857, 858, 859, 860, 861, 862, 863, 864, 865, 866, 867, 868, 869, 872, 874,
 	932, 936, 949, 950, 951, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258, 3021
 };
+static const std::set<int> supportedCodepages(supportedCodepageValues,
+    supportedCodepageValues + sizeof(supportedCodepageValues)/sizeof(supportedCodepageValues[0]));
 #endif
 
 bool isSupportedCP(int cp)

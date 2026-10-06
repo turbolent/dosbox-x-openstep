@@ -112,7 +112,7 @@ void setFPUTagEmpty() {
 	fpu.use80[7] = false;
 	fpu.use80[8] = false;
 #endif
-    fpu.regvalid = {};
+    std::fill(fpu.regvalid, fpu.regvalid + 9, false);
     // the 9th register is always valid, it's used for temporary storage
     fpu.regvalid[8] = true;
 }

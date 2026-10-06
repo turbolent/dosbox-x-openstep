@@ -84,10 +84,10 @@ class DmaChannel {
 		// TODO: Does this setting stick or does it reset after normal legacy programming?
 		// TODO: When the bank auto increments does it increment the actual register or just
 		//       an internal copy?
-		uint8_t page_bank_increment_wraparound = 0u;
+		uint8_t page_bank_increment_wraparound;
 
 		// user data for emulation
-		uint64_t userData = 0;
+		uint64_t userData;
 
 		void page_bank_increment(void) { // to be called on DMA wraparound
 			if (page_bank_increment_wraparound != 0u) {
@@ -154,11 +154,11 @@ class DmaController {
 	private:
 		uint8_t ctrlnum;
 		bool flipflop;
-		DmaChannel* DmaChannels[4] = {};
+		DmaChannel* DmaChannels[4];
 	public:
 		IO_ReadHandleObject DMA_ReadHandler[0x15];
 		IO_WriteHandleObject DMA_WriteHandler[0x15];
-		DmaController(uint8_t num) {
+		DmaController(uint8_t num) : DmaChannels() {
 			flipflop = false;
 			ctrlnum = num;		/* first or second DMA controller */
 			for(uint8_t i=0;i<4;i++) {

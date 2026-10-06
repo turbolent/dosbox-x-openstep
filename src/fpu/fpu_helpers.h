@@ -3,24 +3,24 @@
 
 namespace fpu_detail {
 
-enum class InputClass {
+namespace InputClass { enum Type {
     Unsupported,
     NaN,
     Normal,
     Infinity,
     Zero,
     Denormal,
-};
+}; }
 
-enum class RemainderMode {
+namespace RemainderMode { enum Type {
     Truncate,
     Nearest,
-};
+}; }
 
 void CheckException();
 void SetStatusFromHostExceptions();
 uint16_t GetTag();
-InputClass ClassifyInput(int op);
+InputClass::Type ClassifyInput(int op);
 bool StackValid(int pos);
 void SetQNaN(int pos);
 void SetInfinity(int pos, bool negative);
@@ -32,11 +32,11 @@ void CheckInputDenormals(int op);
 void CheckInputDenormals(int op1, int op2);
 bool CheckInputs(int op);
 bool CheckInputs(int op1, int op2, bool propagate_nan = true);
-void PartialRemainder(double& dividend, double divisor, RemainderMode mode);
+void PartialRemainder(double& dividend, double divisor, RemainderMode::Type mode);
 #ifdef HAS_LONG_DOUBLE
 void PartialRemainder(long double& dividend,
                       long double divisor,
-                      RemainderMode mode);
+                      RemainderMode::Type mode);
 #endif
 void RaiseLoadExceptions(bool denormal, bool signaling_nan);
 void Compare(int op1, int op2, bool ordered);

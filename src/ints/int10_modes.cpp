@@ -32,7 +32,9 @@
 #include "menu.h"
 #include "jfont.h"
 #include "control.h"
+#if !C_OPENSTEP
 #include "sdlmain.h"
+#endif
 #include "bitop.h"
 
 #include <output/output_ttf.h>
@@ -786,7 +788,7 @@ static bool SetCurMode(VideoModeBlock modeblock[],uint16_t mode) {
 			if ((!int10.vesa_oldvbe) || (ModeList_VGA[i].mode<0x120)) {
 				CurMode=&modeblock[i];
 #if defined(USE_TTF)
-				conf_output = static_cast<Section_prop*>(control->GetSection("sdl"))->Get_string("output");
+				conf_output = static_cast<Section_prop*>(control->GetFrontendSection())->Get_string("output");
 				if(conf_output.empty())conf_output = "default";
 				if(finish_prepare) ttf_switch_off();
 #endif
@@ -1295,7 +1297,7 @@ bool INT10_SetVideoMode_OTHER(uint16_t mode,bool clearmem) {
 			/* Init some registers */
 			IO_WriteB(0x3da,0x1);IO_WriteB(0x3de,0xf);		//Palette mask always 0xf
 			IO_WriteB(0x3da,0x2);IO_WriteB(0x3de,0x0);		//black border
-			IO_WriteB(0x3da,0x3);							//Tandy color overrides?
+			IO_WriteB(0x3da,0x3);							//Tandy color DBX_OVERRIDEs?
 			switch (CurMode->mode) {
 				case 0x8:	
 					IO_WriteB(0x3de,0x14);break;
@@ -1394,7 +1396,7 @@ static bool ShouldUseVPT(void) {
 		return false;
 
 	/* If the VPT points into ROM, no.
-	 * Otherwise a DOS program wants to override it, yes. */
+	 * Otherwise a DOS program wants to DBX_OVERRIDE it, yes. */
 	RealPt r_vsopt = real_readd(BIOSMEM_SEG,0xA8);
 	if (r_vsopt != 0) {
 		RealPt r_vpt = real_readd(RealSeg(r_vsopt),RealOff(r_vsopt));
@@ -2823,7 +2825,7 @@ Bitu INT10_WriteVESAModeList(Bitu max_modes);
  */
 class VESAMOED : public Program {
 public:
-	void Run(void) override {
+	void Run(void) DBX_OVERRIDE {
         size_t array_i = 0;
         std::string arg,tmp;
 		bool got_opt=false;

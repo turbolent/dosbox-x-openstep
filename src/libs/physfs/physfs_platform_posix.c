@@ -21,7 +21,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#if C_OPENSTEP
+#include <mach/cthreads.h>
+#else
 #include <pthread.h>
+#endif
 
 #include "physfs_internal.h"
 
@@ -214,7 +218,7 @@ PHYSFS_sint64 __PHYSFS_platformRead(void *opaque, void *buffer,
                                     PHYSFS_uint64 len)
 {
     const int fd = *((int *) opaque);
-    ssize_t rc = 0;
+    long rc = 0;
 
     if (!__PHYSFS_ui64FitsAddressSpace(len))
         BAIL(PHYSFS_ERR_INVALID_ARGUMENT, -1);
@@ -231,7 +235,7 @@ PHYSFS_sint64 __PHYSFS_platformWrite(void *opaque, const void *buffer,
                                      PHYSFS_uint64 len)
 {
     const int fd = *((int *) opaque);
-    ssize_t rc = 0;
+    long rc = 0;
 
     if (!__PHYSFS_ui64FitsAddressSpace(len))
         BAIL(PHYSFS_ERR_INVALID_ARGUMENT, -1);
@@ -247,6 +251,9 @@ PHYSFS_sint64 __PHYSFS_platformWrite(void *opaque, const void *buffer,
 int __PHYSFS_platformSeek(void *opaque, PHYSFS_uint64 pos)
 {
     const int fd = *((int *) opaque);
+#if C_OPENSTEP
+    BAIL_IF(pos > 0x7fffffffULL, PHYSFS_ERR_PAST_EOF, 0);
+#endif
     const off_t rc = lseek(fd, (off_t) pos, SEEK_SET);
     BAIL_IF(rc == -1, errcodeFromErrno(), 0);
     return 1;
@@ -275,7 +282,7 @@ PHYSFS_sint64 __PHYSFS_platformFileLength(void *opaque)
 int __PHYSFS_platformFlush(void *opaque)
 {
     const int fd = *((int *) opaque);
-    if ((fcntl(fd, F_GETFL) & O_ACCMODE) != O_RDONLY)
+    if ((fcntl(fd, F_GETFL, 0) & O_ACCMODE) != O_RDONLY)
         BAIL_IF(fsync(fd) == -1, errcodeFromErrno(), 0);
     return 1;
 } /* __PHYSFS_platformFlush */
@@ -335,6 +342,43 @@ int __PHYSFS_platformStat(const char *fname, PHYSFS_Stat *st, const int follow)
 } /* __PHYSFS_platformStat */
 
 
+#if C_OPENSTEP
+/* OPENSTEP uses Mach cthreads. Preserve PhysicsFS's recursive lock semantics. */
+typedef struct {
+    mutex_t lock;
+    cthread_t owner;
+    PHYSFS_uint32 count;
+} OpenStepMutex;
+
+void *__PHYSFS_platformGetThreadID(void) { return (void *)cthread_self(); }
+void *__PHYSFS_platformCreateMutex(void)
+{
+    OpenStepMutex *m = (OpenStepMutex *)allocator.Malloc(sizeof(*m));
+    BAIL_IF(!m, PHYSFS_ERR_OUT_OF_MEMORY, NULL);
+    m->lock = mutex_alloc();
+    if (!m->lock) { allocator.Free(m); BAIL(PHYSFS_ERR_OUT_OF_MEMORY, NULL); }
+    m->owner = NULL; m->count = 0;
+    return m;
+}
+void __PHYSFS_platformDestroyMutex(void *mutex)
+{
+    OpenStepMutex *m = (OpenStepMutex *)mutex;
+    if (m->owner == cthread_self() && m->count) mutex_unlock(m->lock);
+    mutex_free(m->lock); allocator.Free(m);
+}
+int __PHYSFS_platformGrabMutex(void *mutex)
+{
+    OpenStepMutex *m = (OpenStepMutex *)mutex;
+    if (m->owner != cthread_self()) { mutex_lock(m->lock); m->owner = cthread_self(); }
+    ++m->count; return 1;
+}
+void __PHYSFS_platformReleaseMutex(void *mutex)
+{
+    OpenStepMutex *m = (OpenStepMutex *)mutex;
+    assert(m->owner == cthread_self() && m->count);
+    if (!--m->count) { m->owner = NULL; mutex_unlock(m->lock); }
+}
+#else
 typedef struct
 {
     pthread_mutex_t mutex;
@@ -410,8 +454,8 @@ void __PHYSFS_platformReleaseMutex(void *mutex)
         } /* if */
     } /* if */
 } /* __PHYSFS_platformReleaseMutex */
+#endif
 
 #endif  /* PHYSFS_PLATFORM_POSIX */
 
 /* end of physfs_platform_posix.c ... */
-

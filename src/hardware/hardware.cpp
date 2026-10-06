@@ -348,28 +348,28 @@ void OPL_SaveRawEvent(bool pressed), SetGameState_Run(int value), ResolvePath(st
 #define WAVE_BUF 16*1024
 #define MIDI_BUF 4*1024
 
-static struct {
+static struct CaptureBuffers {
 	struct {
 		riff_wav_writer *writer;
 		int16_t buf[WAVE_BUF][2];
 		Bitu used;
 		uint32_t length;
 		uint32_t freq;
-    } wave = {};
+    } wave;
     struct {
         avi_writer  *writer;
 		Bitu		audiorate;
         std::map<std::string,size_t> name_to_stream_index;
-    } multitrack_wave = {};
+    } multitrack_wave;
 	struct {
 		FILE * handle;
 		uint8_t buffer[MIDI_BUF];
 		Bitu used,done;
 		uint32_t last;
-    } midi = {};
+    } midi;
 	struct {
 		Bitu rowlen;
-    } image = {};
+    } image;
 #if (C_SSHOT) || (C_AVCODEC)
 	struct {
 		avi_writer	*writer;
@@ -384,8 +384,13 @@ static struct {
 		float		fps;
 		int		bufSize;
 		void		*buf;
-    } video = {};
+    } video;
 #endif
+    CaptureBuffers() : wave(), multitrack_wave(), midi(), image()
+#if (C_SSHOT) || (C_AVCODEC)
+        , video()
+#endif
+    {}
 } capture;
 
 #if (C_AVCODEC)
@@ -547,7 +552,7 @@ std::string GetCaptureFilePath(const char * type,const char * ext) {
 		dir=open_directory(capturedir.c_str());
 		if(!dir) {
 			LOG_MSG("Can't open dir %s for capturing %s",capturedir.c_str(),type);
-			return {};
+			return std::string();
 		}
 	}
 	strcpy(file_start,RunningProgram.c_str());
@@ -579,7 +584,7 @@ FILE * OpenCaptureFile(const char * type,const char * ext) {
     if (!strcmp(type, "Parallel Port Stream")) pathprt = "";
 	if(capturedir.empty()) {
 		LOG_MSG("Please specify a capture directory");
-		return nullptr;
+		return NULL;
 	}
 
 	Bitu last=0;
@@ -593,7 +598,7 @@ FILE * OpenCaptureFile(const char * type,const char * ext) {
 		dir=open_directory(capturedir.c_str());
 		if(!dir) {
 			LOG_MSG("Can't open dir %s for capturing %s",capturedir.c_str(),type);
-			return nullptr;
+			return NULL;
 		}
 	}
 	strcpy(file_start,RunningProgram.c_str());
@@ -980,7 +985,7 @@ void CAPTURE_AddImage(Bitu width, Bitu height, Bitu bpp, Bitu pitch, Bitu flags,
 			png_write_row(png_ptr, (png_bytep)rowPointer);
 		}
 		/* Finish writing */
-		png_write_end(png_ptr, nullptr);
+		png_write_end(png_ptr, NULL);
 		/*Destroy PNG structs*/
 		png_destroy_write_struct(&png_ptr, &info_ptr);
 		/*close file*/
@@ -1838,7 +1843,7 @@ void Capture_WritePacket(bool /*send*/,const unsigned char *buf,size_t len) {
 			return;
 		}
 
-		static_assert( sizeof(pcap_hdr_struct_t) == 24, "pcap struct error" );
+		DBX_STATIC_ASSERT( sizeof(pcap_hdr_struct_t) == 24, "pcap struct error" );
 
 		pcap_hdr_struct_t p;
 
@@ -2092,7 +2097,7 @@ void CAPTURE_MidiEvent(bool pressed) {
 		fwrite(&size,1,4,capture.midi.handle);
 		fclose(capture.midi.handle);
 		if (show_recorded_filename && pathmid.size()) systemmessagebox("Recording completed",("Saved MIDI output to the file:\n\n"+pathmid).c_str(),"ok", "info", 1);
-		capture.midi.handle = nullptr;
+		capture.midi.handle = NULL;
 		CaptureState &= ~((unsigned int)CAPTURE_MIDI);
 		mainMenu.get_item("mapper_caprawmidi").check(false).refresh_item(mainMenu);
 		return;
@@ -2103,7 +2108,7 @@ void CAPTURE_MidiEvent(bool pressed) {
 		LOG_MSG("Preparing for raw midi capture, will start with first data.");
 		capture.midi.used=0;
 		capture.midi.done=0;
-		capture.midi.handle = nullptr;
+		capture.midi.handle = NULL;
 	} else {
 		LOG_MSG("Stopped capturing raw midi before any data arrived.");
 	}
@@ -2205,7 +2210,9 @@ void CAPTURE_Init() {
         mainMenu.get_item("browsesavefile").enable(use_save_file);
         std::string slot="";
         for (int i=0; i<=9; i++) {
-            slot="slot"+std::to_string(i);
+            char name[16];
+            snprintf(name, sizeof(name), "slot%d", i);
+            slot = name;
             mainMenu.get_item(slot).enable(!use_save_file).refresh_item(mainMenu);
         }
     }
@@ -2215,7 +2222,9 @@ void CAPTURE_Init() {
         autosave_name[i] = "";
         autosave_start[i] = autosave_end[i] = 0;
         autosave_last[i] = -1;
-        ParseAutoSaveArg(prop->GetSection()->Get_string("arg"+std::to_string(i)));
+        char name[16];
+        snprintf(name, sizeof(name), "arg%d", i);
+        ParseAutoSaveArg(prop->GetSection()->Get_string(name));
     }
     enable_autosave = autosave_second>0;
     if (autosave_second<0) autosave_second=-autosave_second;

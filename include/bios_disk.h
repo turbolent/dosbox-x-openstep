@@ -73,7 +73,11 @@ extern const uint8_t freedos_mbr[];
 
 /* BIOS INT 13h status/error codes, as returned by disk sector I/O and placed in
  * register AH by the INT 13h handler. Values match the classic PC BIOS. */
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 enum class Int13Status : uint8_t {
+#else
+struct Int13Status { enum Value {
+#endif
     NoError             = 0x00,  // Could not use "Success" as xlib defines a macro with the same name
     BadCommand          = 0x01,  // invalid function / parameter
     AddressMarkNotFound = 0x02,
@@ -90,6 +94,15 @@ enum class Int13Status : uint8_t {
     DriveNotReady       = 0xAA,  // drive not ready / no media present
     SenseFailed         = 0xFF,
 };
+#if __cplusplus < 201103L && (!defined(_MSC_VER) || _MSC_VER < 1900)
+    uint8_t value;
+    Int13Status() : value(NoError) {}
+    Int13Status(Value v) : value(v) {}
+    explicit Int13Status(uint8_t v) : value(v) {}
+    operator uint8_t() const { return value; }
+};
+#endif
+DBX_STATIC_ASSERT(sizeof(Int13Status) == 1, "INT 13h status must remain one byte");
 
 class imageDisk {
 	public:
@@ -125,38 +138,38 @@ class imageDisk {
 		imageDisk(FILE* diskimg, const char* diskName, uint32_t cylinders, uint32_t heads, uint32_t sectors, uint32_t sector_size, bool hardDrive);
 		virtual ~imageDisk();
 		void Set_GeometryForHardDisk();
-		struct fatFromDOSDrive* ffdd = NULL;
-		unsigned int drvnum = DOS_DRIVES;
+		struct fatFromDOSDrive* ffdd;
+		unsigned int drvnum;
 
-		IMAGE_TYPE class_id = ID_BASE;
+		IMAGE_TYPE class_id;
 		std::string diskname;
-		bool active = false;
-		uint32_t sector_size = 512;
-		uint32_t heads = 0;
-		uint32_t cylinders = 0;
-		uint32_t sectors = 0;
-		bool hardDrive = false;
-		uint64_t diskSizeK = 0;
-		FILE* diskimg = NULL;
-		bool diskChangeFlag = false;
-        uint64_t LBA = 0;
+		bool active;
+		uint32_t sector_size;
+		uint32_t heads;
+		uint32_t cylinders;
+		uint32_t sectors;
+		bool hardDrive;
+		uint64_t diskSizeK;
+		FILE* diskimg;
+		bool diskChangeFlag;
+        uint64_t LBA;
 
 		/* this is intended only for when the disk can change out from under us while mounted */
 		virtual bool detectDiskChange(void) { const bool r = diskChangeFlag; diskChangeFlag = false; return r; }
 
 	protected:
 		imageDisk(IMAGE_TYPE class_id);
-		uint8_t floppytype = 0;
+		uint8_t floppytype;
 
 	public:
-		uint32_t reserved_cylinders = 0;
-		uint64_t image_base = 0;
-		uint64_t image_length = 0;
+		uint32_t reserved_cylinders;
+		uint64_t image_base;
+		uint64_t image_length;
 
 	private:
-		volatile int refcount = 0;
+		volatile int refcount;
 		std::vector<bool> partition_in_use; /* used by FAT driver to prevent mounting a partition twice */
-		uint64_t current_fpos = 0;
+		uint64_t current_fpos;
 
 	public:
 		int Addref() {
@@ -193,10 +206,10 @@ class imageDisk {
 
 class imageDiskMemory : public imageDisk {
 public:
-	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override;
-	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) override;
-	uint8_t GetBiosType(void) override;
-	void Set_Geometry(uint32_t setHeads, uint32_t setCyl, uint32_t setSect, uint32_t setSectSize) override;
+	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) DBX_OVERRIDE;
+	uint8_t GetBiosType(void) DBX_OVERRIDE;
+	void Set_Geometry(uint32_t setHeads, uint32_t setCyl, uint32_t setSect, uint32_t setSectSize) DBX_OVERRIDE;
 	// Partition and format the ramdrive
 	virtual uint8_t Format();
 
@@ -218,15 +231,15 @@ private:
 	uint32_t sectors_per_chunk;
 	uint32_t chunk_size;
 	uint32_t total_chunks;
-    uint32_t total_sectors = 0;
-    imageDisk* underlyingImage = NULL;
+    uint32_t total_sectors;
+    imageDisk* underlyingImage;
 
 	diskGeo floppyInfo;
 };
 
 class imageDiskVHD : public imageDisk {
 public:
-	enum ErrorCodes : int
+	enum ErrorCodes
 	{
 		OPEN_SUCCESS = 0,
 		ERROR_OPENING = 1,
@@ -244,7 +257,7 @@ public:
 		PARENT_INVALID_MATCH = 0x14,
 		PARENT_INVALID_DATE = 0x15
 	};
-	enum VHDTypes : uint32_t
+	enum VHDTypes
 	{
 		VHD_TYPE_NONE = 0,
 		VHD_TYPE_FIXED = 2,
@@ -285,12 +298,13 @@ public:
         uint32_t blockSize;
         float vhdSizeMB;
         uint32_t vhdType;
-        VHDInfo *parentInfo = NULL;
+        VHDInfo *parentInfo;
+        VHDInfo() : allocatedBlocks(0), totalBlocks(0), blockSize(0), vhdSizeMB(0), vhdType(0), parentInfo(NULL) {}
         std::string diskname;
     };
-    VHDTypes vhdType = VHD_TYPE_NONE;
-	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override;
-	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) override;
+    VHDTypes vhdType;
+	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) DBX_OVERRIDE;
 	static ErrorCodes Open(const char* fileName, const bool readOnly, imageDisk** disk);
 	static VHDTypes GetVHDType(const char* fileName);
 	VHDTypes GetVHDType(void) const;
@@ -340,7 +354,12 @@ private:
         void SetDefaults();
     };
 
-	imageDiskVHD() : imageDisk(ID_VHD) { }
+	imageDiskVHD() : imageDisk(ID_VHD), vhdType(VHD_TYPE_NONE),
+        parentDisk(NULL), fixedDisk(NULL), footerPosition(0),
+        footer(), originalFooter(), copiedFooter(false),
+        dynamicHeader(), sectorsPerBlock(0), blockMapSectors(0),
+        blockMapSize(0), currentBlock(0xFFFFFFFF), currentBlockAllocated(false),
+        currentBlockSectorOffset(0), currentBlockDirtyMap(NULL) {}
     static ErrorCodes TryOpenParent(const char* childFileName, const ParentLocatorEntry& entry, const uint8_t* data, const uint32_t dataLength, imageDisk** disk, const uint8_t* uniqueId);
 	static ErrorCodes Open(const char* fileName, const bool readOnly, imageDisk** disk, const uint8_t* matchUniqueId);
 	virtual bool loadBlock(const uint32_t blockNumber);
@@ -348,27 +367,29 @@ private:
     bool is_zeroed_sector(const void* data);
 	bool is_block_allocated(uint32_t blockNumber);
 
-    imageDisk* parentDisk = NULL;
-    imageDisk* fixedDisk = NULL;
-	uint64_t footerPosition = 0;
-    VHDFooter footer = {};
-    VHDFooter originalFooter = {};
-    bool copiedFooter = false;
-    DynamicHeader dynamicHeader = {};
-	uint32_t sectorsPerBlock = 0;
-	uint32_t blockMapSectors = 0;
-	uint32_t blockMapSize = 0;
-	uint32_t currentBlock = 0xFFFFFFFF;
-    bool currentBlockAllocated = false;
-	uint32_t currentBlockSectorOffset = 0;
-	uint8_t* currentBlockDirtyMap = nullptr;
+    imageDisk* parentDisk;
+    imageDisk* fixedDisk;
+	uint64_t footerPosition;
+    VHDFooter footer;
+    VHDFooter originalFooter;
+    bool copiedFooter;
+    DynamicHeader dynamicHeader;
+	uint32_t sectorsPerBlock;
+	uint32_t blockMapSectors;
+	uint32_t blockMapSize;
+	uint32_t currentBlock;
+    bool currentBlockAllocated;
+	uint32_t currentBlockSectorOffset;
+	uint8_t* currentBlockDirtyMap;
     //uint64_t image_length = 0;
 };
 
 /* PC-98 IPL1 partition table entry.
  * Taken from GNU Parted source code.
  * Maximum 16 entries. */
+#ifdef _MSC_VER
 #pragma pack(push,1)
+#endif
 struct _PC98RawPartition {
 	uint8_t		mid;		/* 0x00: unused, 0x20: MS-DOS(not bootable), 0xa1-0xaf: MS-DOS(bootable) */
 	uint8_t		sid;		/* 0x00: unused, 0x81,0x91,0xa1,0xe1: MS-DOS(active), 0x01,0x11,0x21,0x61: MS-DOS(sleep) */
@@ -384,7 +405,7 @@ struct _PC98RawPartition {
 	uint8_t		end_head;	/* end head */
 	uint16_t	end_cyl;	/* end cylinder */
 	char		name[16];
-};
+} DBX_PACKED;
 
 struct partTable {
 	uint8_t booter[446];
@@ -395,7 +416,7 @@ struct partTable {
 		uint8_t endchs[3];
 		uint32_t absSectStart;
 		uint32_t partSize;
-	} pentry[4];
+	} DBX_PACKED pentry[4];
 	uint8_t  magic1; /* 0x55 */
 	uint8_t  magic2; /* 0xaa */
 #ifndef SECTOR_SIZE_MAX
@@ -404,8 +425,15 @@ struct partTable {
 #if SECTOR_SIZE_MAX > 512
     uint8_t  extra[SECTOR_SIZE_MAX - 512];
 #endif
-};
+} DBX_PACKED;
+#ifdef _MSC_VER
 #pragma pack(pop)
+#endif
+DBX_STATIC_ASSERT(sizeof(_PC98RawPartition) == 32, "PC98 partition layout");
+DBX_STATIC_ASSERT(sizeof(partTable::partentry_t) == 16, "MBR entry layout");
+DBX_STATIC_ASSERT(offsetof(partTable,pentry) == 446, "MBR partition offset");
+DBX_STATIC_ASSERT(offsetof(partTable,magic1) == 510, "MBR signature offset");
+DBX_STATIC_ASSERT(sizeof(partTable) == SECTOR_SIZE_MAX, "MBR sector size");
 
 void updateDPT(void);
 void incrementFDD(void);

@@ -124,9 +124,10 @@ imageDiskTeledisk::td0entry *imageDiskTeledisk::findSector(uint8_t head,uint8_t 
 }
 
 const imageDiskTeledisk::td0entry *imageDiskTeledisk::findSector(uint8_t head,uint8_t track,uint8_t sector,unsigned int req_sector_size) const {
-    const td0entry *best = nullptr;
+    const td0entry *best = NULL;
 
-    for (const auto &entry : dents) {
+    for (std::vector<td0entry>::const_iterator ei = dents.begin(); ei != dents.end(); ++ei) {
+        const td0entry &entry = *ei;
         if (entry.phys_head != head || entry.phys_track != track || entry.phys_sector != sector)
             continue;
         if (req_sector_size != ~0U && req_sector_size != 0 && entry.sector_size != req_sector_size)
@@ -139,7 +140,7 @@ const imageDiskTeledisk::td0entry *imageDiskTeledisk::findSector(uint8_t head,ui
 }
 
 Int13Status imageDiskTeledisk::Read_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,void * data,unsigned int req_sector_size) {
-    const auto* ent = findSector((uint8_t)head, (uint8_t)cylinder, (uint8_t)sector, req_sector_size);
+    const td0entry* ent = findSector((uint8_t)head, (uint8_t)cylinder, (uint8_t)sector, req_sector_size);
 
     if (!ent || !ent->has_data)
         return Int13Status::SectorNotFound;
@@ -290,12 +291,12 @@ imageDiskTeledisk::imageDiskTeledisk(FILE *imgFile, const char *imgName, uint32_
                 if (data_block_size < 1U)
                     return;
 
-                const auto encoded_size = (uint16_t)(data_block_size - 1U);
+                const uint16_t encoded_size = (uint16_t)(data_block_size - 1U);
                 std::vector<uint8_t> encoded(encoded_size);
                 if (encoded_size != 0 && fread(encoded.data(),1,encoded_size,diskimg) != encoded_size)
                     return;
 
-                const auto method =
+                const imageDiskTeledisk::sector_encoding_method method =
                     static_cast<imageDiskTeledisk::sector_encoding_method>(data_header.method);
 
                 ent.has_data = td0_decode_sector_data(method, encoded, ent.sector_size, ent.data);
@@ -323,7 +324,8 @@ imageDiskTeledisk::imageDiskTeledisk(FILE *imgFile, const char *imgName, uint32_
         uint16_t max_cylinder = 0;
         uint16_t max_head = 0;
 
-        for (const auto &entry : dents) {
+        for (std::vector<td0entry>::const_iterator ei = dents.begin(); ei != dents.end(); ++ei) {
+        const td0entry &entry = *ei;
             max_cylinder = std::max<int>(entry.phys_track, max_cylinder);
 
             if (entry.phys_track != 0)
@@ -359,6 +361,6 @@ imageDiskTeledisk::imageDiskTeledisk(FILE *imgFile, const char *imgName, uint32_
 imageDiskTeledisk::~imageDiskTeledisk() {
     if (diskimg) {
         fclose(diskimg);
-        diskimg = nullptr;
+        diskimg = NULL;
     }
 }

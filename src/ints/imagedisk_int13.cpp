@@ -231,7 +231,7 @@ bool imageDiskINT13Drive::detectDiskChange(void) {
 	return imageDisk::detectDiskChange();
 }
 
-imageDiskINT13Drive::imageDiskINT13Drive(imageDisk *sdisk) : imageDisk(ID_INT13) {
+imageDiskINT13Drive::imageDiskINT13Drive(imageDisk *sdisk) : imageDisk(ID_INT13), bios_disk(0), enable_int13(false), subdisk(NULL), busy(false) {
 	subdisk = sdisk;
 	subdisk->Addref();
 

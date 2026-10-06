@@ -121,7 +121,7 @@ typedef struct _emu_slot_channel_mapping
 
 } emu_slot_channel_mapping;
 
-typedef struct _esfm_slot_internal
+struct _esfm_slot_internal
 {
 	uint9 eg_position;
 	uint9 eg_ksl_offset;
@@ -150,7 +150,7 @@ typedef struct _esfm_slot_internal
 	uint16 eg_delay_counter;
 	uint16 eg_delay_counter_compare;
 
-} esfm_slot_internal;
+};
 
 struct _esfm_slot
 {

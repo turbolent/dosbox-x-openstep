@@ -41,7 +41,13 @@
 #include "support.h"
 #include "setup.h"
 #include "control.h"
+#if C_OPENSTEP
+#include "openstep/host.h"
+static void ShowHostCursor(bool visible) { OSVideoShowCursor(visible); }
+#else
 #include "SDL.h"
+static void ShowHostCursor(bool visible) { SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE); }
+#endif
 
 #if defined(_MSC_VER)
 # pragma warning(disable:4244) /* const fmath::local::uint64_t to double possible loss of data */
@@ -56,19 +62,19 @@ static int mickey_threshold = 0;
 #define VMWARE_PORTHB       0x5659u        // communication port, high bandwidth
 static Bitu PortRead(Bitu port, Bitu iolen);
 
-static constexpr uint32_t TYPE_STANDARD     = 0;
-static constexpr uint32_t TYPE_INTELLIMOUSE = 3;
+static const uint32_t TYPE_STANDARD     = 0;
+static const uint32_t TYPE_INTELLIMOUSE = 3;
 
-static constexpr uint32_t RATE_10  = 0; // sample rate 10 Hz
-static constexpr uint32_t RATE_20  = 1;
-static constexpr uint32_t RATE_40  = 2;
-static constexpr uint32_t RATE_60  = 3;
-static constexpr uint32_t RATE_80  = 4;
-static constexpr uint32_t RATE_100 = 5;
-static constexpr uint32_t RATE_200 = 6;
+static const uint32_t RATE_10  = 0; // sample rate 10 Hz
+static const uint32_t RATE_20  = 1;
+static const uint32_t RATE_40  = 2;
+static const uint32_t RATE_60  = 3;
+static const uint32_t RATE_80  = 4;
+static const uint32_t RATE_100 = 5;
+static const uint32_t RATE_200 = 6;
 
 // Unlock sequences taken from https://www.scs.stanford.edu/10wi-cs140/pintos/specs/kbd/scancodes-12.html
-static const std::vector<uint32_t> UNLOCK_SEQ_INTELLIMOUSE = { RATE_200, RATE_100, RATE_80 };
+static const uint32_t UNLOCK_SEQ_INTELLIMOUSE[] = { RATE_200, RATE_100, RATE_80 };
 
 /* ints/bios.cpp */
 void bios_enable_ps2();
@@ -326,7 +332,7 @@ void Mouse_PS2SetSamplingRate(uint8_t rate) {
 	mouse.ps2_rate = rate;
 	if (UNLOCK_SEQ_INTELLIMOUSE[mouse.ps2_unlock_idx]!=rate)
 		mouse.ps2_unlock_idx = 0;
-	else if (UNLOCK_SEQ_INTELLIMOUSE.size()==++mouse.ps2_unlock_idx) {
+	else if ((sizeof(UNLOCK_SEQ_INTELLIMOUSE)/sizeof(UNLOCK_SEQ_INTELLIMOUSE[0]))==++mouse.ps2_unlock_idx) {
 			mouse.ps2_type=TYPE_INTELLIMOUSE;
 			mouse.ps2_unlock_idx=0;
 	}
@@ -711,7 +717,7 @@ void PC98_ChangeMouseFunction(bool nec)
 void DrawCursor() {
     if (mouse.hidden || mouse.inhibit_draw) return;
     if (usesystemcursor&&!MOUSE_IsLocked()) {
-        SDL_ShowCursor(SDL_ENABLE);
+        ShowHostCursor(true);
         return;
     }
     INT10_SetCurMode();
@@ -945,8 +951,8 @@ void Mouse_CursorMoved(float xrel,float yrel,float x,float y,bool emulate) {
     }
     if (!emu)
     {
-        auto x1 = (double)user_cursor_x / ((double)user_cursor_sw - 1);
-        auto y1 = (double)user_cursor_y / ((double)user_cursor_sh - 1);
+        double x1 = (double)user_cursor_x / ((double)user_cursor_sw - 1);
+        double y1 = (double)user_cursor_y / ((double)user_cursor_sh - 1);
         mouse.x       = x1 * mouse.max_screen_x;
         mouse.y       = y1 * mouse.max_screen_y;
 
@@ -993,10 +999,10 @@ uint8_t Mouse_GetButtonState(void) {
 char text[5000];
 extern std::list<uint16_t> bdlist;
 extern bool isDBCSCP();
-extern std::vector<std::pair<int,int>> jtbs, dbox;
+extern std::vector<std::pair<int,int> > jtbs, dbox;
 extern std::map<int, int> pc98boxdrawmap;
 const char* Mouse_GetSelected(int x1, int y1, int x2, int y2, int w, int h, uint16_t *textlen) {
-    bdlist = {};
+    bdlist.clear();
 	uint16_t result=0, len=0;
 	uint8_t page = real_readb(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
 	uint16_t c=0, r=0;
@@ -1077,7 +1083,7 @@ const char* Mouse_GetSelected(int x1, int y1, int x2, int y2, int w, int h, uint
                 if (!result || (result == 0xFE && j && mem_readw(where-2) == 0)) result = 32;
                 if ((result & 0xFF00u) != 0u && (result & 0x7Cu) == 0x08u && (result%0xff) - (result/0x100) == 0xB) {
                     uint8_t val = result/0x100+31;
-                    for (auto it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
+                    for (std::map<int, int>::iterator it = pc98boxdrawmap.begin(); it != pc98boxdrawmap.end(); ++it)
                         if (it->second == val) {
                             text[len++]=it->first;
                             break;
@@ -1584,7 +1590,7 @@ void Mouse_Used(void) {
 }
 
 void Mouse_Read_Motion_Data() {
-    const auto locked = MOUSE_IsLocked();
+    const bool locked = MOUSE_IsLocked();
     reg_cx = (uint16_t)static_cast<int16_t>(locked ? mouse.mickey_x : 0);
     reg_dx = (uint16_t)static_cast<int16_t>(locked ? mouse.mickey_y : 0);
     mouse.mickey_x = 0;
@@ -1613,7 +1619,7 @@ static Bitu INT33_Handler(void) {
             else RestoreCursorBackgroundText();
             if (mouse.hidden == 0) mouse.hidden_at = PIC_FullIndex();
             mouse.hidden++;
-            if (usesystemcursor&&!MOUSE_IsLocked()) SDL_ShowCursor(SDL_DISABLE);
+            if (usesystemcursor&&!MOUSE_IsLocked()) ShowHostCursor(false);
         }
         break;
     case 0x03:  /* MS MOUSE v1.0+ - RETURN POSITION AND BUTTON STATUS */
@@ -2586,20 +2592,20 @@ bool MOUSE_HasInterruptSub()
 // Basic VMware tools support, based on documentation from https://wiki.osdev.org/VMware_tools
 // Mouse support tested using unofficial Windows 3.1 driver from https://github.com/NattyNarwhal/vmwmouse
 
-static constexpr uint32_t VMWARE_MAGIC           = 0x564D5868u;    // magic number for all VMware calls
+static const uint32_t VMWARE_MAGIC           = 0x564D5868u;    // magic number for all VMware calls
 
-static constexpr uint16_t CMD_GETVERSION         = 10u;
-static constexpr uint16_t CMD_ABSPOINTER_DATA    = 39u;
-static constexpr uint16_t CMD_ABSPOINTER_STATUS  = 40u;
-static constexpr uint16_t CMD_ABSPOINTER_COMMAND = 41u;
+static const uint16_t CMD_GETVERSION         = 10u;
+static const uint16_t CMD_ABSPOINTER_DATA    = 39u;
+static const uint16_t CMD_ABSPOINTER_STATUS  = 40u;
+static const uint16_t CMD_ABSPOINTER_COMMAND = 41u;
 
-static constexpr uint32_t ABSPOINTER_ENABLE      = 0x45414552u;
-static constexpr uint32_t ABSPOINTER_RELATIVE    = 0xF5u;
-static constexpr uint32_t ABSPOINTER_ABSOLUTE    = 0x53424152u;
+static const uint32_t ABSPOINTER_ENABLE      = 0x45414552u;
+static const uint32_t ABSPOINTER_RELATIVE    = 0xF5u;
+static const uint32_t ABSPOINTER_ABSOLUTE    = 0x53424152u;
 
-static constexpr uint8_t BUTTON_LEFT            = 0x20u;
-static constexpr uint8_t BUTTON_RIGHT           = 0x10u;
-static constexpr uint8_t BUTTON_MIDDLE          = 0x08u;
+static const uint8_t BUTTON_LEFT            = 0x20u;
+static const uint8_t BUTTON_RIGHT           = 0x10u;
+static const uint8_t BUTTON_MIDDLE          = 0x08u;
 
 volatile bool vmware_mouse     = false;  // if true, VMware compatible driver has taken over the mouse
 
@@ -2650,11 +2656,11 @@ static inline void CmdAbsPointerCommand() {
                 break;
         case ABSPOINTER_RELATIVE:
                 vmware_mouse = false;
-                if (!MOUSE_IsLocked()) SDL_ShowCursor(SDL_ENABLE);
+                if (!MOUSE_IsLocked()) ShowHostCursor(true);
                 break;
         case ABSPOINTER_ABSOLUTE:
                 vmware_mouse = true;
-                if (!MOUSE_IsLocked()) SDL_ShowCursor(SDL_DISABLE);
+                if (!MOUSE_IsLocked()) ShowHostCursor(false);
                 break;
         default:
                 LOG_MSG("VMWARE: unknown mouse subcommand 0x%08x", reg_ebx);
@@ -2816,7 +2822,7 @@ public:
 	{}
 
 private:
-	void getBytes(std::ostream& stream) override
+	void getBytes(std::ostream& stream) DBX_OVERRIDE
 	{
 		uint8_t screenMask_idx, cursorMask_idx;
 
@@ -2866,7 +2872,7 @@ private:
 		PC98_Mouse_SaveState( stream );
 	}
 
-	void setBytes(std::istream& stream) override
+	void setBytes(std::istream& stream) DBX_OVERRIDE
 	{
 		uint8_t screenMask_idx, cursorMask_idx;
 

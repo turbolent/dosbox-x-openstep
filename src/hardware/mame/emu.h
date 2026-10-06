@@ -72,7 +72,7 @@ public:
         (void)_device;
 	}
 
-	virtual ~device_sound_interface() noexcept = default;
+	virtual ~device_sound_interface() DBX_NOEXCEPT {}
 
 };
 

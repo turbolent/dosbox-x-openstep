@@ -469,7 +469,7 @@ public:
 
 class DescriptorTable {
 public:
-    virtual ~DescriptorTable() noexcept = default;
+    virtual ~DescriptorTable() DBX_NOEXCEPT {}
 
     LinearPt  GetBase         (void) const    { return table_base;    }
     Bitu    GetLimit        (void) const    { return table_limit;   }
@@ -538,8 +538,8 @@ public:
 		return true;
 	}
 
-	void SaveState( std::ostream& stream ) override;
-	void LoadState( std::istream& stream ) override;
+	void SaveState( std::ostream& stream ) DBX_OVERRIDE;
+	void LoadState( std::istream& stream ) DBX_OVERRIDE;
 
 private:
 	LinearPt ldt_base;
@@ -627,6 +627,7 @@ enum dyncore_alloc_t {
     DYNCOREALLOC_SHM_MMAP,          /* allocated as a file in shared memory (i.e. /dev/shm) using shmget */
     DYNCOREALLOC_MEMFD,             /* allocated with a Linux memfd handle */
     DYNCOREALLOC_VIRTUALALLOC,      /* allocated with VirtualAlloc() (in Windows) */
+    DYNCOREALLOC_MACH_VM,           /* OPENSTEP Mach vm_allocate/vm_protect */
 
     DYNCOREALLOC_MAX
 };

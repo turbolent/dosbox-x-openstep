@@ -21,7 +21,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <sys/stat.h>
+#if C_DEBUG
 #include <gtest/gtest.h>
+#endif
 
 #include "dosbox.h"
 #include "logging.h"
@@ -114,7 +116,7 @@ extern VideoModeBlock* CurMode;
 Bitu call_shellstop = 0;
 /* Larger scope so shell_del autoexec can use it to
  * remove things from the environment */
-DOS_Shell * first_shell = nullptr;
+DOS_Shell * first_shell = NULL;
 
 static Bitu shellstop_handler(void) {
 	return CBRET_STOP;
@@ -350,12 +352,23 @@ DOS_Shell::~DOS_Shell() {
 		shell_psp = 0;
 }
 
-DOS_Shell::DOS_Shell():Program(){
+static std::map<int, std::string> make_langcp_map() {
+    const int codepages[] = {437, 852, 857, 858, 859, 860, 866, 932, 936, 949, 950, 951};
+    const char *languages[] = {"en_US", "hu_HU", "tr_TR", "es_ES", "fr_FR", "pt_BR",
+        "ru_RU", "ja_JP", "zh_CN", "ko_KR", "zh_TW", "zh_TW"};
+    std::map<int, std::string> result;
+    for (unsigned i = 0; i < sizeof(codepages) / sizeof(codepages[0]); ++i)
+        result[codepages[i]] = languages[i];
+    return result;
+}
+const std::map<int, std::string> langcp_map = make_langcp_map();
+
+DOS_Shell::DOS_Shell():Program(), free_your_own_psp(false), config_shell(false){
 	input_handle=STDIN;
 	echo=true;
 	exit=false;
 	perm = false;
-	bf = nullptr;
+	bf = NULL;
 	call=false;
 	exec=false;
 	lfnfor = uselfn;
@@ -459,10 +472,10 @@ Bitu DOS_Shell::GetRedirection(char *s, char **ifn, char **ofn, char **toc,bool 
 
 class device_TMP : public DOS_Device {
 public:
-    std::string str = "";
-    unsigned long long curpos = 0;
-	device_TMP(char *name) { SetName(name); };
-	bool Read(uint8_t * data,uint16_t * size) override {
+    std::string str;
+    unsigned long long curpos;
+	device_TMP(char *name) : curpos(0) { SetName(name); };
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE {
         int i;
         for (i=0; i<*size; i++) {
             if (curpos+i>=str.size()) break;
@@ -471,11 +484,11 @@ public:
 		*size = i;
 		return true;
 	}
-	bool Write(const uint8_t * data,uint16_t * size) override {
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE {
         for (int i=0; i<*size; i++) str += std::string(1, data[i]);
 		return true;
 	}
-	bool Seek(uint32_t * pos,uint32_t type) override {
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE {
 		switch (type) {
             case 0:
                 curpos = *pos;
@@ -493,10 +506,10 @@ public:
 		if (curpos > str.size()) curpos = str.size();
 		return true;
 	}
-	bool Close() override { return true; }
-	uint16_t GetInformation(void) override { return (RunningProgram == "WCLIP" ? 0 : DeviceInfoFlags::Device) | DeviceInfoFlags::EofOnInput; }
-	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
-	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool Close() DBX_OVERRIDE { return true; }
+	uint16_t GetInformation(void) DBX_OVERRIDE { return (RunningProgram == "WCLIP" ? 0 : DeviceInfoFlags::Device) | DeviceInfoFlags::EofOnInput; }
+	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
+	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE { (void)bufptr; (void)size; (void)retcode; return false; }
 };
 
 void DOS_Shell::ParseLine(char * line) {
@@ -507,9 +520,9 @@ void DOS_Shell::ParseLine(char * line) {
 
 	/* Do redirection and pipe checks */
 
-	char * in  = nullptr;
-	char * out = nullptr;
-	char * toc = nullptr;
+	char * in  = NULL;
+	char * out = NULL;
+	char * toc = NULL;
 
 	uint16_t dummy,dummy2;
 	uint32_t bigdummy = 0;
@@ -567,7 +580,7 @@ void DOS_Shell::ParseLine(char * line) {
 		}
 
 		// Ensure the path ends with backslash
-		if(!tempPath.empty() && tempPath.back() != '\\') {
+                if(!tempPath.empty() && tempPath[tempPath.size() - 1] != '\\') {
 			tempPath += '\\';
 		}
 
@@ -694,7 +707,7 @@ void DOS_Shell::ParseLine(char * line) {
 		if (out) free(out);
 	}
 	if (toc) {
-		if(tmpdev != nullptr) {
+		if(tmpdev != NULL) {
 			std::string path(pipetmp);
 			size_t lastSlash = path.find_last_of("\\/");
 			if(lastSlash != std::string::npos)
@@ -892,7 +905,11 @@ void GetExpandedPath(std::string &path) {
 void showWelcome(Program *shell) {
     /* Start a normal shell and check for a first command init */
     ansiinstalled = is_ANSI_installed(shell);
+#if C_OPENSTEP
+    std::string verstr = "v" + std::string(VERSION) + ", OPENSTEP Intel 32-bit";
+#else
     std::string verstr = "v"+std::string(VERSION)+", "+OS_PLATFORM_LONG+" "+SDL_STRING+" " + OS_BIT + "-bit";
+#endif
     if (machine == MCH_PC98) {
         shell->WriteOut(ParseMsg("\x86\x52\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44"
             "\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44\x86\x44"
@@ -1020,11 +1037,11 @@ void DOS_Shell::Prepare(void) {
 			else {
 				const char *layout = DOS_GetLoadedLayout();
 				if (layout == NULL)
-					countryNo = COUNTRYNO::United_States;
+					countryNo = United_States;
 				else if (country_code_map.find(layout) != country_code_map.end())
 					countryNo = country_code_map.find(layout)->second;
 				else
-					countryNo = COUNTRYNO::United_States;
+					countryNo = United_States;
 				DOS_SetCountry(countryNo);
 			}
 		}
@@ -1335,8 +1352,9 @@ public:
         if (!control->auto_bat_additional.empty()) {
             std::string cmd = "@echo off\n";
 
-            decltype(control->auto_bat_additional)::size_type ind = 0;
-            for (auto & str : control->auto_bat_additional) {
+            std::vector<std::string>::size_type ind = 0;
+            for (std::vector<std::string>::iterator si = control->auto_bat_additional.begin(); si != control->auto_bat_additional.end(); ++si) {
+                std::string &str = *si;
                 if (!control->opt_prerun) cmd += "\n";
                 if (!strncmp(str.c_str(), "@mount c: ", 10)) {
                     cmd += str+"\n";
@@ -1454,7 +1472,7 @@ public:
 		/* Check to see for extra command line options to be added (before the command specified on commandline) */
 		/* Maximum of extra commands: 10 */
 		Bitu i = 1;
-		for (auto it=control->opt_c.begin();i <= 11 && it!=control->opt_c.end();it++) /* -c switches */
+		for (std::vector<std::string>::const_iterator it=control->opt_c.begin();i <= 11 && it!=control->opt_c.end();it++) /* -c switches */
 			autoexec[i++].Install(*it);
 
 		/* Check for the -exit switch which causes dosbox to when the command on the commandline has finished */
@@ -1539,7 +1557,7 @@ public:
 #endif
 #if 0
 //#if defined(WIN32) && defined(USE_TTF) /* Workaround for TTF screen initialization */
-        if(static_cast<Section_prop*>(control->GetSection("sdl"))->Get_string("output")=="ttf") {
+        if(static_cast<Section_prop*>(control->GetFrontendSection())->Get_string("output")=="ttf") {
             autoexec[i++].Install("@config -set output=surface");
             autoexec[i++].Install("@config -set output=ttf");
         }
@@ -1566,7 +1584,7 @@ static void AUTOEXEC_ShutDown(Section * sec) {
 	}
 	if (first_shell != NULL) {
 		delete first_shell;
-		first_shell = nullptr;//Make clear that it shouldn't be used anymore
+		first_shell = NULL;//Make clear that it shouldn't be used anymore
 	}
 	if (call_shellstop != 0) {
 		CALLBACK_DeAllocate(call_shellstop);
@@ -1773,19 +1791,37 @@ void SHELL_MessagesInit() {
 	MSG_Add("SHELL_STARTUP_INFO_PC98","\033[36mDOSBox-X is now running in \033[32mJapanese NEC PC-98\033[36m emulation mode.\033[37m     ");
 	MSG_Add("SHELL_STARTUP_TEXT3_PC98", "\033[32mDOSBox-X project \033[33mhttps://dosbox-x.com/     \033[36mComplete DOS emulations\033[37m\n\033[32mDOSBox-X guide   \033[33mhttps://dosbox-x.com/wiki\033[37m \033[36mDOS, Windows 3.x and 9x\033[37m\n\033[32mDOSBox-X support \033[33mhttps://github.com/joncampbell123/dosbox-x/issues\033[37m");
 	MSG_Add("SHELL_STARTUP_HEAD1", "\033[36mGetting started with DOSBox-X:                                              \033[37m");
+#if C_OPENSTEP
+	MSG_Add("SHELL_STARTUP_TEXT1", "Type \033[32mHELP\033[37m to see the list of shell commands, \033[32mINTRO\033[37m for a brief introduction.\n"
+			"Use the \033[33mOPENSTEP application menu\033[37m to mount drives and control the emulator. ");
+	MSG_Add("SHELL_STARTUP_EXAMPLE", "\033[32mExample\033[37m: Mount a folder, type \033[33mC:\033[37m, then run your DOS program.                ");
+#else
 	MSG_Add("SHELL_STARTUP_TEXT1", "Type \033[32mHELP\033[37m to see the list of shell commands, \033[32mINTRO\033[37m for a brief introduction.\nYou can also complete various tasks in DOSBox-X through the \033[33mdrop-down menus\033[37m.");
 	MSG_Add("SHELL_STARTUP_EXAMPLE", "\033[32mExample\033[37m: Try select the \033[33mTrueType font\033[37m or \033[33mOpenGL pixel-perfect\033[37m output option.");
+#endif
 	MSG_Add("SHELL_STARTUP_HEAD2", "\033[36mUseful default shortcuts:                                                   \033[37m");
+#if C_OPENSTEP
+	MSG_Add("SHELL_STARTUP_TEXT2", "- \033[31mCommand+F\033[37m switches fullscreen; \033[31mCommand+R\033[37m resets the emulated computer.    \n"
+			"- \033[31mCtrl+F10\033[37m captures/releases the mouse; \033[31mCtrl+F9\033[37m quits DOSBox-X.             \n"
+			"- Use \033[32mCONFIG\033[37m to change settings, or \033[32mCONFIG -writeconf\033[37m to save them.         ");
+#else
 	MSG_Add("SHELL_STARTUP_TEXT2", (std::string("- switch between windowed and full-screen mode with key combination \033[31m")+(default_host+" \033[37m+ \033[31mF\033[37m                        ").substr(0,23)+std::string("\033[37m\n") +
 				std::string("- launch \033[33mConfiguration Tool\033[37m using \033[31m")+(default_host+" \033[37m+ \033[31mC\033[37m                      ").substr(0,22)+std::string("\033[37m, and \033[33mMapper Editor\033[37m using \033[31m")+(default_host+" \033[37m+ \033[31mM\033[37m                     ").substr(0,24)+std::string("\033[37m\n") +
 				std::string("- increase or decrease the emulation speed with \033[31m")+(default_host+" \033[37m+ \033[31mPlus\033[37m      ").substr(0,25)+std::string("\033[37m or \033[31m") +
 				(default_host+" \033[37m+ \033[31mMinus\033[37m       ").substr(0,29)+std::string("\033[37m")).c_str());
+#endif
 	MSG_Add("SHELL_STARTUP_DOSV","\033[32mDOS/V mode\033[37m is now active. Try also \033[32mTTF CJK mode\033[37m for a general DOS emulation.");
 	MSG_Add("SHELL_STARTUP_CGA", "Composite CGA mode is supported. Use \033[31mCtrl+F8\033[37m to set composite output ON/OFF.\nUse \033[31mCtrl+Shift+[F7/F8]\033[37m to change hue; \033[31mCtrl+F7\033[37m selects early/late CGA model. ");
 	MSG_Add("SHELL_STARTUP_CGA_MONO","Use \033[31mCtrl+F7\033[37m to cycle through green, amber, and white monochrome color,      \nand \033[31mCtrl+F8\033[37m to change contrast/brightness settings.                         ");
 	MSG_Add("SHELL_STARTUP_HERC","Use \033[31mCtrl+F7\033[37m to cycle through white, amber, and green monochrome color.      \nUse \033[31mCtrl+F8\033[37m to toggle horizontal blending (only in graphics mode).          ");
 	MSG_Add("SHELL_STARTUP_HEAD3", "\033[36mDOSBox-X project on the web:                                                \033[37m");
+#if C_OPENSTEP
+	MSG_Add("SHELL_STARTUP_TEXT3", "\033[32mHomepage of project\033[37m: \033[33mhttps://dosbox-x.com/\033[37m                                  \n"
+			"\033[32mUser guides on Wiki\033[37m: \033[33mhttps://dosbox-x.com/wiki\033[37m                              \n"
+			"Experimental OPENSTEP port: see README.txt in the application bundle.       ");
+#else
 	MSG_Add("SHELL_STARTUP_TEXT3", "\033[32mHomepage of project\033[37m: \033[33mhttps://dosbox-x.com/           \033[36mComplete DOS emulations\033[37m\n\033[32mUser guides on Wiki\033[37m: \033[33mhttps://dosbox-x.com/wiki\033[32m       \033[36mDOS, Windows 3.x and 9x\033[37m\n\033[32mIssue or suggestion\033[37m: \033[33mhttps://github.com/joncampbell123/dosbox-x/issues      \033[37m");
+#endif
 	MSG_Add("SHELL_STARTUP_LAST", "HAVE FUN WITH DOSBox-X !");
 
 	MSG_Add("SHELL_CMD_BREAK_HELP","Sets or clears extended CTRL+C checking.\n");
@@ -2077,8 +2113,8 @@ void SHELL_Init() {
 	// can properly allocate memory.
 	dos.psp(8);
 
-	auto savedMemAllocStrategy = DOS_GetMemAllocStrategy();
-	auto shellHigh = std::string(static_cast<Section_prop*>(control->GetSection("dos"))->Get_string("shellhigh"));
+	uint16_t savedMemAllocStrategy = DOS_GetMemAllocStrategy();
+	std::string shellHigh = std::string(static_cast<Section_prop*>(control->GetSection("dos"))->Get_string("shellhigh"));
 	if (shellHigh=="true" || shellHigh=="1" ||
 			(shellHigh=="auto" && dos.version.major >= 7))
 	{
@@ -2285,7 +2321,7 @@ void SHELL_Run() {
 	try {
 		first_shell->Run();
 		delete first_shell;
-		first_shell = nullptr;//Make clear that it shouldn't be used anymore
+		first_shell = NULL;//Make clear that it shouldn't be used anymore
 		prepared = false;
 		dos_shell_running_program = false;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU
@@ -2294,7 +2330,7 @@ void SHELL_Run() {
 	}
 	catch (...) {
 		delete first_shell;
-		first_shell = nullptr;//Make clear that it shouldn't be used anymore
+		first_shell = NULL;//Make clear that it shouldn't be used anymore
 		prepared = false;
 		dos_shell_running_program = false;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU
@@ -2306,8 +2342,9 @@ void SHELL_Run() {
 
 #if !defined(OSFREE)
 struct ConfigShell_Entry {
-	bool		debugbreak = false; // break into debugger before running program or loading device driver
-	bool		echo = false; // echo program or device driver path/command on console
+    ConfigShell_Entry() : debugbreak(false), echo(false), type(NONE), drive(0) {}
+	bool		debugbreak; // break into debugger before running program or loading device driver
+	bool		echo; // echo program or device driver path/command on console
 
 	enum {
 		NONE=0,
@@ -2317,8 +2354,8 @@ struct ConfigShell_Entry {
 		NEXTDRIVE,
 	};
 
-	uint8_t		type = NONE;
-	uint8_t		drive = 0;
+	uint8_t		type;
+	uint8_t		drive;
 	std::string	path;
 	std::string	args;
 	std::string	cmd;
@@ -2370,7 +2407,7 @@ void DOS_ConfigShell::Run(void) {
 			const char *e = cfgstr;
 			while (e > b && *(e-1) == ' ') e--;
 			name = std::string(b,size_t(e-b));
-			for (auto &c : name) c = toupper(c);
+			for (std::string::iterator c = name.begin(); c != name.end(); ++c) *c = toupper((unsigned char)*c);
 		}
 
 		if (*cfgstr == '=') {
@@ -2439,7 +2476,8 @@ void DOS_ConfigShell::Run(void) {
 
 	if (false/*DEBUG*/) {
 		LOG_MSG("CONFIG.SYS devices parsing result");
-		for (const auto &e : entries) {
+		for (std::vector<ConfigShell_Entry>::const_iterator ei = entries.begin(); ei != entries.end(); ++ei) {
+            const ConfigShell_Entry &e = *ei;
 			if (e.type == ConfigShell_Entry::RUN) {
 				LOG_MSG(" - dbgbrk=%u echo=%u RUN '%s'",e.debugbreak,e.echo,e.cmd.c_str());
 			}
@@ -2454,7 +2492,8 @@ void DOS_ConfigShell::Run(void) {
 
 	shellrun=true;
 	char tmp[512];
-	for (auto &ent : entries) {
+	for (std::vector<ConfigShell_Entry>::iterator ei = entries.begin(); ei != entries.end(); ++ei) {
+        ConfigShell_Entry &ent = *ei;
 		if (ent.type == ConfigShell_Entry::RUN) {
 			if (ent.echo) WriteOut("RUNNING: RUN=%s",ent.cmd.c_str());
 			if (ent.debugbreak) snprintf(tmp,sizeof(tmp),"DEBUGBOX %s",ent.cmd.c_str());
@@ -2561,7 +2600,7 @@ void CONFIGSHELL_Init() {
 	// can properly allocate memory.
 	dos.psp(8);
 
-	auto savedMemAllocStrategy = DOS_GetMemAllocStrategy();
+	uint16_t savedMemAllocStrategy = DOS_GetMemAllocStrategy();
 	DOS_SetMemAllocStrategy(2/*last fit*/);
 
 	// COMMAND.COM main binary (including PSP and stack)
@@ -2732,7 +2771,7 @@ void CONFIGSHELL_Run() {
 	try {
 		first_shell->Run();
 		delete first_shell;
-		first_shell = nullptr;//Make clear that it shouldn't be used anymore
+		first_shell = NULL;//Make clear that it shouldn't be used anymore
 		prepared = false;
 		dos_shell_running_program = false;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU
@@ -2741,7 +2780,7 @@ void CONFIGSHELL_Run() {
 	}
 	catch (...) {
 		delete first_shell;
-		first_shell = nullptr;//Make clear that it shouldn't be used anymore
+		first_shell = NULL;//Make clear that it shouldn't be used anymore
 		prepared = false;
 		dos_shell_running_program = false;
 #if DOSBOXMENU_TYPE == DOSBOXMENU_HMENU

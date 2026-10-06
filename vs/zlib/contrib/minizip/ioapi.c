@@ -168,7 +168,11 @@ static long ZCALLBACK fseek_file_func(voidpf opaque, voidpf stream, uLong offset
     default: return -1;
     }
     ret = 0;
+#if C_OPENSTEP
+    if (OSHostSeek((FILE *)stream, (long long)offset, fseek_origin) != 0)
+#else
     if (fseek((FILE *)stream, (long)offset, fseek_origin) != 0)
+#endif
         ret = -1;
     return ret;
 }
@@ -192,7 +196,13 @@ static long ZCALLBACK fseek64_file_func(voidpf opaque, voidpf stream, ZPOS64_T o
     }
     ret = 0;
 
+#if C_OPENSTEP
+    /* Do not narrow to the native z_off64_t (32 bits) before checking. */
+    if (offset > 0x7fffffffULL) return -1;
+    if (OSHostSeek((FILE *)stream, (long long)offset, fseek_origin) != 0)
+#else
     if(FSEEKO_FUNC((FILE *)stream, (z_off64_t)offset, fseek_origin) != 0)
+#endif
                         ret = -1;
 
     return ret;

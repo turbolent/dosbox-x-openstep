@@ -18,8 +18,15 @@
 
 
 #include <string.h>
+#include <stdarg.h>
+#include <errno.h>
+#include <limits.h>
 #include <ctype.h>
+#if C_OPENSTEP
+#include "host.h"
+#else
 #include <SDL_timer.h>
+#endif
 
 #include "dosbox.h"
 
@@ -104,8 +111,8 @@ device_COM::~device_COM() {
 
 // COM1 - COM9 objects
 CSerial * serialports[9] = {
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL
 };
 uint16_t serial_baseaddr[9] = {0,0,0,0,0,0,0,0,0};
 bool serialMouseEmulated = false;
@@ -218,7 +225,11 @@ void CSerial::log_ser(bool active, char const* format,...) {
 		// copied from DEBUG_SHOWMSG
 		char buf[512];
 		buf[0]=0;
+#if C_OPENSTEP
+        sprintf(buf,"%12.3f [%7u] ",(double)PIC_FullIndex(), (unsigned int)OSHostTicks());
+#else
 		sprintf(buf,"%12.3f [%7u] ",(double)PIC_FullIndex(), (unsigned int)SDL_GetTicks());
+#endif
 		va_list msg;
 		va_start(msg,format);
 		vsprintf(buf+strlen(buf),format,msg);
@@ -1095,7 +1106,7 @@ void CSerial::Init_Registers () {
 	PIC_DeActivateIRQ(irq);
 }
 
-CSerial::CSerial(Bitu id, CommandLine* cmd) {
+CSerial::CSerial(Bitu id, CommandLine* cmd) : baud_multiplier(1), serialType(SERIAL_TYPE_DISABLED) {
 	idnumber=id;
     InstallationSuccessful = false;
     bytetime = 0;
@@ -1154,7 +1165,7 @@ CSerial::CSerial(Bitu id, CommandLine* cmd) {
 
 	if(dbg_serialtraffic|dbg_modemcontrol|dbg_register|dbg_interrupt|dbg_aux)
 		debugfp=OpenCaptureFile("serlog",".serlog.txt");
-	else debugfp = nullptr;
+	else debugfp = NULL;
 
 	if (!debugfp) {
 		dbg_serialtraffic= 
@@ -1367,8 +1378,8 @@ public:
 			s_property[6] = '1' + i;
 			Prop_multival* p = section->Get_multival(s_property);
 			std::string type = p->GetSection()->Get_string("type");
-			CommandLine cmd(nullptr, p->GetSection()->Get_string("parameters"));
-			CommandLine tmp(nullptr, p->GetSection()->Get_string("parameters"), CommandLine::either, true);
+			CommandLine cmd(NULL, p->GetSection()->Get_string("parameters"));
+			CommandLine tmp(NULL, p->GetSection()->Get_string("parameters"), CommandLine::either, true);
 			double multiplier = 1;
 			std::string str;
 			bool squote = false;
@@ -1458,7 +1469,7 @@ public:
 		for (Bitu i = 0; i < 9; i++)
 			if (serialports[i]) {
 				delete serialports[i];
-				serialports[i] = nullptr;
+				serialports[i] = NULL;
 			}
 #if C_MODEM
 		MODEM_ClearPhonebook();
@@ -1485,13 +1496,13 @@ static const char *serialTypes[SERIAL_TYPE_COUNT] = {
 
 class SERIAL : public Program {
 public:
-	void Run() override;
+	void Run() DBX_OVERRIDE;
 private:
 	void showPort(int port);
 };
 
 void SERIAL::showPort(int port) {
-	if (serialports[port] != nullptr) {
+	if (serialports[port] != NULL) {
 		WriteOut("COM%d: %s %s\n", port + 1, serialTypes[serialports[port]->serialType], serialports[port]->commandLineString.c_str());
 	} else {
 		WriteOut("COM%d: %s %s\n", port + 1, serialTypes[SERIAL_TYPE_DISABLED], "");
@@ -1515,10 +1526,11 @@ void SERIAL::Run()
 	if (cmd->GetCount() == 1) {
 		int port = -1;
 		cmd->FindCommand(1, temp_line);
-		try {
-			port = stoi(temp_line);
-		} catch (...) {
-		}
+        char *end = NULL;
+        errno = 0;
+        const long parsed = strtol(temp_line.c_str(), &end, 10);
+        if (end != temp_line.c_str() && errno != ERANGE && parsed >= INT_MIN && parsed <= INT_MAX)
+            port = (int)parsed;
 		if (port >= 1 && port <= 9) {
 			showPort(port-1);
 			return;
@@ -1531,10 +1543,11 @@ void SERIAL::Run()
 		// Which COM did they want to change?
 		int port = -1;
 		cmd->FindCommand(1, temp_line);
-		try {
-			port = stoi(temp_line);
-		} catch (...) {
-		}
+        char *end = NULL;
+        errno = 0;
+        const long parsed = strtol(temp_line.c_str(), &end, 10);
+        if (end != temp_line.c_str() && errno != ERANGE && parsed >= INT_MIN && parsed <= INT_MAX)
+            port = (int)parsed;
 		if (port < 1 || port > 9) {
 			WriteOut(MSG_Get("PROGRAM_PORT_INVALID_NUMBER"));
 			return;

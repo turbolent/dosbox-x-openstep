@@ -19,7 +19,9 @@
 #include "cdrom.h"
 #include <cassert>
 #include <cctype>
+#if !C_OPENSTEP
 #include <chrono>
+#endif
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -30,7 +32,7 @@
 #include <vector>
 #include <sys/stat.h>
 
-#if !defined(WIN32)
+#if !defined(WIN32) && !C_OPENSTEP
 #include <libgen.h>
 #else
 #include <cstring>
@@ -43,11 +45,16 @@
 #endif
 
 #include "cross.h"
+#if C_OPENSTEP
+#include "dos_inc.h"
+#else
 #include "drives.h"
+#endif
 #include "logging.h"
 #include "support.h"
 #include "setup.h"
 
+#if !C_OPENSTEP
 #if (defined( __MINGW32__) && !defined(__MINGW64__ )) || defined(LINUX)
 #pragma push_macro("__inline__")
 #endif
@@ -81,6 +88,8 @@
 #include "src/libs/libchdr/zstd/decompress/zstd_decompress.c"
 #include "src/libs/libchdr/zstd/decompress/zstd_ddict.c"
 
+#endif
+
 using namespace std;
 
 // String maximums, local to this file
@@ -106,10 +115,11 @@ std::string get_basename(const std::string& filename) {
 }
 
 // STL type shorteners, local to this file
-using track_iter       = vector<CDROM_Interface_Image::Track>::iterator;
-using track_const_iter = vector<CDROM_Interface_Image::Track>::const_iterator;
-using tracks_size_t    = vector<CDROM_Interface_Image::Track>::size_type;
+typedef vector<CDROM_Interface_Image::Track>::iterator track_iter;
+typedef vector<CDROM_Interface_Image::Track>::const_iterator track_const_iter;
+typedef vector<CDROM_Interface_Image::Track>::size_type tracks_size_t;
 
+#if !C_OPENSTEP
 // Report bad seeks that would go beyond the end of the track
 CDROM_Interface_Image::BinaryFile::BinaryFile(const char *filename, bool &error)
         :TrackFile(RAW_SECTOR_SIZE)
@@ -133,11 +143,11 @@ CDROM_Interface_Image::BinaryFile::BinaryFile(const char *filename, bool &error)
 CDROM_Interface_Image::BinaryFile::~BinaryFile()
 {
 	// Guard: only cleanup if needed
-	if (file == nullptr)
+	if (file == NULL)
 		return;
 
 	delete file;
-	file = nullptr;
+	file = NULL;
 }
 
 bool CDROM_Interface_Image::BinaryFile::read(uint8_t *buffer,int64_t offset, int count)
@@ -156,19 +166,19 @@ int64_t CDROM_Interface_Image::BinaryFile::getLength()
 	return length;
 }
 
-uint16_t CDROM_Interface_Image::BinaryFile::getEndian()
+bool CDROM_Interface_Image::BinaryFile::isLittleEndian()
 {
 	// Image files are read into native-endian byte-order
 	#if defined(WORDS_BIGENDIAN)
-	return AUDIO_S16MSB;
+	return false;
 	#else
-	return AUDIO_S16LSB;
+	return true;
 	#endif
 }
 
 bool CDROM_Interface_Image::BinaryFile::seek(int64_t offset)
 {
-	const auto pos = static_cast<std::streamoff>(offset);
+	const std::streamoff pos = static_cast<std::streamoff>(offset);
 	if (file->tellg() == pos)
 		return true;
 
@@ -211,12 +221,12 @@ CDROM_Interface_Image::AudioFile::AudioFile(const char *filename, bool &error)
 
 CDROM_Interface_Image::AudioFile::~AudioFile()
 {
-	// Guard to prevent double-free or nullptr free
-	if (sample == nullptr)
+	// Guard to prevent double-free or NULL free
+	if (sample == NULL)
 		return;
 
 	Sound_FreeSample(sample);
-	sample = nullptr;
+	sample = NULL;
 }
 
 /**
@@ -264,9 +274,9 @@ uint16_t CDROM_Interface_Image::AudioFile::decode(uint8_t *buffer)
 	return bytes;
 }
 
-uint16_t CDROM_Interface_Image::AudioFile::getEndian()
+bool CDROM_Interface_Image::AudioFile::isLittleEndian()
 {
-	return sample ? sample->actual.format : AUDIO_S16SYS;
+	return sample ? sample->actual.format == AUDIO_S16LSB : !IS_BIGENDIAN;
 }
 
 uint32_t CDROM_Interface_Image::AudioFile::getRate()
@@ -322,19 +332,19 @@ CDROM_Interface_Image::CHDFile::~CHDFile()
     // Guard: only cleanup if needed
     if (this->chd) {
         chd_close(this->chd);
-        this->chd = nullptr;
+        this->chd = NULL;
     }
 
     if (this->hunk_buffer) {
         delete[] this->hunk_buffer;
-        this->hunk_buffer = nullptr;
+        this->hunk_buffer = NULL;
     }
 
 #if !defined(HX_DOS) && !(defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR))
     if (this->hunk_thread) {
         this->hunk_thread->join();
         delete hunk_thread;
-        this->hunk_thread = nullptr;
+        this->hunk_thread = NULL;
     }
 #endif
 }
@@ -412,14 +422,14 @@ int64_t CDROM_Interface_Image::CHDFile::getLength()
     return this->header->logicalbytes;
 }
 
-uint16_t CDROM_Interface_Image::CHDFile::getEndian()
+bool CDROM_Interface_Image::CHDFile::isLittleEndian()
 {
     // CHD: no idea about this, changing this did not fix the cd audio noise
     // Image files are read into native-endian byte-order
 #if defined(WORDS_BIGENDIAN)
-    return AUDIO_S16MSB;
+    return false;
 #else
-    return AUDIO_S16LSB;
+    return true;
 #endif
 }
 
@@ -467,6 +477,8 @@ uint16_t CDROM_Interface_Image::CHDFile::decode(uint8_t* buffer)
     return 0;
 }
 
+#endif
+
 // initialize static members
 int CDROM_Interface_Image::refCount = 0;
 CDROM_Interface_Image::imagePlayer CDROM_Interface_Image::player;
@@ -504,7 +516,11 @@ extern bool qmount;
 bool CDROM_Interface_Image::SetDevice(const char* path, int forceCD)
 {
 	(void)forceCD;//UNUSED
+#if C_OPENSTEP
+	const bool result = LoadCueSheet(path) || LoadIsoFile(path);
+#else
 	const bool result = LoadCueSheet(path) || LoadCloneCDSheet(path) || LoadIsoFile(path) || LoadChdFile(path);
+#endif
 	if (!result && !qmount) {
 		// print error message on dosbox-x console
 		char buf[MAX_LINE_LENGTH];
@@ -514,7 +530,8 @@ bool CDROM_Interface_Image::SetDevice(const char* path, int forceCD)
 	}
 
     int datatracks=0, audiotracks=0;
-    for(const auto& track : tracks) {
+    for (track_const_iter it = tracks.begin(); it != tracks.end(); ++it) {
+        const Track &track = *it;
         if(track.attr == 0x40) {
             datatracks++;
         }
@@ -537,6 +554,7 @@ bool CDROM_Interface_Image::GetUPC(unsigned char& attr, char* upc)
 
 bool CDROM_Interface_Image::GetAudioTracks(int& stTrack, int& end, TMSF& leadOut)
 {
+	if (tracks.empty()) return false;
 	stTrack = 1;
 	end = (int)(tracks.size() - 1);
 	FRAMES_TO_MSF(tracks[tracks.size() - 1].start + 150, &leadOut.min, &leadOut.sec, &leadOut.fr);
@@ -639,6 +657,9 @@ bool CDROM_Interface_Image::GetMediaTrayStatus(bool& mediaPresent, bool& mediaCh
 
 bool CDROM_Interface_Image::PlayAudioSector(unsigned long start, unsigned long len)
 {
+#if C_OPENSTEP
+    if (start > 450000 || len > 450000 - start) { StopAudio(); return false; }
+#endif
 	bool is_playable(false);
 	int track = GetTrack(start) - 1;
     int end = (int)(tracks.size() - 1);
@@ -674,6 +695,7 @@ bool CDROM_Interface_Image::PlayAudioSector(unsigned long start, unsigned long l
         offset = tracks[track].skip +
             ((start > tracks[track].start) ? (start - tracks[track].start) * tracks[track].sectorSize : 0);
             // Hack: sometimes start < tracks[track].start makes offset a negative value, which can result inadequate offset values
+#if !C_OPENSTEP
         if(tracks[track].length - start + tracks[track].start < 50) {
             track++;
             offset = (uint32_t)tracks[track].skip;
@@ -681,6 +703,7 @@ bool CDROM_Interface_Image::PlayAudioSector(unsigned long start, unsigned long l
             // Hack: sometimes games points to the sector close to the end of previous track
             //       rather than the start of target track, so go to the target track in such case.
         }
+#endif
     
         is_playable = trackFile->seek(offset);
 		// only initialize the player elements if our track is playable
@@ -700,21 +723,24 @@ bool CDROM_Interface_Image::PlayAudioSector(unsigned long start, unsigned long l
 			player.isPlaying = true;
 			player.isPaused = false;
 
-			if ( (!IS_BIGENDIAN && trackFile->getEndian() == AUDIO_S16SYS) ||
-			     ( IS_BIGENDIAN && trackFile->getEndian() != AUDIO_S16SYS) )
+			if (trackFile->isLittleEndian())
 				player.addSamples = channels ==  2  ? &MixerChannel::AddSamples_s16 \
 				                                    : &MixerChannel::AddSamples_m16;
 			else
 				player.addSamples = channels ==  2  ? &MixerChannel::AddSamples_s16_nonnative \
 				                                    : &MixerChannel::AddSamples_m16_nonnative;
 
+#if C_OPENSTEP
+            player.playbackTotal = (uint32_t)len * RAW_SECTOR_SIZE;
+#else
 			const float bytesPerMs = (float)(rate * channels * 2 / 1000.0);
 			player.playbackTotal = lround(len * tracks[track].sectorSize * bytesPerMs / 176.4);
+#endif
 			player.playbackRemaining = player.playbackTotal;
 
             LOG_MSG("CDROM: Playing track # %d %.1f min.-mark", tracks[track].number, offset * (1 / 10584000.0));
 
-			#ifdef DEBUG
+			#if defined(DEBUG) && !C_OPENSTEP
             LOG_MSG(
 			   "CDROM: Playing track %d at %.1f KHz %d-channel at start sector %lu (%.1f minute-mark), seek %u (skip=%d,dstart=%d,secsize=%d), for %lu sectors (%.1f seconds)",
 			   track,
@@ -767,8 +793,13 @@ void CDROM_Interface_Image::ChannelControl(TCtrl ctrl)
 	player.ctrlData = ctrl;
 
 	// Adjust the volume of our mixer channel as defined by the application
+#if C_OPENSTEP
+    /* Native CDDA applies channel routing and volume once to its PCM samples. */
+    player.channel->SetScale(1.0f, 1.0f);
+#else
 	player.channel->SetScale(static_cast<float>(ctrl.vol[0]),  // left vol
 	                         static_cast<float>(ctrl.vol[1])); // right vol
+#endif
 }
 
 bool CDROM_Interface_Image::ReadSectors(PhysPt buffer, bool raw, unsigned long sector, unsigned long num)
@@ -783,7 +814,7 @@ bool CDROM_Interface_Image::ReadSectors(PhysPt buffer, bool raw, unsigned long s
 		if (!success) break;
 	}
 
-	MEM_BlockWrite(buffer, buf, buflen);
+	if (success) MEM_BlockWrite(buffer, buf, buflen);
 	delete[] buf;
 	return success;
 }
@@ -842,7 +873,9 @@ bool CDROM_Interface_Image::ReadSector(uint8_t *buffer, bool raw, unsigned long 
 	const int track = GetTrack(sector)-1;
     // LOG_MSG("CDROM: Readsector sector=%d, track=%d", sector, track);
     if (track < 0) return false;
-    int64_t seek = (int64_t)(tracks[track].skip + (sector - tracks[track].start) * tracks[track].sectorSize);
+    if (!tracks[track].file || sector < tracks[track].start) return false;
+    int64_t seek = (int64_t)tracks[track].skip +
+        (int64_t)(sector - tracks[track].start) * tracks[track].sectorSize;
 	int length = (raw ? RAW_SECTOR_SIZE : COOKED_SECTOR_SIZE);
 	if (tracks[track].sectorSize != RAW_SECTOR_SIZE && raw) return false;
 	if ((tracks[track].sectorSize == RAW_SECTOR_SIZE || tracks[track].sectorSize == 2448) && !tracks[track].mode2 && !raw) seek += 16;
@@ -856,7 +889,7 @@ bool CDROM_Interface_Image::PlayNextAudioTrack(void)
 {
     const int totalTracks = (int)tracks.size() - 1; 
     for(int i = player.currentTrackIdx + 1; i < totalTracks; i++) {
-        if(tracks[i].attr != 0x40 && tracks[i].file != nullptr) {
+        if(tracks[i].attr != 0x40 && tracks[i].file != NULL) {
             return player.cd->PlayAudioSector(tracks[i].start, tracks[i].length);
         }
     }
@@ -866,6 +899,7 @@ bool CDROM_Interface_Image::PlayNextAudioTrack(void)
     return false;
 }
 
+#if !C_OPENSTEP
 void CDROM_Interface_Image::CDAudioCallBack(Bitu len)
 {
 	// Our member object "playbackRemaining" holds the
@@ -1011,6 +1045,8 @@ void CDROM_Interface_Image::CDAudioCallBack(Bitu len)
 	}
 }
 
+#endif
+
 bool CDROM_Interface_Image::LoadIsoFile(const char* filename)
 {
 	tracks.clear();
@@ -1069,18 +1105,18 @@ bool CDROM_Interface_Image::CanReadPVD(TrackFile *file, int sectorSize, bool mod
 	int seek = 16 * sectorSize;	// first vd is located at sector 16
 	if ((sectorSize == RAW_SECTOR_SIZE || sectorSize == 2448) && !mode2) seek += 16;
 	if (mode2) seek += 24;
-	file->read(pvd, seek, COOKED_SECTOR_SIZE);
+	if (!file->read(pvd, seek, COOKED_SECTOR_SIZE)) return false;
 	// pvd[0] = descriptor type, pvd[1..5] = standard identifier, pvd[6] = iso version (+8 for High Sierra)
 	if ((pvd[0] == 1 && !strncmp((char*)(&pvd[1]), "CD001", 5) && pvd[6] == 1) ||
 		(pvd[8] == 1 && !strncmp((char*)(&pvd[9]), "CDROM", 5) && pvd[14] == 1))
 			return true; // At least ISO 9660 compliant
 
-#if !defined(OSFREE)
+#if !defined(OSFREE) && !C_OPENSTEP
 	// Hm, maybe the ISO image is pure UDF
 	seek = 256 * sectorSize;	// anchor volume descriptor pointer at sector 256
 	if ((sectorSize == RAW_SECTOR_SIZE || sectorSize == 2448) && !mode2) seek += 16;
 	if (mode2) seek += 24;
-	file->read(pvd, seek, COOKED_SECTOR_SIZE);
+	if (!file->read(pvd, seek, COOKED_SECTOR_SIZE)) return false;
 	{
 		UDFTagId aid;
 
@@ -1094,12 +1130,16 @@ bool CDROM_Interface_Image::CanReadPVD(TrackFile *file, int sectorSize, bool mod
 	return false;
 }
 
-#if defined(WIN32)
+#if defined(WIN32) || C_OPENSTEP
 static string dirname(char * file) {
+	#if C_OPENSTEP
+	char * sep = strrchr(file, '\\');
+#else
 	char * sep = strrchr_dbcs(file, '\\');
-	if (sep == nullptr)
+#endif
+	if (sep == NULL)
 		sep = strrchr(file, '/');
-	if (sep == nullptr)
+	if (sep == NULL)
 		return "";
 	else {
 		int len = (int)(sep - file);
@@ -1110,6 +1150,7 @@ static string dirname(char * file) {
 }
 #endif
 
+#if !C_OPENSTEP
 struct ImageCCDEntry {
 	int		Point = -1;
 	int		Session = -1;
@@ -1334,6 +1375,8 @@ bool CDROM_Interface_Image::LoadCloneCDSheet(const char *cuefile) {
 	return (leadOutLBA >= 0 && isCloneCD);
 }
 
+#endif
+
 bool CDROM_Interface_Image::LoadCueSheet(const char *cuefile)
 {
 	// reject any file which are not a CUE sheet, GOG is so smart that they set several different extensions so that we can't assume .cue only.
@@ -1491,6 +1534,7 @@ bool CDROM_Interface_Image::LoadCueSheet(const char *cuefile)
 	return true;
 }
 
+#if !C_OPENSTEP
 std::vector<string> split_string_to_list(const std::string& str, const std::string& delim)
 {
     std::vector<string> tokens;
@@ -1634,6 +1678,8 @@ bool CDROM_Interface_Image::LoadChdFile(const char* chdfile)
     }
 }
 
+#endif
+
 bool CDROM_Interface_Image::AddTrack(Track &curr, int &shift, int prestart, int &totalPregap, int currPregap)
 {
 	// frames between index 0(prestart) and 1(curr.start) must be skipped
@@ -1703,7 +1749,8 @@ bool CDROM_Interface_Image::AddTrack(Track &curr, int &shift, int prestart, int 
 bool CDROM_Interface_Image::HasDataTrack(void) const
 {
 	//Data track has attribute 0x40
-	for (const auto &track : tracks) {
+	for (track_const_iter it = tracks.begin(); it != tracks.end(); ++it) {
+        const Track &track = *it;
 		if (track.attr == 0x40) {
 			return true;
 		}
@@ -1714,8 +1761,9 @@ bool CDROM_Interface_Image::HasDataTrack(void) const
 bool CDROM_Interface_Image::HasAudioTrack(void) const
 {
 	//Audio track has attribute 0x00
-	for (const auto &track : tracks) {
-		if (track.attr == 0x00) {
+	for (track_const_iter it = tracks.begin(); it != tracks.end(); ++it) {
+        const Track &track = *it;
+		if (track.attr == 0x00 && track.file != NULL) {
 			return true;
 		}
 	}
@@ -1736,6 +1784,7 @@ bool CDROM_Interface_Image::GetRealFileName(string &filename, string &pathname) 
 		filename = tmpstr;
 		return true;
 	}
+#if !C_OPENSTEP
 	// finally check if file is in a dosbox local drive
 	char fullname[CROSS_LEN];
 	char tmp[CROSS_LEN];
@@ -1753,6 +1802,8 @@ bool CDROM_Interface_Image::GetRealFileName(string &filename, string &pathname) 
 			return true;
 		}
 	}
+
+#endif
 
 #if !defined (WIN32)
 	/**
@@ -1793,8 +1844,10 @@ bool CDROM_Interface_Image::GetCueFrame(int &frames, istream &in) const
 {
 	string msf;
 	in >> msf;
-	int min, sec, fr;
+	int min = 0, sec = 0, fr = 0;
 	bool success = sscanf(msf.c_str(), "%d:%d:%d", &min, &sec, &fr) == 3;
+	if (!success || min < 0 || min > 99 || sec < 0 || sec >= 60 || fr < 0 || fr >= CD_FPS)
+		return false;
 	frames = MSF_TO_FRAMES(min, sec, fr);
 	return success;
 }
@@ -1803,6 +1856,7 @@ bool CDROM_Interface_Image::GetCueString(string &str, istream &in) const
 {
 	int pos = (int)in.tellg();
 	in >> str;
+	if (str.empty()) return false;
 	if (str[0] == '\"') {
 		if (str[str.size() - 1] == '\"') {
 			str.assign(str, 1, str.size() - 2);
@@ -1835,10 +1889,14 @@ void CDROM_Interface_Image::ClearTracks()
 }
 
 void CDROM_Image_ShutDown(Section* /*sec*/) {
+#if !C_OPENSTEP
 	Sound_Quit();
+#endif
 }
 
 void CDROM_Image_Init() {
+#if !C_OPENSTEP
 	Sound_Init();
+#endif
 	AddExitFunction(AddExitFunctionFuncPair(CDROM_Image_ShutDown));
 }

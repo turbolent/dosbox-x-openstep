@@ -604,7 +604,13 @@ Bits /*INLINE*/ Operator::GetSample( Bits modulation ) {
 	}
 }
 
-Operator::Operator() {
+Operator::Operator() : volHandler(NULL),
+#if (DBOPL_WAVE == WAVE_HANDLER)
+    waveHandler(NULL),
+#else
+    waveBase(NULL), waveMask(0), waveStart(0),
+#endif
+    waveIndex(0), waveAdd(0), waveCurrent(0), chanData(0), freqMul(0), vibrato(0), sustainLevel(0), totalLevel(0), currentLevel(0), volume(0), attackAdd(0), decayAdd(0), releaseAdd(0), rateIndex(0), rateZero(0), keyOn(0), reg20(0), reg40(0), reg60(0), reg80(0), regE0(0), state(0), tremoloMask(0), vibStrength(0), ksr(0) {
 	chanData = 0;
 	freqMul = 0;
 	waveIndex = 0;
@@ -617,7 +623,7 @@ Operator::Operator() {
 	reg60 = 0;
 	reg80 = 0;
 	regE0 = 0;
-    waveBase = nullptr;
+    waveBase = NULL;
     waveMask = 0;
     waveStart = 0;
     vibrato = 0;
@@ -639,7 +645,7 @@ Operator::Operator() {
 	Channel
 */
 
-Channel::Channel() {
+Channel::Channel() : synthHandler(NULL), chanData(0), old(), feedback(0), regB0(0), regC0(0), fourMask(0), maskLeft(0), maskRight(0) {
 	old[0] = old[1] = 0;
 	chanData = 0;
 	regB0 = 0;
@@ -982,14 +988,14 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 	case sm3Percussion:
 		return( this + 3 );
 	}
-	return nullptr;
+	return NULL;
 }
 
 /*
 	Chip
 */
 
-Chip::Chip( bool _opl3Mode ) : opl3Mode( _opl3Mode ) {
+Chip::Chip( bool _opl3Mode ) : lfoCounter(0), lfoAdd(0), noiseCounter(0), noiseAdd(0), noiseValue(0), freqMul(), linearRates(), attackRates(), reg104(0), reg08(0), reg04(0), regBD(0), vibratoIndex(0), tremoloIndex(0), vibratoSign(0), vibratoShift(0), tremoloValue(0), vibratoStrength(0), tremoloStrength(0), waveFormMask(0), opl3Active(0), opl3Mode( _opl3Mode ) {
 	reg08 = 0;
 	reg04 = 0;
 	regBD = 0;
@@ -1570,16 +1576,16 @@ void Handler::SaveState( std::ostream& stream )
 
 		synthhandler_idx[lcv1] = 0xff;
 		if(0) {}
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3FMFM > ) synthhandler_idx[lcv1] = 0x00;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3AMFM > ) synthhandler_idx[lcv1] = 0x01;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3FMAM > ) synthhandler_idx[lcv1] = 0x02;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3AMAM > ) synthhandler_idx[lcv1] = 0x03;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3AM > ) synthhandler_idx[lcv1] = 0x04;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3FM > ) synthhandler_idx[lcv1] = 0x05;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm2AM > ) synthhandler_idx[lcv1] = 0x06;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm2FM > ) synthhandler_idx[lcv1] = 0x07;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm3Percussion > ) synthhandler_idx[lcv1] = 0x08;
-		else if( chip.chan[lcv1].synthHandler == &Channel::BlockTemplate< sm2Percussion > ) synthhandler_idx[lcv1] = 0x09;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3FMFM >) ) synthhandler_idx[lcv1] = 0x00;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3AMFM >) ) synthhandler_idx[lcv1] = 0x01;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3FMAM >) ) synthhandler_idx[lcv1] = 0x02;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3AMAM >) ) synthhandler_idx[lcv1] = 0x03;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3AM >) ) synthhandler_idx[lcv1] = 0x04;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3FM >) ) synthhandler_idx[lcv1] = 0x05;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm2AM >) ) synthhandler_idx[lcv1] = 0x06;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm2FM >) ) synthhandler_idx[lcv1] = 0x07;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm3Percussion >) ) synthhandler_idx[lcv1] = 0x08;
+		else if( chip.chan[lcv1].synthHandler == static_cast<SynthHandler>(&Channel::BlockTemplate< sm2Percussion >) ) synthhandler_idx[lcv1] = 0x09;
 	}
 
 	//***************************************************

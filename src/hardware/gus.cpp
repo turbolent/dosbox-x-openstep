@@ -211,28 +211,28 @@ static GFGus myGUS;
 
 class GUSChannel {
 	public:
-		uint32_t WaveStart = 0;
-		uint32_t WaveEnd = 0;
-		uint32_t WaveAddr = 0;
-		uint32_t WaveAdd = 0;
-		uint8_t  WaveCtrl = 0;
-		uint16_t WaveFreq = 0;
+		uint32_t WaveStart;
+		uint32_t WaveEnd;
+		uint32_t WaveAddr;
+		uint32_t WaveAdd;
+		uint8_t  WaveCtrl;
+		uint16_t WaveFreq;
 
-		uint32_t RampStart = 0;
-		uint32_t RampEnd = 0;
-		uint32_t RampVol = 0;
-		uint32_t RampAdd = 0;
+		uint32_t RampStart;
+		uint32_t RampEnd;
+		uint32_t RampVol;
+		uint32_t RampAdd;
 
-		uint8_t RampRate = 0;
-		uint8_t RampCtrl = 0;
+		uint8_t RampRate;
+		uint8_t RampCtrl;
 
-		uint8_t PanPot = 0;
-		uint8_t channum = 0;
-		uint32_t irqmask = 0;
-		uint32_t PanLeft = 0;
-		uint32_t PanRight = 0;
-		int32_t VolLeft = 0;
-		int32_t VolRight = 0;
+		uint8_t PanPot;
+		uint8_t channum;
+		uint32_t irqmask;
+		uint32_t PanLeft;
+		uint32_t PanRight;
+		int32_t VolLeft;
+		int32_t VolRight;
 
 		GUSChannel(uint8_t num) { 
 			channum = num;
@@ -1175,7 +1175,7 @@ struct gus_ICS2101 {
 			MASTER_OUTPUT_PORT=5
 		};
 	public:
-		gus_ICS2101() {
+		gus_ICS2101() : volpair(), addr_attenuator(0), addr_control(0) {
 		}
 	public:
 		void addressWrite(uint8_t addr) {
@@ -1336,18 +1336,18 @@ struct gus_ICS2101 {
 		};
 		struct volpair {
 			public:
-				volpair() {
+				volpair() : Fix1616Mult() {
 					AttenDb[0] = AttenDb[1] = 0;
 				}
 			public:
 				float		AttenDb[2];
-				uint32_t	Fix1616Mult[2] = {};		// linear multiply to apply volume
+				uint32_t	Fix1616Mult[2];		// linear multiply to apply volume
 		};
 	public:
 		struct mixcontrol	mixpair[8];		// pairs 1-5 and Master
-		struct volpair		volpair[5] = {};	// pairs 1-5 scaled by master
-		uint8_t			addr_attenuator = 0;	// which attenuator is selected
-		uint8_t			addr_control = 0;		// which control is selected
+		struct volpair		volpair[5];	// pairs 1-5 scaled by master
+		uint8_t			addr_attenuator;	// which attenuator is selected
+		uint8_t			addr_control;		// which control is selected
 } GUS_ICS2101;
 
 static inline uint8_t read_GF1_mapping_control(const unsigned int ch) {
@@ -1691,7 +1691,7 @@ static void write_gus(Bitu port,Bitu val,Bitu iolen) {
 					// NTS: This emulation does not use the second DMA channel... yet... which is why we do not bother
 					//      unregistering and reregistering the second DMA channel.
 
-					GetDMAChannel(myGUS.dma1)->Register_Callback(nullptr); // FIXME: On DMA conflict this could mean kicking other devices off!
+					GetDMAChannel(myGUS.dma1)->Register_Callback(NULL); // FIXME: On DMA conflict this could mean kicking other devices off!
 
 					// NTS: Contrary to an earlier commit, DMA channel 0 is not a valid choice
 					if (dmatable[val & 0x7] != 0)

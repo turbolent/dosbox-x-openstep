@@ -65,19 +65,19 @@ struct IDEEventPack {
 	IDEEventPack(const unsigned int nv) : v(nv) {
 	}
 
-	static inline constexpr unsigned int pack(const unsigned int interface,const unsigned int device) {
+	static inline DBX_CONSTEXPR unsigned int pack(const unsigned int interface,const unsigned int device) {
 		return (interface << 1u) | device;
 	}
 
-	inline constexpr unsigned int get(void) const {
+	inline DBX_CONSTEXPR unsigned int get(void) const {
 		return v;
 	}
 
-	inline constexpr unsigned int interface(void) const {
+	inline DBX_CONSTEXPR unsigned int interface(void) const {
 		return (v >> 1u);
 	}
 
-	inline constexpr unsigned int device(void) const {
+	inline DBX_CONSTEXPR unsigned int device(void) const {
 		return (v & 1u);
 	}
 
@@ -230,7 +230,7 @@ class IDEATADevice:public IDEDevice {
 public:
     IDEATADevice(IDEController *c,unsigned char disk_index,bool _slave);
     ~IDEATADevice();
-    void writecommand(uint8_t cmd) override;
+    void writecommand(uint8_t cmd) DBX_OVERRIDE;
 public:
     std::string id_serial;
     std::string id_firmware_rev;
@@ -238,8 +238,8 @@ public:
     unsigned char bios_disk_index;
     imageDisk *getBIOSdisk();
     void update_from_biosdisk();
-    virtual Bitu data_read(Bitu iolen) override; /* read from 1F0h data port from IDE device */
-    virtual void data_write(Bitu v,Bitu iolen) override;/* write to 1F0h data port to IDE device */
+    virtual Bitu data_read(Bitu iolen) DBX_OVERRIDE; /* read from 1F0h data port from IDE device */
+    virtual void data_write(Bitu v,Bitu iolen) DBX_OVERRIDE;/* write to 1F0h data port to IDE device */
     virtual void generate_identify_device();
     virtual void prepare_read(Bitu offset,Bitu size);
     virtual void prepare_write(Bitu offset,Bitu size);
@@ -250,7 +250,7 @@ public:
     uint64_t heads,sects,cyls,progress_count;
     uint64_t phys_heads,phys_sects,phys_cyls; /* CHS value of IDE  */
     uint64_t LBA;
-    unsigned char sector[512 * 128] = {};
+    unsigned char sector[512 * 128];
     uint64_t sector_i,sector_total;
     bool geo_translate;
 
@@ -269,19 +269,19 @@ class IDEATAPICDROMDevice:public IDEDevice {
 public:
     IDEATAPICDROMDevice(IDEController *c,unsigned char drive_index,bool _slave,CDROM_Interface *cdrom);
     ~IDEATAPICDROMDevice();
-    void writecommand(uint8_t cmd) override;
+    void writecommand(uint8_t cmd) DBX_OVERRIDE;
 public:
     std::string id_serial;
     std::string id_firmware_rev;
     std::string id_model;
     unsigned char drive_index;
-    Bitu sector_transfer_limit = 16;
-    CDROM_Interface *cdrom = NULL;
+    Bitu sector_transfer_limit;
+    CDROM_Interface *cdrom;
     CDROM_Interface *getMSCDEXDrive();
     std::vector<CDROM_Interface*> cdrom_swaplist;
-    size_t cdrom_swaplist_pos = 0;
-    Bitu data_read(Bitu iolen) override; /* read from 1F0h data port from IDE device */
-    void data_write(Bitu v,Bitu iolen) override; /* write to 1F0h data port to IDE device */
+    size_t cdrom_swaplist_pos;
+    Bitu data_read(Bitu iolen) DBX_OVERRIDE; /* read from 1F0h data port from IDE device */
+    void data_write(Bitu v,Bitu iolen) DBX_OVERRIDE; /* write to 1F0h data port to IDE device */
     virtual void swap_to_next_cd();
     virtual void drop_all_cds();
     virtual void generate_identify_device();
@@ -303,7 +303,7 @@ public:
     virtual void mode_sense();
     virtual void read_toc();
 public:
-    bool mscdex = false; /* if set, attached to MSCDEX subunit */
+    bool mscdex; /* if set, attached to MSCDEX subunit */
     bool atapi_to_host;         /* if set, PACKET data transfer is to be read by host */
     double spinup_time;
     double spindown_timeout;
@@ -501,7 +501,7 @@ bool IDEATAPICDROMDevice::common_spinup_response(bool trigger,bool wait) {
 	/* if the CD-ROM drive has mounted the empty drive, then ALWAYS return Medium Not Present */
 	CDROM_Interface *cdrom = getMSCDEXDrive();
 	if (cdrom) {
-		if (cdrom->class_id == CDROM_Interface::INTERFACE_TYPE::ID_FAKE) {
+		if (cdrom->class_id == CDROM_Interface::ID_FAKE) {
 			set_sense(/*SK=*/0x02,/*ASC=*/0x3A); /* Medium Not Present */
 //			LOG_MSG("ATAPI: Medium Not Ready");
 			return false;
@@ -1272,7 +1272,7 @@ void IDEATAPICDROMDevice::on_atapi_busy_time() {
                     status = IDE_STATUS_DRIVE_READY|IDE_STATUS_DRQ|IDE_STATUS_DRIVE_SEEK_COMPLETE;
                 }
                 else {
-                    if (cdrom->class_id == CDROM_Interface::INTERFACE_TYPE::ID_FAKE) {
+                    if (cdrom->class_id == CDROM_Interface::ID_FAKE) {
                         set_sense(/*SK=*/0x02,/*ASC=*/0x3A); /* Not Ready: Medium Not Present */
                         LOG_MSG("ATAPI: Rejecting read %lu sectors at %lu as Medium Not Present\n",
                             (unsigned long)TransferLength,(unsigned long)LBA);
@@ -1353,7 +1353,7 @@ void IDEATAPICDROMDevice::on_atapi_busy_time() {
                     status = IDE_STATUS_DRIVE_READY|IDE_STATUS_DRQ|IDE_STATUS_DRIVE_SEEK_COMPLETE;
                 }
                 else {
-                    if (cdrom->class_id == CDROM_Interface::INTERFACE_TYPE::ID_FAKE) {
+                    if (cdrom->class_id == CDROM_Interface::ID_FAKE) {
                         set_sense(/*SK=*/0x02,/*ASC=*/0x3A); /* Not Ready: Medium Not Present */
                         LOG_MSG("ATAPI: Rejecting read %lu sectors at %lu as Medium Not Present\n",
                             (unsigned long)TransferLength,(unsigned long)LBA);
@@ -1529,7 +1529,8 @@ void IDEATAPICDROMDevice::set_sense(unsigned char SK,unsigned char ASC,unsigned 
     sense[13] = ASCQ;
 }
 
-IDEATAPICDROMDevice::IDEATAPICDROMDevice(IDEController *c,unsigned char drive_index,bool _slave,CDROM_Interface *n_cdrom) : IDEDevice(c,_slave) {
+IDEATAPICDROMDevice::IDEATAPICDROMDevice(IDEController *c,unsigned char drive_index,bool _slave,CDROM_Interface *n_cdrom) : IDEDevice(c,_slave),
+    sector_transfer_limit(16), cdrom(NULL), cdrom_swaplist_pos(0), mscdex(false) {
     this->drive_index = drive_index;
     sector_i = sector_total = 0;
     atapi_to_host = false;
@@ -1592,7 +1593,9 @@ IDEATAPICDROMDevice::IDEATAPICDROMDevice(IDEController *c,unsigned char drive_in
 }
 
 IDEATAPICDROMDevice::~IDEATAPICDROMDevice() {
-    for (auto &cd : cdrom_swaplist) {
+    for (std::vector<CDROM_Interface*>::iterator it = cdrom_swaplist.begin();
+         it != cdrom_swaplist.end(); ++it) {
+        CDROM_Interface *&cd = *it;
         cd->Release();
         cd = NULL;
     }
@@ -2525,7 +2528,9 @@ void IDEATADevice::prepare_read(Bitu offset,Bitu size) {
 }
 
 void IDEATAPICDROMDevice::drop_all_cds() {
-    for (auto &cd : cdrom_swaplist) {
+    for (std::vector<CDROM_Interface*>::iterator it = cdrom_swaplist.begin();
+         it != cdrom_swaplist.end(); ++it) {
+        CDROM_Interface *&cd = *it;
         cd->Release();
         cd = NULL;
     }
@@ -2728,7 +2733,7 @@ void IDEATADevice::generate_identify_device() {
 }
 
 IDEATADevice::IDEATADevice(IDEController *c,unsigned char disk_index,bool _slave)
-    : IDEDevice(c,_slave), id_serial("8086"), id_firmware_rev("8086"), id_model("DOSBox-X IDE disk"), bios_disk_index(disk_index) {
+    : IDEDevice(c,_slave), id_serial("8086"), id_firmware_rev("8086"), id_model("DOSBox-X IDE disk"), bios_disk_index(disk_index), sector() {
     sector_i = sector_total = 0;
 
     type = IDE_TYPE_HDD;
@@ -3036,7 +3041,8 @@ bool IDE_CDROM_Attach(signed char index,bool slave,const std::vector<CDROM_Inter
 	if (cds.size() > 1) {
 		assert(dev->cdrom_swaplist.empty());
 		assert(dev->cdrom_swaplist_pos == 0);
-		for (auto &cd : cds) {
+		for (std::vector<CDROM_Interface*>::const_iterator it = cds.begin(); it != cds.end(); ++it) {
+            CDROM_Interface *cd = *it;
 			cd->Addref();
 			dev->cdrom_swaplist.push_back(cd);
 		}
@@ -3049,8 +3055,9 @@ bool IDE_CDROM_Attach(signed char index,bool slave,const std::vector<CDROM_Inter
 }
 
 struct ide_opt_spec_t {
-	signed char index = -1;
-	bool slave = false;
+	signed char index;
+	bool slave;
+    ide_opt_spec_t() : index(-1), slave(false) {}
 };
 
 bool IDE_CDROM_ParseOptSpec(struct ide_opt_spec_t &spec,const std::string &opts) {
@@ -3269,6 +3276,12 @@ void IDE_Hard_Disk_Detach(unsigned char bios_disk_index) {
 }
 
 
+static std::string IDEPositionNumber(int index) {
+    char name[16];
+    snprintf(name, sizeof(name), "%d", index + 1);
+    return name;
+}
+
 std::string GetIDEPosition(unsigned char bios_disk_index) {
     std::string idepos;
     for (int index = 0; index < MAX_IDE_CONTROLLERS; index++) {
@@ -3277,7 +3290,7 @@ std::string GetIDEPosition(unsigned char bios_disk_index) {
         for (int slave = 0; slave < 2; slave++) {
             IDEATADevice *dev = dynamic_cast<IDEATADevice*>(c->device[slave]);
             if (dev && dev->bios_disk_index == bios_disk_index) {
-                idepos = std::to_string(index + 1) + (slave ? 's' : 'm');
+                idepos = IDEPositionNumber(index) + (slave ? 's' : 'm');
                 return idepos;
             }
         }
@@ -3293,7 +3306,7 @@ std::string GetIDEInfo() {
         if (c)
         for (int slave = 0; slave < 2; slave++) {
             //IDEATADevice *dev = dynamic_cast<IDEATADevice*>(c->device[slave]); UNUSED
-            info+="IDE position "+std::to_string(index+1)+(slave?'s':'m')+": ";
+            info+="IDE position "+IDEPositionNumber(index)+(slave?'s':'m')+": ";
             if (dynamic_cast<IDEATADevice*>(c->device[slave])) info+="disk image";
             else if (dynamic_cast<IDEATAPICDROMDevice*>(c->device[slave])) info+="CD image";
             else info+="none";
@@ -5356,7 +5369,7 @@ void DOS_EnableDriveIDEMenu(unsigned int idx,unsigned char ms) {
 	if (idx < MAX_IDE_CONTROLLERS) {
 		IDEController *ctl = idecontroller[idx];
 		IDEDevice *dev = ctl ? ctl->device[ms] : NULL;
-        IDEATAPICDROMDevice* cdrom = nullptr;
+        IDEATAPICDROMDevice* cdrom = NULL;
 		bool cdromchange = false;
 		bool do_hide = true;
 		bool empty = true;

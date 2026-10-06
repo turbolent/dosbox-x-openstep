@@ -26,7 +26,11 @@
 #include "bios_disk.h"
 
 /* TeleDisk sector flags (sector header, spec section 6.5). Values are OR-combined. */
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 enum class td0_sector_flags : uint8_t {
+#else
+struct td0_sector_flags { enum Value {
+#endif
     none          = 0x00,
     duplicate     = 0x01, /* sector duplicated within a track */
     crc_error     = 0x02, /* sector was read with a CRC error */
@@ -36,11 +40,24 @@ enum class td0_sector_flags : uint8_t {
     data_no_id    = 0x40  /* had data but no ID field (bogus header) */
 };
 
+#if __cplusplus < 201103L && (!defined(_MSC_VER) || _MSC_VER < 1900)
+    uint8_t value;
+    td0_sector_flags() : value(none) {}
+    td0_sector_flags(Value v) : value(v) {}
+    explicit td0_sector_flags(uint8_t v) : value(v) {}
+    operator uint8_t() const { return value; }
+    bool operator&(Value v) const { return (value & v) != 0; }
+};
+#endif
+DBX_STATIC_ASSERT(sizeof(td0_sector_flags) == 1, "TeleDisk flags layout");
+
 static inline bool operator&(td0_sector_flags lhs, td0_sector_flags rhs) {
     return (static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs)) != 0;
 }
 
+#ifdef _MSC_VER
 #pragma pack(push,1)
+#endif
 /* On-disk TeleDisk (.TD0) structures. All multi-byte fields are little-endian;
  * read them through the td0_read_u16le() helper rather than dereferencing directly. */
 struct td0_image_header {
@@ -54,7 +71,7 @@ struct td0_image_header {
     uint8_t  dos_alloc_flag;
     uint8_t  sides;           /* 1 == one side, otherwise two */
     uint8_t  crc[2];
-};
+} DBX_PACKED;
 
 struct td0_comment_header {
     uint8_t  crc[2];
@@ -65,14 +82,14 @@ struct td0_comment_header {
     uint8_t  hour;
     uint8_t  minute;
     uint8_t  second;
-};
+} DBX_PACKED;
 
 struct td0_track_header {
     uint8_t  num_sectors;     /* 0xFF marks end of image */
     uint8_t  cylinder;        /* physical cylinder */
     uint8_t  head;            /* bit 0 == side; bit 7 == single-density */
     uint8_t  crc;
-};
+} DBX_PACKED;
 
 struct td0_sector_header {
     uint8_t          cylinder;        /* logical cylinder in the sector ID field */
@@ -86,40 +103,52 @@ struct td0_sector_header {
 struct td0_data_header {
     uint8_t  block_size[2];   /* size of data block including the method byte */
     uint8_t  method;          /* sector_encoding_method */
-};
+} DBX_PACKED;
+#ifdef _MSC_VER
 #pragma pack(pop)
+#endif
 
-static_assert(sizeof(td0_image_header)   == 12, "td0_image_header must match on-disk layout");
-static_assert(sizeof(td0_comment_header) == 10, "td0_comment_header must match on-disk layout");
-static_assert(sizeof(td0_track_header)   ==  4, "td0_track_header must match on-disk layout");
-static_assert(sizeof(td0_sector_header)  ==  6, "td0_sector_header must match on-disk layout");
-static_assert(sizeof(td0_data_header)    ==  3, "td0_data_header must match on-disk layout");
+DBX_STATIC_ASSERT(sizeof(td0_image_header)   == 12, "td0_image_header must match on-disk layout");
+DBX_STATIC_ASSERT(sizeof(td0_comment_header) == 10, "td0_comment_header must match on-disk layout");
+DBX_STATIC_ASSERT(sizeof(td0_track_header)   ==  4, "td0_track_header must match on-disk layout");
+DBX_STATIC_ASSERT(sizeof(td0_sector_header)  ==  6, "td0_sector_header must match on-disk layout");
+DBX_STATIC_ASSERT(sizeof(td0_data_header)    ==  3, "td0_data_header must match on-disk layout");
 
 class imageDiskTeledisk : public imageDisk {
 public:
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
     enum class sector_encoding_method : uint8_t {
+#else
+    struct sector_encoding_method { enum Value {
+#endif
         raw                    = 0,
         repeated_2byte_pattern = 1,
         rle                    = 2
     };
+#if __cplusplus < 201103L && (!defined(_MSC_VER) || _MSC_VER < 1900)
+        uint8_t value;
+        explicit sector_encoding_method(uint8_t v) : value(v) {}
+        operator uint8_t() const { return value; }
+    };
+#endif
 
-    Int13Status Read_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,void * data,unsigned int req_sector_size=0) override;
-    Int13Status Write_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,const void * data,unsigned int req_sector_size=0) override;
-    Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override;
-    Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) override;
+    Int13Status Read_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,void * data,unsigned int req_sector_size=0) DBX_OVERRIDE;
+    Int13Status Write_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,const void * data,unsigned int req_sector_size=0) DBX_OVERRIDE;
+    Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE;
+    Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) DBX_OVERRIDE;
 
     imageDiskTeledisk(FILE *imgFile, const char *imgName, uint32_t imgSizeK, bool isHardDisk);
-    ~imageDiskTeledisk() override;
+    ~imageDiskTeledisk() DBX_OVERRIDE;
 
     struct td0entry {
-        uint8_t phys_track = 0, phys_head = 0, phys_sector = 0;
-        uint8_t logical_track = 0, logical_head = 0;
-        uint16_t sector_size = 0;
-        td0_sector_flags flags = td0_sector_flags::none;
-        bool has_data = false;
+        uint8_t phys_track, phys_head, phys_sector;
+        uint8_t logical_track, logical_head;
+        uint16_t sector_size;
+        td0_sector_flags flags;
+        bool has_data;
         std::vector<uint8_t> data;
 
-        td0entry() = default;
+        td0entry() : phys_track(0), phys_head(0), phys_sector(0), logical_track(0), logical_head(0), sector_size(0), flags(td0_sector_flags::none), has_data(false) {}
         uint16_t getSectorSize() const { return sector_size; }
     };
 

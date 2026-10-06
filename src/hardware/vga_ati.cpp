@@ -42,7 +42,9 @@
 #include "render.h"
 #include "jfont.h"
 #include "bitop.h"
+#if !C_OPENSTEP
 #include "sdlmain.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -50,8 +52,9 @@
 #include <stdio.h>
 
 struct ATIState {
-	uint8_t			index = 0;
-	uint8_t			input_status_register = 0; /* index 0xBB */
+	uint8_t			index;
+	uint8_t			input_status_register; /* index 0xBB */
+	ATIState() : index(0), input_status_register(0) {}
 };
 
 ATIState ati_state;

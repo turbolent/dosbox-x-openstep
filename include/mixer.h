@@ -134,10 +134,10 @@ void MIXER_DelChannel(MixerChannel* delchan);
  * and removes itself when destroyed. */
 class MixerObject{
 private:
-	bool installed = false;
-    char m_name[32] = {};
+	bool installed;
+    char m_name[32];
 public:
-	MixerObject() {};
+	MixerObject() : installed(false), m_name() {};
 	MixerChannel* Install(MIXER_Handler handler,Bitu freq,const char * name);
 	bool Uninstall(void);
 	~MixerObject();

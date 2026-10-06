@@ -24,8 +24,10 @@
 #include "render.h"
 #include "menu.h"
 #include "menudef.h"
+#if !C_OPENSTEP
 #include "SDL.h"
 #include "SDL_syswm.h"
+#endif
 #include "bios_disk.h"
 #include "ide.h" // for ide support
 #include "mapper.h"
@@ -34,7 +36,11 @@
 #include "inout.h"
 #include "shell.h"
 #include "jfont.h"
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 #include "../ints/int10.h"
 
 #include <output/output_opengl.h>
@@ -74,6 +80,8 @@ bool                                                OpenGL_using(void);
 
 void                                                MAPPER_TriggerEventByName(const std::string& name);
 void                                                RENDER_CallBack( GFX_CallBackFunctions_t function );
+
+const DOSBoxMenu::callback_t DOSBoxMenu::unassigned_callback = NULL;
 
 const DOSBoxMenu::mapper_event_t                    DOSBoxMenu::unassigned_mapper_event; /* empty std::string */
 
@@ -927,7 +935,7 @@ bool DOSBox_isMenuVisible(void) {
     return menu.toggle;
 }
 
-DOSBoxMenu::DOSBoxMenu() {
+DOSBoxMenu::DOSBoxMenu() : master_list_alloc(0) {
 }
 
 DOSBoxMenu::~DOSBoxMenu() {
@@ -942,7 +950,7 @@ DOSBoxMenu::displaylist::~displaylist() {
 }
 
 bool DOSBoxMenu::item_exists(const std::string &name) {
-    const auto i = name_map.find(name);
+    const std::map<std::string,item_handle_t>::iterator i = name_map.find(name);
 
     if (i == name_map.end())
        return false;
@@ -967,7 +975,7 @@ bool DOSBoxMenu::item_exists(const item_handle_t i) {
 }
 
 DOSBoxMenu::item_handle_t DOSBoxMenu::get_item_id_by_name(const std::string &name) {
-    const auto i = name_map.find(name);
+    const std::map<std::string,item_handle_t>::iterator i = name_map.find(name);
 
     if (i == name_map.end())
         return unassigned_item_handle;
@@ -1037,7 +1045,7 @@ void DOSBoxMenu::delete_item(const item_handle_t i) {
         E_Exit("DOSBoxMenu::delete_item() attempt to get out of range handle");
 
     {
-        const auto it = name_map.find(master_list[i].name);
+        const std::map<std::string,item_handle_t>::iterator it = name_map.find(master_list[i].name);
         if (it != name_map.end()) {
             if (it->second != i) E_Exit("DOSBoxMenu::delete_item() master_id mismatch");
             name_map.erase(it);
@@ -1066,7 +1074,8 @@ void DOSBoxMenu::dump_log_displaylist(DOSBoxMenu::displaylist &ls, unsigned int 
     for (unsigned int i=0;i < indent;i++)
         prep += "+ ";
 
-    for (const auto &id : ls.disp_list) {
+    for (std::vector<item_handle_t>::const_iterator it = ls.disp_list.begin(); it != ls.disp_list.end(); ++it) {
+        const item_handle_t id = *it;
         DOSBoxMenu::item &item = get_item(id);
 
         if (!item.is_allocated()) {
@@ -1089,7 +1098,8 @@ void DOSBoxMenu::dump_log_displaylist(DOSBoxMenu::displaylist &ls, unsigned int 
 void DOSBoxMenu::dump_log_debug(void) {
     LOG_MSG("Menu dump log (%p)",(void*)this);
     LOG_MSG("---- Master list ----");
-    for (auto &id : master_list) {
+    for (std::vector<item>::iterator it = master_list.begin(); it != master_list.end(); ++it) {
+        item &id = *it;
         if (id.is_allocated()) {
             LOG_MSG("+ id=%u type=\"%s\" name=\"%s\" text=\"%s\" shortcut=\"%s\" desc=\"%s\"",
                 (unsigned int)id.master_id,
@@ -1112,7 +1122,8 @@ std::vector<DOSBoxMenu::item> DOSBoxMenu::get_master_list(void) {
 }
 
 void DOSBoxMenu::clear_all_menu_items(void) {
-    for (auto &id : master_list) {
+    for (std::vector<item>::iterator it = master_list.begin(); it != master_list.end(); ++it) {
+        item &id = *it;
         if (id.is_allocated())
             id.deallocate();
     }
@@ -1121,7 +1132,10 @@ void DOSBoxMenu::clear_all_menu_items(void) {
     name_map.clear();
 }
 
-DOSBoxMenu::item::item() {
+DOSBoxMenu::item::item() : topMenu(NULL), parent_id(unassigned_item_handle),
+    master_id(unassigned_item_handle), type(item_type_id),
+    callback_func(unassigned_callback), mapper_event(unassigned_mapper_event),
+    user_defined(0) {
 }
 
 DOSBoxMenu::item::~item() {
@@ -1173,7 +1187,8 @@ void DOSBoxMenu::displaylist_append(const DOSBoxMenu::item_handle_t parent_id,co
 void DOSBoxMenu::displaylist_clear(const DOSBoxMenu::item_handle_t parent_id) {
     displaylist &ls = (parent_id == DOSBoxMenu::unassigned_item_handle) ? display_list : get_item(parent_id).display_list;
 
-    for (auto &id : ls.disp_list) {
+    for (std::vector<item_handle_t>::iterator it = ls.disp_list.begin(); it != ls.disp_list.end(); ++it) {
+        item_handle_t &id = *it;
         if (id != DOSBoxMenu::unassigned_item_handle) {
             DOSBoxMenu::item &item = get_item(id);
             item.parent_id = DOSBoxMenu::unassigned_item_handle;
@@ -1309,7 +1324,8 @@ bool DOSBoxMenu::nsMenuInit(void) {
         /* release our handle on the nsMenus. Mac OS X will keep them alive with its
            reference until the menu is destroyed at which point all items and submenus
            will be automatically destroyed */
-        for (auto &id : master_list) {
+        for (std::vector<item>::iterator it = master_list.begin(); it != master_list.end(); ++it) {
+        item &id = *it;
             if (id.nsMenu != NULL) {
                 sdl_hax_nsMenuRelease(id.nsMenu);
                 id.nsMenu = NULL;
@@ -2027,7 +2043,7 @@ void SetScaleForced(bool forced)
     Prop_multival* prop = section->Get_multival("scaler");
     std::string scaler = prop->GetSection()->Get_string("type");
 
-    auto value = scaler + (render.scale.forced ? " forced" : "");
+    std::string value = scaler + (render.scale.forced ? " forced" : "");
     SetVal("render", "scaler", value);
 
     RENDER_CallBack(GFX_CallBackReset);
@@ -2037,7 +2053,7 @@ void SetScaleForced(bool forced)
 // Sets the scaler to use.
 void SetScaler(scalerOperation_t op, Bitu size, std::string& prefix)
 {
-    auto value = prefix + (render.scale.forced ? " forced" : "");
+    std::string value = prefix + (render.scale.forced ? " forced" : "");
     SetVal("render", "scaler", value);
     render.scale.size = size;
     render.scale.op = op;
@@ -2055,7 +2071,7 @@ std::string MSCDEX_Output(int num) {
     case 4: return MSCDEX_MSG + MSCDEX_MSG_Failure + "Too many CDRom-drives (max: 5). MSCDEX Installation failed";
     case 5: return MSCDEX_MSG + "Mounted subdirectory: limited support.";
     case 6: return MSCDEX_MSG + MSCDEX_MSG_Failure + "Unknown error";
-    default: return {};
+    default: return std::string();
     }
 }
 
@@ -2235,6 +2251,7 @@ void DOSBox_CheckOS(int &id, int &major, int &minor) {
 }
 #endif
 
+#if !C_OPENSTEP
 void MSG_WM_COMMAND_handle(SDL_SysWMmsg &Message) {
 #if defined(WIN32) && !defined(HX_DOS)
     bool MAPPER_IsRunning(void);
@@ -2290,6 +2307,8 @@ void MSG_WM_COMMAND_handle(SDL_SysWMmsg &Message) {
     (void)Message;//UNUSED
 #endif
 }
+
+#endif
 
 void DOSBox_SetSysMenu(void) {
 #if defined(WIN32) && !defined(HX_DOS)
@@ -2713,7 +2732,8 @@ void DOSBoxMenu::showMenu(bool show) {
 
 void DOSBoxMenu::removeFocus(void) {
     if (menuUserAttentionAt != unassigned_item_handle) {
-        for (auto &id : master_list) {
+        for (std::vector<item>::iterator it = master_list.begin(); it != master_list.end(); ++it) {
+        item &id = *it;
             id.removeFocus(*this);
             id.showItem(*this,false);
         }

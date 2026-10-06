@@ -108,7 +108,7 @@ public:
 		}
 		return is_current_block;
 	}
-	void writeb(PhysPt addr,uint8_t val) override {
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("wb:non-readable code page found that is no ROM page");
@@ -128,7 +128,7 @@ public:
 		invalidation_map[addr]++;
 		InvalidateRange(addr,addr);
 	}
-	void writew(PhysPt addr,uint16_t val) override {
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("ww:non-readable code page found that is no ROM page");
@@ -148,7 +148,7 @@ public:
 		(*(uint16_t*)&invalidation_map[addr])+=0x101;
 		InvalidateRange(addr,addr+1);
 	}
-	void writed(PhysPt addr,uint32_t val) override {
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("wd:non-readable code page found that is no ROM page");
@@ -168,7 +168,7 @@ public:
 		(*(uint32_t*)&invalidation_map[addr])+=0x1010101;
 		InvalidateRange(addr,addr+3);
 	}
-	bool writeb_checked(PhysPt addr,uint8_t val) override {
+	bool writeb_checked(PhysPt addr,uint8_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("cb:non-readable code page found that is no ROM page");
@@ -194,7 +194,7 @@ public:
 		host_writeb(hostmem+addr,val);
 		return false;
 	}
-	bool writew_checked(PhysPt addr,uint16_t val) override {
+	bool writew_checked(PhysPt addr,uint16_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("cw:non-readable code page found that is no ROM page");
@@ -220,7 +220,7 @@ public:
 		host_writew(hostmem+addr,val);
 		return false;
 	}
-	bool writed_checked(PhysPt addr,uint32_t val) override {
+	bool writed_checked(PhysPt addr,uint32_t val) DBX_OVERRIDE {
 		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
 		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
 			E_Exit("cd:non-readable code page found that is no ROM page");
@@ -297,14 +297,14 @@ public:
 		else cache.last_page=prev;
 		next=cache.free_pages;
 		cache.free_pages=this;
-		prev=nullptr;
+		prev=NULL;
 	}
 	void ClearRelease(void) {
 		for (Bitu index=0;index<(1+DYN_PAGE_HASH);index++) {
 			CacheBlock * block=hash_map[index];
 			while (block) {
 				CacheBlock * nextblock=block->hash.next;
-				block->page.handler=nullptr;			//No need, full clear
+				block->page.handler=NULL;			//No need, full clear
 				block->Clear();
 				block=nextblock;
 			}
@@ -317,13 +317,13 @@ public:
 			if (block->page.start==start) return block;
 			block=block->hash.next;
 		}
-		return nullptr;
+		return NULL;
 	}
-	HostPt GetHostReadPt(PageNum phys_page) override {
+	HostPt GetHostReadPt(PageNum phys_page) DBX_OVERRIDE {
 		hostmem=old_pagehandler->GetHostReadPt(phys_page);
 		return hostmem;
 	}
-	HostPt GetHostWritePt(PageNum phys_page) override {
+	HostPt GetHostWritePt(PageNum phys_page) DBX_OVERRIDE {
 		return GetHostReadPt( phys_page );
 	}
 public:
@@ -349,7 +349,7 @@ static CacheBlock * cache_getblock(void) {
 	CacheBlock * ret=cache.block.free;
 	if (!ret) E_Exit("Ran out of CacheBlocks" );
 	cache.block.free=ret->cache.next;
-	ret->cache.next=nullptr;
+	ret->cache.next=NULL;
 	return ret;
 }
 
@@ -358,10 +358,10 @@ void CacheBlock::Clear(void) {
 	/* Check if this is not a cross page block */
 	if (hash.index) for (ind=0;ind<2;ind++) {
 		CacheBlock * fromlink=link[ind].from;
-		link[ind].from=nullptr;
+		link[ind].from=NULL;
 		while (fromlink) {
 			CacheBlock * nextlink=fromlink->link[ind].next;
-			fromlink->link[ind].next=nullptr;
+			fromlink->link[ind].next=NULL;
 			fromlink->link[ind].to=&link_blocks[ind];
 			fromlink=nextlink;
 		}
@@ -378,13 +378,13 @@ void CacheBlock::Clear(void) {
 	} else 
 		cache_addunsedblock(this);
 	if (crossblock) {
-		crossblock->crossblock=nullptr;
+		crossblock->crossblock=NULL;
 		crossblock->Clear();
-		crossblock=nullptr;
+		crossblock=NULL;
 	}
 	if (page.handler) {
 		page.handler->DelCacheBlock(this);
-		page.handler=nullptr;
+		page.handler=NULL;
 	}
 	if (cache.wmapmask){
 		free(cache.wmapmask);
@@ -422,10 +422,10 @@ static void cache_closeblock(void) {
 	CacheBlock * block=cache.block.active;
 	block->link[0].to=&link_blocks[0];
 	block->link[1].to=&link_blocks[1];
-	block->link[0].from=nullptr;
-	block->link[1].from=nullptr;
-	block->link[0].next=nullptr;
-	block->link[1].next=nullptr;
+	block->link[0].from=NULL;
+	block->link[1].from=NULL;
+	block->link[0].next=NULL;
+	block->link[1].next=NULL;
 	/* Close the block with correct alignments */
 	Bitu written=cache.pos-block->cache.start;
 	if (written>block->cache.size) {
@@ -540,7 +540,7 @@ static void cache_init(bool enable) {
 			block->cache.start=&cache_code[0];
 			block->cache.xstart=(uint8_t*)cache_rwtox(block->cache.start);
 			block->cache.size=CACHE_TOTAL;
-			block->cache.next=nullptr;								//Last block in the list
+			block->cache.next=NULL;								//Last block in the list
 		}
 		/* Setup the default blocks for block linkage returns */
 		cache.pos=&cache_code_link_blocks[0];
@@ -551,9 +551,9 @@ static void cache_init(bool enable) {
 		link_blocks[1].cache.start=cache.pos;
 		link_blocks[1].cache.xstart=(uint8_t*)cache_rwtox(link_blocks[1].cache.start);
 		gen_return(BR_Link2);
-		cache.free_pages=nullptr;
-		cache.last_page=nullptr;
-		cache.used_pages=nullptr;
+		cache.free_pages=NULL;
+		cache.last_page=NULL;
+		cache.used_pages=NULL;
 		/* Setup the code pages */
 		for (i=0;i<CACHE_PAGES;i++) {
 			CodePageHandler * newpage=new CodePageHandler();
@@ -620,7 +620,7 @@ static void cache_reset(void) {
 		block->cache.start=&cache_code[0];
 		block->cache.xstart=(uint8_t*)cache_rwtox(block->cache.start);
 		block->cache.size=CACHE_TOTAL;
-		block->cache.next=nullptr;								//Last block in the list
+		block->cache.next=NULL;								//Last block in the list
 
 		/* Setup the default blocks for block linkage returns */
 		cache.pos=&cache_code_link_blocks[0];
@@ -631,9 +631,9 @@ static void cache_reset(void) {
 		link_blocks[1].cache.start=cache.pos;
 		link_blocks[1].cache.xstart=(uint8_t*)cache_rwtox(link_blocks[1].cache.start);
 		gen_return(BR_Link2);
-		cache.free_pages=nullptr;
-		cache.last_page=nullptr;
-		cache.used_pages=nullptr;
+		cache.free_pages=NULL;
+		cache.last_page=NULL;
+		cache.used_pages=NULL;
 		/* Setup the code pages */
 		for (Bitu i=0;i<CACHE_PAGES;i++) {
 			CodePageHandler * newpage=new CodePageHandler();

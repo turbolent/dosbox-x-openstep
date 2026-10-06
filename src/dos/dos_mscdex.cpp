@@ -200,7 +200,7 @@ int CDROM_AllocateInterface(const char* physicalPath,int forceCD,uint16_t numDri
 #if !defined(OSFREE)
 class DOS_DeviceHeader:public MemStruct {
 public:
-	DOS_DeviceHeader(PhysPt ptr)				{ pt = ptr; };
+	DOS_DeviceHeader(PhysPt ptr) : TDeviceHeader() { pt = ptr; };
 	
 	void	SetNextDeviceHeader	(RealPt ptr)	{ sSave(sDeviceHeader,nextDeviceHeader,ptr);	};
 	RealPt	GetNextDeviceHeader	(void)			{ return sGet(sDeviceHeader,nextDeviceHeader);	};
@@ -231,7 +231,7 @@ public:
 		uint16_t  wReserved;
 		uint8_t	driveLetter;
 		uint8_t	numSubUnits;
-    } GCC_ATTRIBUTE(packed) TDeviceHeader = {};
+    } GCC_ATTRIBUTE(packed) TDeviceHeader;
 	#ifdef _MSC_VER
 	#pragma pack()
 	#endif
@@ -328,12 +328,12 @@ public:
 	void SaveState( std::ostream& stream );
 	void LoadState( std::istream& stream );
 
-	uint16_t				defaultBufSeg = 0;
+	uint16_t				defaultBufSeg;
 #if !defined(OSFREE)
-	uint16_t		rootDriverHeaderSeg = 0;
+	uint16_t		rootDriverHeaderSeg;
 #endif
 
-	char*			name = NULL;
+	char*			name;
 
 #if !defined(OSFREE)
 	bool		ChannelControl		(uint8_t subUnit, TCtrl ctrl);
@@ -346,17 +346,21 @@ void CDROM_FreeAllDrives(void) {
 	for (uint16_t i=0; i<GetNumDrives(); i++) {
 		if (cdrom[i]) {
 			cdrom[i]->Release();
-			cdrom[i] = nullptr;
+			cdrom[i] = NULL;
 		}
 	}
 	numDrives = 0;
 }
 
-CMscdex::CMscdex(const char *_name) {
+CMscdex::CMscdex(const char *_name) : defaultBufSeg(0),
+#if !defined(OSFREE)
+    rootDriverHeaderSeg(0),
+#endif
+    name(NULL) {
 	assert(_name != NULL);
 	assert(strlen(_name) <= 8);
 	memset(dinfo,0,sizeof(dinfo));
-	for (uint32_t i=0; i<MSCDEX_MAX_DRIVES; i++) cdrom[i] = nullptr;
+	for (uint32_t i=0; i<MSCDEX_MAX_DRIVES; i++) cdrom[i] = NULL;
 	name = new char[strlen(_name)+1];
 	strcpy(name,_name);
 }
@@ -391,11 +395,11 @@ int CMscdex::RemoveDrive(uint16_t _drive)
 
 	if (idx == MSCDEX_MAX_DRIVES || (idx!=0 && idx!=GetNumDrives()-1)) return 0;
 	cdrom[idx]->Release();
-	cdrom[idx] = nullptr;
+	cdrom[idx] = NULL;
 	if (idx==0) {
 		for (uint16_t i=0; i<GetNumDrives(); i++) {
 			if (i == MSCDEX_MAX_DRIVES-1) {
-				cdrom[i] = nullptr;
+				cdrom[i] = NULL;
 				memset(&dinfo[i],0,sizeof(TDriveInfo));
 			} else {
 				dinfo[i] = dinfo[i+1];
@@ -403,7 +407,7 @@ int CMscdex::RemoveDrive(uint16_t _drive)
 			}
 		}
 	} else {
-		cdrom[idx] = nullptr;
+		cdrom[idx] = NULL;
 		memset(&dinfo[idx],0,sizeof(TDriveInfo));
 	}
 	numDrives--;
@@ -465,7 +469,9 @@ int CDROM_AllocateInterface(const char* physicalPath,int forceCD,uint16_t numDri
 				break;
 			}
 #endif
-#if defined (LINUX) || defined(OS2)
+#if C_OPENSTEP
+            return 6; /* native port supports image files and directories */
+#elif defined (LINUX) || defined(OS2)
 			// Always use IOCTL in Linux or OS/2
 			(*cdrom = new CDROM_Interface_Ioctl())->Addref();
 			LOG(LOG_MISC,LOG_NORMAL)("MSCDEX: IOCTL Interface.");
@@ -483,7 +489,7 @@ int CDROM_AllocateInterface(const char* physicalPath,int forceCD,uint16_t numDri
 			{
 				CDROM_Interface_Fake *fake = new CDROM_Interface_Fake;
 				(*cdrom = fake)->Addref();
-				assert(fake->class_id == CDROM_Interface::INTERFACE_TYPE::ID_FAKE);
+				assert(fake->class_id == CDROM_Interface::ID_FAKE);
 				if (!strcmp(physicalPath,"empty")) {
 					fake->isEmpty = true;
 				}
@@ -1075,7 +1081,7 @@ bool CMscdex::GetChannelControl(uint8_t subUnit, TCtrl& ctrl) {
 }
 #endif
 
-static CMscdex* mscdex = nullptr;
+static CMscdex* mscdex = NULL;
 static PhysPt curReqheaderPtr = 0;
 
 bool GetMSCDEXDrive(unsigned char drive_letter,CDROM_Interface **ret_cdrom) {
@@ -1405,7 +1411,7 @@ static Bitu MSCDEX_Interrupt_Handler(void) {
     {
         uint32_t start = mem_readd(curReqheaderPtr + 0x14);
         if(mem_readb(curReqheaderPtr + 0x0D)) { //Redbook if non-zero
-            TMSF msf = {};
+            TMSF msf;
             msf.min = (start >> 16) & 0xFF;
             msf.sec = (start >> 8) & 0xFF;
             msf.fr = (start >> 0) & 0xFF;
@@ -1600,19 +1606,19 @@ static bool MSCDEX_ValidDevName(const char *s) {
 class device_MSCDEX : public DOS_Device {
 public:
 	device_MSCDEX(const char *devname) { SetName(MSCDEX_ValidDevName(devname) ? devname : "MSCD001"); }
-	bool Read (uint8_t * /*data*/,uint16_t * /*size*/) override { return false;}
-	bool Write(const uint8_t * /*data*/,uint16_t * /*size*/) override {
+	bool Read (uint8_t * /*data*/,uint16_t * /*size*/) DBX_OVERRIDE { return false;}
+	bool Write(const uint8_t * /*data*/,uint16_t * /*size*/) DBX_OVERRIDE {
 		LOG(LOG_ALL,LOG_NORMAL)("Write to mscdex device");	
 		return false;
 	}
-	bool Seek(uint32_t * /*pos*/,uint32_t /*type*/) override {return false;}
-	bool Close() override {return false;}
-	uint16_t GetInformation(void) override
+	bool Seek(uint32_t * /*pos*/,uint32_t /*type*/) DBX_OVERRIDE {return false;}
+	bool Close() DBX_OVERRIDE {return false;}
+	uint16_t GetInformation(void) DBX_OVERRIDE
 	{
 		return DeviceInfoFlags::Device | DeviceInfoFlags::IoctlSupport | DeviceInfoFlags::OpenCloseSupport;
 	}
-	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override;
-	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) override;
+	bool ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE;
+	bool WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode) DBX_OVERRIDE;
 // private:
 //  uint8_t cache;
 };
@@ -1835,7 +1841,7 @@ void POD_Load_DOS_Mscdex( std::istream& stream )
 			for (uint16_t i=dnum; i<GetNumDrives(); i++) {
 				if (cdrom[i]) {
 					cdrom[i]->Release();
-					cdrom[i] = nullptr;
+					cdrom[i] = NULL;
 				}
 			}
 		}

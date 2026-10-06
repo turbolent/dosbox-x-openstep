@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <cstdint>
 #include <string>
@@ -11,24 +10,20 @@
 class DOS_MCB : public MemStruct
 {
 public:
-	enum class MCBType : uint8_t
-	{
-		ValidBlock = 'M',
-		LastBlock  = 'Z'
-	};
+	struct MCBType { enum Type { ValidBlock = 'M', LastBlock = 'Z' }; };
 
 	DOS_MCB(uint16_t seg) { SetPt(seg); }
 
 	std::string GetFileName() const
 	{
-		std::array<char, 9> namebuf = {};
-		MEM_BlockRead(pt+offsetof(sMCB,filename), namebuf.data(), 8);
-		return {namebuf.data()};
+		char namebuf[9] = {0};
+		MEM_BlockRead(pt+offsetof(sMCB,filename), namebuf, 8);
+		return std::string(namebuf);
 	}
 	uint16_t GetPSPSeg() const { return sGet(sMCB, psp_segment);}
 	uint16_t GetSeg() const { return pt>>4; }
 	uint16_t GetSize() const { return sGet(sMCB, size);}
-	MCBType GetType() const { return MCBType(sGet(sMCB, type));}
+	MCBType::Type GetType() const { return MCBType::Type(sGet(sMCB, type));}
 	bool contains(uint16_t seg) const {
 		const uint32_t start = GetSeg();
 		const uint32_t end = start + GetSize();
@@ -50,17 +45,17 @@ public:
 	}
 	void SetFileName(const char *filename)
 	{
-		std::array<char, 8> namebuf = {};
-		if (filename != nullptr) {
-			const auto len = (std::min)(std::strlen(filename), namebuf.size());
-			std::memcpy(namebuf.data(), filename, len);
+		char namebuf[8] = {0};
+		if (filename != NULL) {
+			const size_t len = (std::min)(std::strlen(filename), sizeof(namebuf));
+			std::memcpy(namebuf, filename, len);
 		}
-		MEM_BlockWrite(pt+offsetof(sMCB,filename), namebuf.data(), namebuf.size());
+		MEM_BlockWrite(pt+offsetof(sMCB,filename), namebuf, sizeof(namebuf));
 	}
 	void SetFileName(const std::string& filename) { SetFileName(filename.c_str()); }
 	void SetPSPSeg(uint16_t pspseg) { sSave(sMCB, psp_segment, pspseg);}
 	void SetSize(uint16_t size) { sSave(sMCB, size, size);}
-	void SetType(MCBType type) { sSave(sMCB, type, (uint8_t)type);}
+	void SetType(MCBType::Type type) { sSave(sMCB, type, (uint8_t)type);}
 
 	bool operator ==(const DOS_MCB& other) const { return pt == other.pt; }
 

@@ -42,8 +42,7 @@ extern bool gbk, isDBCSCP(), isKanji1_gbk(uint8_t chr), shiftjis_lead_byte(int c
 extern bool filename_not_8x3(const char *n), filename_not_strict_8x3(const char *n);
 bool CodePageHostToGuestUTF16(char *d/*CROSS_LEN*/,const uint16_t *s/*CROSS_LEN*/);
 inline bool CodePageHostToGuestUTF16(uint8_t *d/*CROSS_LEN*/,const uint8_t *s/*CROSS_LEN*/) {
-    std::u16string u16s(reinterpret_cast<const char16_t *>(s));
-    return CodePageHostToGuestUTF16(reinterpret_cast<char *>(d), reinterpret_cast<const uint16_t *>(u16s.c_str()));
+    return CodePageHostToGuestUTF16(reinterpret_cast<char *>(d), reinterpret_cast<const uint16_t *>(s));
 }
 #endif
 
@@ -163,11 +162,13 @@ bool UDFTagId::get(const unsigned int sz,const unsigned char *b) {
 	return tagChecksumOK(sz,b) && dataChecksumOK(sz,b);
 }
 
-UDFTagId::UDFTagId(const unsigned int sz,const unsigned char *b) {
+UDFTagId::UDFTagId(const unsigned int sz,const unsigned char *b) :
+    TagIdentifier(0), DescriptorVersion(0), TagChecksum(0), Reserved(0), TagSerialNumber(0), DescriptorCRC(0), DescriptorCRCLength(0), TagLocation(0) {
 	parse(sz,b);
 }
 
-UDFTagId::UDFTagId() {
+UDFTagId::UDFTagId() :
+    TagIdentifier(0), DescriptorVersion(0), TagChecksum(0), Reserved(0), TagSerialNumber(0), DescriptorCRC(0), DescriptorCRCLength(0), TagLocation(0) {
 }
 #endif
 
@@ -181,11 +182,13 @@ void UDFextent_ad::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFextent_ad::UDFextent_ad(const unsigned int sz,const unsigned char *b) {
+UDFextent_ad::UDFextent_ad(const unsigned int sz,const unsigned char *b) :
+    ExtentLength(0), ExtentLocation(0) {
 	get(sz,b);
 }
 
-UDFextent_ad::UDFextent_ad() {
+UDFextent_ad::UDFextent_ad() :
+    ExtentLength(0), ExtentLocation(0) {
 }
 #endif
 
@@ -298,7 +301,7 @@ void UDFPrimaryVolumeDescriptor::get(UDFTagId &tag/*already parsed, why parse ag
 		RecordingDateAndTime.get(12,b+376);
 		ImplementationIdentifier.get(32,b+388);
 
-		static_assert(sizeof(ImplementationUse) == 64,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(ImplementationUse) == 64,"sizeof err");
 		memcpy(&ImplementationUse,b+420,64);
 
 		PredecessorVolumeDescriptorSequenceLocation = le32toh( *((uint32_t*)(&b[484])) );
@@ -306,11 +309,13 @@ void UDFPrimaryVolumeDescriptor::get(UDFTagId &tag/*already parsed, why parse ag
 	}
 }
 
-UDFPrimaryVolumeDescriptor::UDFPrimaryVolumeDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFPrimaryVolumeDescriptor::UDFPrimaryVolumeDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    VolumeDescriptorSequenceNumber(0), PrimaryVolumeDescriptorNumber(0), VolumeSequenceNumber(0), MaximumVolumeSequenceNumber(0), InterchangeLevel(0), MaximumInterchangeLevel(0), CharacterSetList(0), MaximumCharacterSetList(0), PredecessorVolumeDescriptorSequenceLocation(0), Flags(0) {
 	get(tag,sz,b);
 }
 
-UDFPrimaryVolumeDescriptor::UDFPrimaryVolumeDescriptor() {
+UDFPrimaryVolumeDescriptor::UDFPrimaryVolumeDescriptor() :
+    VolumeDescriptorSequenceNumber(0), PrimaryVolumeDescriptorNumber(0), VolumeSequenceNumber(0), MaximumVolumeSequenceNumber(0), InterchangeLevel(0), MaximumInterchangeLevel(0), CharacterSetList(0), MaximumCharacterSetList(0), PredecessorVolumeDescriptorSequenceLocation(0), Flags(0) {
 }
 #endif
 
@@ -340,11 +345,13 @@ void UDFFileSetDescriptor::get(UDFTagId &tag/*already parsed, why parse again?*/
 	}
 }
 
-UDFFileSetDescriptor::UDFFileSetDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFFileSetDescriptor::UDFFileSetDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    InterchangeLevel(0), MaximumInterchangeLevel(0), CharacterSetList(0), MaximumCharacterSetList(0), FileSetNumber(0), FileSetDescriptorNumber(0) {
 	get(tag,sz,b);
 }
 
-UDFFileSetDescriptor::UDFFileSetDescriptor() {
+UDFFileSetDescriptor::UDFFileSetDescriptor() :
+    InterchangeLevel(0), MaximumInterchangeLevel(0), CharacterSetList(0), MaximumCharacterSetList(0), FileSetNumber(0), FileSetDescriptorNumber(0) {
 }
 #endif
 
@@ -358,16 +365,18 @@ void UDFext_ad::get(const unsigned int sz,const unsigned char *b) {
 		InformationLength = le32toh( *((uint32_t*)(&b[8])) );
 		ExtentLocation.get(6,b+12);
 
-		static_assert(sizeof(ImplementationUse) == 2,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(ImplementationUse) == 2,"sizeof err");
 		memcpy(ImplementationUse,b+18,2);
 	}
 }
 
-UDFext_ad::UDFext_ad(const unsigned int sz,const unsigned char *b) {
+UDFext_ad::UDFext_ad(const unsigned int sz,const unsigned char *b) :
+    ExtentLength(0), RecordedLength(0), InformationLength(0) {
 	get(sz,b);
 }
 
-UDFext_ad::UDFext_ad() {
+UDFext_ad::UDFext_ad() :
+    ExtentLength(0), RecordedLength(0), InformationLength(0) {
 }
 #endif
 
@@ -383,7 +392,7 @@ void UDFicbtag::get(const unsigned int sz,const unsigned char *b) {
 		PriorRecordedNumberOfDirectEntries = le32toh( *((uint32_t*)(&b[0])) );
 		StrategyType = le16toh( *((uint16_t*)(&b[4])) );
 
-		static_assert(sizeof(StrategyParameter) == 2,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(StrategyParameter) == 2,"sizeof err");
 		memcpy(StrategyParameter,b+6,2);
 
 		MaximumNumberOfEntries = le16toh( *((uint16_t*)(&b[8])) );
@@ -394,11 +403,13 @@ void UDFicbtag::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFicbtag::UDFicbtag(const unsigned int sz,const unsigned char *b) {
+UDFicbtag::UDFicbtag(const unsigned int sz,const unsigned char *b) :
+    PriorRecordedNumberOfDirectEntries(0), StrategyType(0), MaximumNumberOfEntries(0), Reserved(0), FileType(0), Flags(0) {
 	get(sz,b);
 }
 
-UDFicbtag::UDFicbtag() {
+UDFicbtag::UDFicbtag() :
+    PriorRecordedNumberOfDirectEntries(0), StrategyType(0), MaximumNumberOfEntries(0), Reserved(0), FileType(0), Flags(0) {
 }
 #endif
 
@@ -478,11 +489,13 @@ void UDFFileEntry::get(UDFTagId &tag/*already parsed, why parse again?*/,const u
 	}
 }
 
-UDFFileEntry::UDFFileEntry(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFFileEntry::UDFFileEntry(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    Uid(0), Gid(0), Permissions(0), FileLinkCount(0), RecordFormat(0), RecordDisplayAttributes(0), RecordLength(0), InformationLength(0), LogicalBlocksRecorded(0), Checkpoint(0), UniqueId(0), LengthOfExtendedAttributes(0), LengthOfAllocationDescriptors(0) {
 	get(tag,sz,b);
 }
 
-UDFFileEntry::UDFFileEntry() {
+UDFFileEntry::UDFFileEntry() :
+    Uid(0), Gid(0), Permissions(0), FileLinkCount(0), RecordFormat(0), RecordDisplayAttributes(0), RecordLength(0), InformationLength(0), LogicalBlocksRecorded(0), Checkpoint(0), UniqueId(0), LengthOfExtendedAttributes(0), LengthOfAllocationDescriptors(0) {
 }
 #endif
 
@@ -513,11 +526,13 @@ void UDFFileIdentifierDescriptor::get(UDFTagId &tag/*already parsed, why parse a
 	}
 }
 
-UDFFileIdentifierDescriptor::UDFFileIdentifierDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFFileIdentifierDescriptor::UDFFileIdentifierDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    FileVersionNumber(0), FileCharacteristics(0), LengthOfFileIdentifier(0), LengthOfImplementationUse(0) {
 	get(tag,sz,b);
 }
 
-UDFFileIdentifierDescriptor::UDFFileIdentifierDescriptor() {
+UDFFileIdentifierDescriptor::UDFFileIdentifierDescriptor() :
+    FileVersionNumber(0), FileCharacteristics(0), LengthOfFileIdentifier(0), LengthOfImplementationUse(0) {
 }
 #endif
 
@@ -532,7 +547,7 @@ void UDFPartitionDescriptor::get(UDFTagId &tag/*already parsed, why parse again?
 		PartitionNumber = le16toh( *((uint16_t*)(&b[22])) );
 		PartitionContents.get(32,b+24);
 
-		static_assert(sizeof(PartitionContentsUse) == 128,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(PartitionContentsUse) == 128,"sizeof err");
 		memcpy(PartitionContentsUse,b+56,128);
 
 		AccessType = le32toh( *((uint32_t*)(&b[184])) );
@@ -540,16 +555,18 @@ void UDFPartitionDescriptor::get(UDFTagId &tag/*already parsed, why parse again?
 		PartitionLength = le32toh( *((uint32_t*)(&b[192])) );
 		ImplementationIdentifier.get(32,b+196);
 
-		static_assert(sizeof(ImplementationUse) == 128,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(ImplementationUse) == 128,"sizeof err");
 		memcpy(ImplementationUse,b+228,128);
 	}
 }
 
-UDFPartitionDescriptor::UDFPartitionDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFPartitionDescriptor::UDFPartitionDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    VolumeDescriptorSequenceNumber(0), PartitionFlags(0), PartitionNumber(0), AccessType(0), PartitionStartingLocation(0), PartitionLength(0) {
 	get(tag,sz,b);
 }
 
-UDFPartitionDescriptor::UDFPartitionDescriptor() {
+UDFPartitionDescriptor::UDFPartitionDescriptor() :
+    VolumeDescriptorSequenceNumber(0), PartitionFlags(0), PartitionNumber(0), AccessType(0), PartitionStartingLocation(0), PartitionLength(0) {
 }
 #endif
 
@@ -565,14 +582,14 @@ void UDFLogicalVolumeDescriptor::get(UDFTagId &tag/*already parsed, why parse ag
 		LogicalBlockSize = le32toh( *((uint32_t*)(&b[212])) );
 		DomainIdentifier.get(32,b+216);
 
-		static_assert(sizeof(LogicalVolumeContentsUse) == 16,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(LogicalVolumeContentsUse) == 16,"sizeof err");
 		memcpy(LogicalVolumeContentsUse,b+248,16);
 
 		MapTableLength = le32toh( *((uint32_t*)(&b[264])) );
 		NumberOfPartitionMaps = le32toh( *((uint32_t*)(&b[268])) );
 		ImplementationIdentifier.get(32,b+272);
 
-		static_assert(sizeof(ImplementationUse) == 128,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(ImplementationUse) == 128,"sizeof err");
 		memcpy(ImplementationUse,b+304,128);
 		IntegritySequenceExtent.get(8,b+432);
 
@@ -583,11 +600,13 @@ void UDFLogicalVolumeDescriptor::get(UDFTagId &tag/*already parsed, why parse ag
 	}
 }
 
-UDFLogicalVolumeDescriptor::UDFLogicalVolumeDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) {
+UDFLogicalVolumeDescriptor::UDFLogicalVolumeDescriptor(UDFTagId &tag/*already parsed, why parse again?*/,const unsigned int sz,const unsigned char *b) :
+    VolumeDescriptorSequenceNumber(0), LogicalBlockSize(0), MapTableLength(0), NumberOfPartitionMaps(0) {
 	get(tag,sz,b);
 }
 
-UDFLogicalVolumeDescriptor::UDFLogicalVolumeDescriptor() {
+UDFLogicalVolumeDescriptor::UDFLogicalVolumeDescriptor() :
+    VolumeDescriptorSequenceNumber(0), LogicalBlockSize(0), MapTableLength(0), NumberOfPartitionMaps(0) {
 }
 #endif
 
@@ -634,11 +653,13 @@ void UDFtimestamp::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFtimestamp::UDFtimestamp(const unsigned int sz,const unsigned char *b) {
+UDFtimestamp::UDFtimestamp(const unsigned int sz,const unsigned char *b) :
+    TypeAndTimeZone(0), Year(0), Month(0), Day(0), Hour(0), Minute(0), Second(0), Centiseconds(0), HundredsOfMicroseconds(0), Microseconds(0) {
 	get(sz,b);
 }
 
-UDFtimestamp::UDFtimestamp() {
+UDFtimestamp::UDFtimestamp() :
+    TypeAndTimeZone(0), Year(0), Month(0), Day(0), Hour(0), Minute(0), Second(0), Centiseconds(0), HundredsOfMicroseconds(0), Microseconds(0) {
 }
 #endif
 
@@ -653,11 +674,13 @@ void UDFregid::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFregid::UDFregid(const unsigned int sz,const unsigned char *b) {
+UDFregid::UDFregid(const unsigned int sz,const unsigned char *b) :
+    Flags(0) {
 	get(sz,b);
 }
 
-UDFregid::UDFregid() {
+UDFregid::UDFregid() :
+    Flags(0) {
 }
 #endif
 
@@ -689,11 +712,13 @@ void UDFlb_addr::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFlb_addr::UDFlb_addr(const unsigned int sz,const unsigned char *b) {
+UDFlb_addr::UDFlb_addr(const unsigned int sz,const unsigned char *b) :
+    LogicalBlockNumber(0), PartitionReferenceNumber(0) {
 	get(sz,b);
 }
 
-UDFlb_addr::UDFlb_addr() {
+UDFlb_addr::UDFlb_addr() :
+    LogicalBlockNumber(0), PartitionReferenceNumber(0) {
 }
 #endif
 
@@ -707,11 +732,13 @@ void UDFshort_ad::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFshort_ad::UDFshort_ad(const unsigned int sz,const unsigned char *b) {
+UDFshort_ad::UDFshort_ad(const unsigned int sz,const unsigned char *b) :
+    ExtentLength(0), ExtentPosition(0) {
 	get(sz,b);
 }
 
-UDFshort_ad::UDFshort_ad() {
+UDFshort_ad::UDFshort_ad() :
+    ExtentLength(0), ExtentPosition(0) {
 }
 #endif
 
@@ -723,7 +750,7 @@ void UDFlong_ad::get(const unsigned int sz,const unsigned char *b) {
 		ExtentLength = le32toh( *((uint32_t*)(&b[0])) );
 		ExtentLocation.get(6,b+4);
 
-		static_assert(sizeof(ImplementationUse) == 6,"sizeof err");
+		DBX_STATIC_ASSERT(sizeof(ImplementationUse) == 6,"sizeof err");
 		memcpy(ImplementationUse,b+10,6);
 	}
 	else {
@@ -731,11 +758,13 @@ void UDFlong_ad::get(const unsigned int sz,const unsigned char *b) {
 	}
 }
 
-UDFlong_ad::UDFlong_ad(const unsigned int sz,const unsigned char *b) {
+UDFlong_ad::UDFlong_ad(const unsigned int sz,const unsigned char *b) :
+    ExtentLength(0) {
 	get(sz,b);
 }
 
-UDFlong_ad::UDFlong_ad() {
+UDFlong_ad::UDFlong_ad() :
+    ExtentLength(0) {
 }
 #endif
 
@@ -752,10 +781,12 @@ UDFextent::UDFextent(const struct UDFextent_ad &s) : ex(s) {
 ////////////////////////////////////
 
 #if !defined(OSFREE)
-UDFextents::UDFextents() {
+UDFextents::UDFextents() :
+    is_indata(false), relofs(0), extofs(0), extent(0), filesz(0), sector_buffer_n(0xFFFFFFFFu) {
 }
 
-UDFextents::UDFextents(const struct UDFextent_ad &s) {
+UDFextents::UDFextents(const struct UDFextent_ad &s) :
+    is_indata(false), relofs(0), extofs(0), extent(0), filesz(0), sector_buffer_n(0xFFFFFFFFu) {
 	xl.push_back(s);
 }
 #endif
@@ -769,16 +800,16 @@ void isoDrive::UDFFileEntryToExtents(UDFextents &ex,UDFFileEntry &fe) const {
 	ex.is_indata = false;
 	switch (fe.ICBTag.AllocationDescriptorType()) {
                 case 0: /* short_ad */
-                        for (auto ad : fe.AllocationDescriptors_short_ad)
-                                ex.xl.push_back(convertToUDFextent_ad(ad,0xFFFFFFFFu));
+                        for (std::vector<UDFshort_ad>::const_iterator ad = fe.AllocationDescriptors_short_ad.begin(); ad != fe.AllocationDescriptors_short_ad.end(); ++ad)
+                                ex.xl.push_back(convertToUDFextent_ad(*ad,0xFFFFFFFFu));
                         break;
                 case 1: /* long_ad */
-                        for (auto ad : fe.AllocationDescriptors_long_ad)
-                                ex.xl.push_back(convertToUDFextent_ad(ad));
+                        for (std::vector<UDFlong_ad>::const_iterator ad = fe.AllocationDescriptors_long_ad.begin(); ad != fe.AllocationDescriptors_long_ad.end(); ++ad)
+                                ex.xl.push_back(convertToUDFextent_ad(*ad));
                         break;
                 case 2: /* ext_ad */
-                        for (auto ad : fe.AllocationDescriptors_ext_ad)
-                                ex.xl.push_back(convertToUDFextent_ad(ad));
+                        for (std::vector<UDFext_ad>::const_iterator ad = fe.AllocationDescriptors_ext_ad.begin(); ad != fe.AllocationDescriptors_ext_ad.end(); ++ad)
+                                ex.xl.push_back(convertToUDFextent_ad(*ad));
                         break;
                 case 3: /* file replaces allocation descriptors (very small files) */
                         ex.indata = fe.AllocationDescriptors_file;
@@ -820,7 +851,7 @@ uint64_t isoDrive::UDFextent_seek(struct UDFextents &ex,uint64_t ofs) const {
 	}
 	else {
 		while (ex.extent < ex.xl.size()) {
-			const auto &exs = ex.xl[ex.extent];
+			const UDFextent &exs = ex.xl[ex.extent];
 
 			assert(ofs >= ex.extofs);
 			ex.relofs = ofs - ex.extofs;
@@ -857,7 +888,7 @@ unsigned int isoDrive::UDFextent_read(struct UDFextents &ex,unsigned char *buf,s
 		while (count != size_t(0)) {
 			if (ex.extent >= ex.xl.size()) break;
 
-			const auto &exs = ex.xl[ex.extent];
+			const UDFextent &exs = ex.xl[ex.extent];
 
 			assert(ex.relofs <= exs.ex.ExtentLength);
 			size_t extodo = (size_t)std::min((uint64_t)(exs.ex.ExtentLength - ex.relofs),(uint64_t)count);
@@ -901,19 +932,19 @@ unsigned int isoDrive::UDFextent_read(struct UDFextents &ex,unsigned char *buf,s
 class isoFile : public DOS_File {
 public:
     isoFile(isoDrive* drive, const char* name, const FileStat_Block* stat, uint32_t offset);
-	bool Read(uint8_t *data, uint16_t *size) override;
-	bool Write(const uint8_t *data, uint16_t *size) override;
-	bool Seek(uint32_t *pos, uint32_t type) override;
-	bool Close() override;
-	uint16_t GetInformation(void) override;
-	uint32_t GetSeekPos(void) override;
+	bool Read(uint8_t *data, uint16_t *size) DBX_OVERRIDE;
+	bool Write(const uint8_t *data, uint16_t *size) DBX_OVERRIDE;
+	bool Seek(uint32_t *pos, uint32_t type) DBX_OVERRIDE;
+	bool Close() DBX_OVERRIDE;
+	uint16_t GetInformation(void) DBX_OVERRIDE;
+	uint32_t GetSeekPos(void) DBX_OVERRIDE;
 public:
 	UDFextents udffext;
-	bool udf = false;
+	bool udf;
 private:
 	isoDrive *drive;
-    uint8_t buffer[ISO_FRAMESIZE] = {};
-    int cachedSector = -1;
+    uint8_t buffer[ISO_FRAMESIZE];
+    int cachedSector;
 	uint32_t fileBegin;
 	uint32_t filePos;
 	uint32_t fileEnd;
@@ -922,7 +953,7 @@ private:
 #endif
 
 #if !defined(OSFREE)
-isoFile::isoFile(isoDrive* drive, const char* name, const FileStat_Block* stat, uint32_t offset) : drive(drive), fileBegin(offset) {
+isoFile::isoFile(isoDrive* drive, const char* name, const FileStat_Block* stat, uint32_t offset) : udf(false), drive(drive), buffer(), cachedSector(-1), fileBegin(offset) {
 	time = stat->time;
 	date = stat->date;
 	attr = stat->attr;
@@ -1062,7 +1093,17 @@ bool CDROM_IsAudioOnly(CDROM_Interface *cd) {
 	return false;
 }
 
-isoDrive::isoDrive(char driveLetter, const char* fileName, uint8_t mediaid, int& error, std::vector<std::string>& options) {
+isoDrive::isoDrive(char driveLetter, const char* fileName, uint8_t mediaid, int& error, std::vector<std::string>& options) :
+    iso(false), dataCD(false),
+#if !defined(OSFREE)
+    is_udf(false), is_joliet(false), is_rock_ridge(false),
+    enable_joliet(false), enable_rock_ridge(false), enable_udf(false),
+#endif
+    mediaid(0),
+#if !defined(OSFREE)
+    rr_susp_skip(0),
+#endif
+    subUnit(0), driveLetter('\0'), cdrom(NULL), dirIterators() {
 #if !defined(OSFREE)
 	enable_udf = (dos.version.major > 7 || (dos.version.major == 7 && dos.version.minor >= 10));//default
 	enable_rock_ridge = (dos.version.major >= 7 || uselfn);//default
@@ -1075,7 +1116,8 @@ isoDrive::isoDrive(char driveLetter, const char* fileName, uint8_t mediaid, int&
 	}
 #endif
 
-	for (const auto &opt : options) {
+	for (std::vector<std::string>::const_iterator opt_it = options.begin(); opt_it != options.end(); ++opt_it) {
+        const std::string &opt = *opt_it;
 		size_t equ = opt.find_first_of('=');
 		std::string name,value;
 
@@ -1863,7 +1905,7 @@ void isoDrive::FreeDirIterator(const int dirIterator) {
 
 #if !defined(OSFREE)
 bool isoDrive::ReadCachedSector(uint8_t** buffer, const uint32_t sector) {
-	if(cdrom == nullptr) return false;
+	if(cdrom == NULL) return false;
 
 	// get hash table entry
 	unsigned int pos = sector % ISO_MAX_HASH_TABLE_SIZE;
@@ -1884,7 +1926,7 @@ bool isoDrive::ReadCachedSector(uint8_t** buffer, const uint32_t sector) {
 #endif
 
 inline bool isoDrive :: readSector(uint8_t *buffer, uint32_t sector) const {
-    if(cdrom == nullptr) return false;
+    if(cdrom == NULL) return false;
     return cdrom->ReadSectorsHost(buffer, false, sector, 1);
 }
 
@@ -2366,7 +2408,7 @@ bool isoDrive :: loadImage() {
 			readSector(pvd, EXTENT_LOCATION(this->rootEntry));
 
 			isoDirEntry rde;
-			static_assert(sizeof(rde) >= 255, "isoDirEntry less than 255 bytes");
+			DBX_STATIC_ASSERT(sizeof(rde) >= 255, "isoDirEntry less than 255 bytes");
 			if (pvd[0] >= 33) {
 				memcpy(&rde,pvd,pvd[0]);
 				if (IS_DIR(rde.fileFlags) && (rde.fileIdentLength == 1 && rde.ident[0] == 0x00)/*The "." directory*/) {
@@ -2572,7 +2614,7 @@ void isoDrive :: EmptyCache(void) {
 	nextFreeDirIterator = 0;
 	size_t numberOfDirIterators = sizeof(dirIterators) / sizeof(dirIterators[0]);
 	for(std::size_t i = 0; i < numberOfDirIterators; ++i) {
-		dirIterators[i] = isoDrive::DirIterator{};
+		dirIterators[i] = isoDrive::DirIterator();
 	}
 	memset(sectorHashEntries, 0, sizeof(sectorHashEntries));
 	memset(&rootEntry, 0, sizeof(isoDirEntry));

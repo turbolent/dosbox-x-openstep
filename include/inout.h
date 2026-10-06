@@ -20,10 +20,11 @@
 #ifndef DOSBOX_INOUT_H
 #define DOSBOX_INOUT_H
 
+#include "compiler_compat.h"
 #include <stdio.h>
 #include <stdint.h>
 
-using io_port_t = uint16_t; // DOS only supports 16-bit port addresses
+typedef uint16_t io_port_t; // DOS only supports 16-bit port addresses
 
 #define IO_MAX (64*1024+3)
 
@@ -75,7 +76,7 @@ static const Bitu IOMASK_FULL = 0xFFFFU; /* full 16-bit decode */
  *       ~(0x10 - 1) = ~0xF = 0xFFFFFFF0
  *
  */
-static inline constexpr Bitu IOMASK_Range(const Bitu x) {
+static inline DBX_CONSTEXPR Bitu IOMASK_Range(const Bitu x) {
     return ~((Bitu)x - (Bitu)1U);
 }
 
@@ -86,7 +87,7 @@ static inline constexpr Bitu IOMASK_Range(const Bitu x) {
  *     IOMASK_Combine(IOMASK_ISA_10BIT,IOMASK_Range(16));
  *
  */
-static inline constexpr Bitu IOMASK_Combine(const Bitu a,const Bitu b) {
+static inline DBX_CONSTEXPR Bitu IOMASK_Combine(const Bitu a,const Bitu b) {
     return a & b;
 }
 
@@ -94,10 +95,10 @@ static inline constexpr Bitu IOMASK_Combine(const Bitu a,const Bitu b) {
  * The io objects will remove itself on destruction.*/
 class IO_Base{
 protected:
-	bool installed = false;
+	bool installed;
 	Bitu m_port, m_mask/*IO_MB, etc.*/, m_range/*number of ports*/;
 public:
-	IO_Base() : m_port(0), m_mask(0), m_range(0) {};
+	IO_Base() : installed(false), m_port(0), m_mask(0), m_range(0) {};
 };
 /* NTS: To explain the Install() method, the caller not only provides the IOMASK_.. value, but ANDs
  *      the least significant bits to define the range of I/O ports to respond to. An ISA Sound Blaster
@@ -110,18 +111,19 @@ public:
  *      move on to the next device or mark the I/O port as empty. */
 class IO_CalloutObject: private IO_Base {
 public:
-    IO_CalloutObject() : IO_Base() {};
+    IO_CalloutObject() : IO_Base(), io_mask(0xffff), range_mask(0), alias_mask(0xffff),
+        getcounter(0), m_r_handler(NULL), m_w_handler(NULL), alloc(false) {}
     void InvalidateCachedHandlers(void);
 	void Install(Bitu port,Bitu portmask/*IOMASK_ISA_10BIT, etc.*/,IO_ReadCalloutHandler *r_handler,IO_WriteCalloutHandler *w_handler);
 	void Uninstall();
 public:
-    uint16_t io_mask = 0xFFFF;
-    uint16_t range_mask = 0;
-    uint16_t alias_mask = 0xFFFF;
-    unsigned int getcounter = 0;
-    IO_ReadCalloutHandler *m_r_handler = NULL;
-    IO_WriteCalloutHandler *m_w_handler = NULL;
-    bool alloc = false;
+    uint16_t io_mask;
+    uint16_t range_mask;
+    uint16_t alias_mask;
+    unsigned int getcounter;
+    IO_ReadCalloutHandler *m_r_handler;
+    IO_WriteCalloutHandler *m_w_handler;
+    bool alloc;
 public:
     inline bool MatchPort(const uint16_t p) {
         /* (p & io_mask) == (m_port & io_mask) but this also works.
@@ -170,15 +172,15 @@ void IO_InitCallouts(void);
 
 typedef uint32_t IO_Callout_t;
 
-static inline constexpr uint32_t IO_Callout_t_comb(const enum IO_Type_t t,const uint32_t idx) {
+static inline DBX_CONSTEXPR uint32_t IO_Callout_t_comb(const enum IO_Type_t t,const uint32_t idx) {
     return ((uint32_t)t << (uint32_t)28) + idx;
 }
 
-static inline constexpr enum IO_Type_t IO_Callout_t_type(const IO_Callout_t t) {
+static inline DBX_CONSTEXPR enum IO_Type_t IO_Callout_t_type(const IO_Callout_t t) {
     return (enum IO_Type_t)(t >> 28);
 }
 
-static inline constexpr uint32_t IO_Callout_t_index(const IO_Callout_t t) {
+static inline DBX_CONSTEXPR uint32_t IO_Callout_t_index(const IO_Callout_t t) {
     return t & (((uint32_t)1 << (uint32_t)28) - (uint32_t)1);
 }
 

@@ -9,6 +9,10 @@
 # define ICONV_LITTLE_ENDIAN 1234
 # define ICONV_BIG_ENDIAN 4321
 # define ICONV_BYTE_ORDER ICONV_LITTLE_ENDIAN
+#elif C_OPENSTEP
+# define ICONV_LITTLE_ENDIAN 1234
+# define ICONV_BIG_ENDIAN 4321
+# define ICONV_BYTE_ORDER ICONV_LITTLE_ENDIAN
 #elif defined(__APPLE__)
 # include <libkern/OSByteOrder.h>
 # define ICONV_LITTLE_ENDIAN 1234
@@ -41,6 +45,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#if defined(C_ICONV) && !defined(_MSC_VER)
+/* libiconv supplies EILSEQ on systems whose errno.h predates it. */
+#include <iconv.h>
+#endif
 
 #include <iostream>
 #include <exception>
@@ -49,6 +57,7 @@
 /* common code to any templated version of _IconvBase */
 class _Iconv_CommonBase {
 public:
+    _Iconv_CommonBase() : dst_adv(0), src_adv(0) {}
     static const char *errstring(int x);
     inline size_t get_src_last_read(void) const { /* in units of sizeof(srcT) */
         return src_adv;
@@ -57,15 +66,15 @@ public:
         return dst_adv;
     }
 public:
-    size_t                      dst_adv = 0;
-    size_t                      src_adv = 0;
+    size_t                      dst_adv;
+    size_t                      src_adv;
 public:
-    static constexpr int        err_noinit = -EBADF;
-    static constexpr int        err_noroom = -E2BIG;
-    static constexpr int        err_notvalid = -EILSEQ;
-    static constexpr int        err_incomplete = -EINVAL;
+    static const int            err_noinit = -EBADF;
+    static const int            err_noroom = -E2BIG;
+    static const int            err_notvalid = -EILSEQ;
+    static const int            err_incomplete = -EINVAL;
 protected:
-    static constexpr bool big_endian(void) {
+    static DBX_CONSTEXPR bool big_endian(void) {
         return (ICONV_BYTE_ORDER == ICONV_BIG_ENDIAN);
     }
 };
@@ -80,7 +89,7 @@ public:
     typedef std::basic_string<srcT> src_string;
     typedef std::basic_string<dstT> dst_string;
 public:
-    _IconvBase() { }
+    _IconvBase() : dst_ptr(NULL), dst_ptr_fence(NULL), src_ptr(NULL), src_ptr_fence(NULL) { }
     virtual ~_IconvBase() { }
 public:
     void finish(void) {
@@ -101,7 +110,9 @@ public:
     void set_dest(dstT * const dst,const size_t len/*in units of sizeof(dstT)*/) {
         set_dest(dst,dst+len);
     }
-    void set_dest(dstT * const dst) = delete; /* <- NO! Prevent C-string calls to std::string &dst function! */
+private:
+    void set_dest(dstT * const dst); /* Prevent C-string calls to std::string &dst. */
+public:
 
     void set_src(const srcT * const src,const srcT * const src_fence) {
         if (src == NULL || src_fence == NULL || src > src_fence)
@@ -195,9 +206,6 @@ protected:
     static inline size_t my_strlen(const char *s) {
         return strlen(s);
     }
-    static inline size_t my_strlen(const wchar_t *s) {
-        return wcslen(s);
-    }
     template <typename X> static inline size_t my_strlen(const X *s) {
         size_t c = 0;
 
@@ -213,12 +221,12 @@ protected:
         set_src(src.c_str(),src.length());
     }
 protected:
-    dstT*                       dst_ptr = NULL;
-    dstT*                       dst_ptr_fence = NULL;
-    const srcT*                 src_ptr = NULL;
-    const srcT*                 src_ptr_fence = NULL;
+    dstT*                       dst_ptr;
+    dstT*                       dst_ptr_fence;
+    const srcT*                 src_ptr;
+    const srcT*                 src_ptr_fence;
 
-    friend _Iconv<srcT,dstT>;
+    friend class _Iconv<srcT,dstT>;
 };
 
 #if defined(C_ICONV)
@@ -231,19 +239,20 @@ protected:
  * See also: [http://man7.org/linux/man-pages/man3/iconv.3.html] */
 template <typename srcT,typename dstT> class _Iconv : public _IconvBase<srcT,dstT> {
 protected:
-    using pclass = _IconvBase<srcT,dstT>;
+    typedef _IconvBase<srcT,dstT> pclass;
 public:
     explicit _Iconv(const iconv_t &ctx) : context(ctx) {/* takes ownership of ctx */
     }
-    _Iconv(const _Iconv *p) = delete;
-    _Iconv(const _Iconv &other) = delete; /* no copying */
-    _Iconv(const _Iconv &&other) = delete; /* no moving */
-    _Iconv() = delete;
+private:
+    _Iconv(const _Iconv *p);
+    _Iconv(const _Iconv &other); /* no copying or implicit moving */
+    _Iconv();
+public:
     virtual ~_Iconv() {
         close();
     }
 public:
-    int _do_convert(void) override {
+    int _do_convert(void) DBX_OVERRIDE {
         if (context != NULL) {
             dstT *i_dst = pclass::dst_ptr;
             const srcT *i_src = pclass::src_ptr;
@@ -253,7 +262,7 @@ public:
             iconv(context,NULL,NULL,NULL,NULL);
 
             /* Ref: [http://man7.org/linux/man-pages/man3/iconv.3.html] */
-            int ret = iconv(context,(ICONV_IN_TYPE)(&(pclass::src_ptr)),&src_left,(char**)(&(pclass::dst_ptr)),&dst_left);
+            int ret = iconv(context,(ICONV_IN_TYPE)(&(this->src_ptr)),&src_left,(char**)(&(this->dst_ptr)),&dst_left);
 
             pclass::src_adv = (size_t)(pclass::src_ptr - i_src);
             pclass::dst_adv = (size_t)(pclass::dst_ptr - i_dst);
@@ -317,7 +326,7 @@ protected:
         return NULL;
     }
 protected:
-    iconv_t                     context = NULL;
+    iconv_t                     context;
 };
 
 /* Most of the time the Iconv form will be used, for Mac OS X and Linux platforms where UTF-8 is common.

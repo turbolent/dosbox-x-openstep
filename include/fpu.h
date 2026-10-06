@@ -151,9 +151,9 @@ void FPU_FYL2X();
 void FPU_FYL2XP1();
 
 static INLINE void FPU_SetTag(uint16_t tags){
-	for (auto i=0; i<8; i++)
+	for (int i=0; i<8; i++)
     {
-        auto tag = static_cast<FPUTag>(tags & 0x3);
+        FPUTag::Type tag = static_cast<FPUTag::Type>(tags & 0x3);
         fpu.regvalid[i] = (tag != FPUTag::Empty);
         tags >>= 2;
     }

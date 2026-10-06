@@ -19,6 +19,8 @@
 
 #ifndef DOSBOX_SETUP_H
 #define DOSBOX_SETUP_H
+#include "compiler_compat.h"
+#include <stdio.h>
 
 #ifdef _MSC_VER
 //#pragma warning ( disable : 4786 )
@@ -51,25 +53,25 @@ class Value {
  */
 private:
 	Hex _hex;
-	bool _bool = false;
-	int _int = 0;
-	std::string* _string = NULL;
-	double _double = 0;
+	bool _bool;
+	int _int;
+	std::string* _string;
+	double _double;
 public:
 	class WrongType { }; // Conversion error class
-	enum Etype { V_NONE, V_HEX, V_BOOL, V_INT, V_STRING, V_DOUBLE,V_CURRENT} type = V_NONE;
+	enum Etype { V_NONE, V_HEX, V_BOOL, V_INT, V_STRING, V_DOUBLE,V_CURRENT} type;
 
 	/* Constructors */
-    Value() { };
-	Value(Hex in)                :_hex(in),     type(V_HEX)                   { };
-	Value(int in)                :_int(in),     type(V_INT)                   { };
-	Value(bool in)               :_bool(in),    type(V_BOOL)                  { };
-	Value(double in)             :_double(in),  type(V_DOUBLE)                { };
-	Value(std::string const& in) :_string(new std::string(in)),type(V_STRING) { };
-	Value(char const * const in) :_string(new std::string(in)),type(V_STRING) { };
-	Value(Value const& in) {plaincopy(in);}
+    Value() : _bool(false), _int(0), _string(NULL), _double(0), type(V_NONE) {}
+	Value(Hex in) : _hex(in), _bool(false), _int(0), _string(NULL), _double(0), type(V_HEX) {}
+	Value(int in) : _bool(false), _int(in), _string(NULL), _double(0), type(V_INT) {}
+	Value(bool in) : _bool(in), _int(0), _string(NULL), _double(0), type(V_BOOL) {}
+	Value(double in) : _bool(false), _int(0), _string(NULL), _double(in), type(V_DOUBLE) {}
+	Value(std::string const& in) : _bool(false), _int(0), _string(new std::string(in)), _double(0), type(V_STRING) {}
+	Value(char const * const in) : _bool(false), _int(0), _string(new std::string(in)), _double(0), type(V_STRING) {}
+	Value(Value const& in) : _bool(false), _int(0), _string(NULL), _double(0), type(V_NONE) {plaincopy(in);}
 	~Value() { destroy();};
-    Value(std::string const& in, Etype _t) { SetValue(in, _t); }
+    Value(std::string const& in, Etype _t) : _bool(false), _int(0), _string(NULL), _double(0), type(V_NONE) { SetValue(in, _t); }
 
 	/* Assignment operators */
 	Value& operator= (Hex in)                { return copy(Value(in));}
@@ -106,7 +108,7 @@ public:
 	const std::string propname;
 	std::vector<Value> suggested_values;
 
-	Property(std::string const& _propname, Changeable::Value when):propname(_propname),change(when) {}
+	Property(std::string const& _propname, Changeable::Value when):propname(_propname),is_basic(false),is_modified(false),change(when),use_global_config_str(false) {}
 	void Set_values(const char * const * in);
 	void Set_help(std::string const& in);
 	char const* Get_help();
@@ -115,7 +117,7 @@ public:
 	Value const& GetValue() const { return value;}
 	Value const& Get_Default_Value() const { return default_value; }
 	//CheckValue returns true, if value is in suggested_values;
-	//Type specific properties are encouraged to override this and check for type
+	//Type specific properties are encouraged to DBX_OVERRIDE this and check for type
 	//specific features.
 	virtual bool CheckValue(Value const& in, bool warn);
 	virtual ~Property(){ }
@@ -149,12 +151,12 @@ protected:
 		}
 	}
 	Value value;
-	bool is_basic=false;
-	bool is_modified = false;
+	bool is_basic;
+	bool is_modified;
 	typedef std::vector<Value>::const_iterator const_iter;
 	Value default_value;
 	const Changeable::Value change;
-	bool use_global_config_str = false;
+	bool use_global_config_str;
 	std::string help_string;
 };
 
@@ -171,11 +173,11 @@ public:
 	int getMin() { return min;}
 	int getMax() { return max;}
 	void SetMinMax(Value const& min,Value const& max) {this->min = min; this->max=max;}
-	bool SetValue(std::string const& input) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
 	virtual ~Prop_int(){ }
-	bool CheckValue(Value const& in, bool warn) override;
+	bool CheckValue(Value const& in, bool warn) DBX_OVERRIDE;
 	// Override SetVal, so it takes min,max in account when there are no suggested values
-	bool SetVal(Value const& in, bool forced,bool warn=true,bool init=false) override;
+	bool SetVal(Value const& in, bool forced,bool warn=true,bool init=false) DBX_OVERRIDE;
 
 private:
 	Value min,max;
@@ -195,9 +197,9 @@ public:
 	double getMin() const { return min; }
 	double getMax() const { return max; }
 	void SetMinMax(Value const& min, Value const& max) { this->min = min; this->max = max; }
-	bool SetValue(std::string const& input) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
 	virtual ~Prop_double(){ }
-	bool CheckValue(Value const& in, bool warn) override;
+	bool CheckValue(Value const& in, bool warn) DBX_OVERRIDE;
 private:
 	Value min, max;
 };
@@ -208,7 +210,7 @@ public:
 		:Property(_propname,when) {
 		default_value = value = _value;
 	}
-	bool SetValue(std::string const& input) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
 	virtual ~Prop_bool(){ }
 };
 
@@ -218,8 +220,8 @@ public:
 		:Property(_propname,when) {
 		default_value = value = _value;
 	}
-	bool SetValue(std::string const& input) override;
-	bool CheckValue(Value const& in, bool warn) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
+	bool CheckValue(Value const& in, bool warn) DBX_OVERRIDE;
 	virtual ~Prop_string(){ }
 };
 class Prop_path:public Prop_string{
@@ -229,7 +231,7 @@ public:
 		:Prop_string(_propname,when,_value), realpath(_value) {
 		default_value = value = _value;
 	}
-	bool SetValue(std::string const& input) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
 	virtual ~Prop_path(){ }
 };
 
@@ -239,7 +241,7 @@ public:
 		:Property(_propname,when) {
 		default_value = value = _value;
 	}
-	bool SetValue(std::string const& input) override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE;
 	virtual ~Prop_hex(){ }
 };
 
@@ -317,7 +319,7 @@ enum vm_event {
 
 class VMDispatchState {
 public:
-	VMDispatchState() {}
+	VMDispatchState() : current_event(VM_EVENT_MAX), event_in_progress(false) {}
 	void begin_event(enum vm_event event) {
 		event_in_progress = true;
 		current_event = event;
@@ -326,8 +328,8 @@ public:
 		event_in_progress = false;
 	}
 public:
-	enum vm_event			current_event = VM_EVENT_MAX;
-	bool				event_in_progress = false;
+	enum vm_event			current_event;
+	bool				event_in_progress;
 };
 
 extern VMDispatchState vm_dispatch_state;
@@ -371,27 +373,27 @@ public:
 	Prop_path* Get_path(std::string const& _propname) const;
 	Prop_multival* Get_multival(std::string const& _propname) const;
 	Prop_multival_remain* Get_multivalremain(std::string const& _propname) const;
-	bool HandleInputline(std::string const& gegevens) override;
-	void PrintData(FILE* outfile,int everything=-1,bool norem=false) override;
-	std::string GetPropValue(std::string const& _property) const override;
+	bool HandleInputline(std::string const& gegevens) DBX_OVERRIDE;
+	void PrintData(FILE* outfile,int everything=-1,bool norem=false) DBX_OVERRIDE;
+	std::string GetPropValue(std::string const& _property) const DBX_OVERRIDE;
 	virtual ~Section_prop();
 	std::string data;
 };
 
 class Prop_multival:public Property{
 protected:
-	Section_prop* section = new Section_prop("");
+	Section_prop* section;
 	std::string separator;
 	void make_default_value();
 public:
-	Prop_multival(std::string const& _propname, Changeable::Value when,std::string const& sep):Property(_propname,when),separator(sep) {
+	Prop_multival(std::string const& _propname, Changeable::Value when,std::string const& sep):Property(_propname,when),section(new Section_prop("")),separator(sep) {
 		default_value = value = "";
 	}
 	Section_prop *GetSection() { return section; }
 	const Section_prop *GetSection() const { return section; }
 	virtual bool SetValue(std::string const& input,bool init);
-	bool SetValue(std::string const& input) override { return SetValue(input,/*init*/false); };
-	const std::vector<Value>& GetValues() const override;
+	bool SetValue(std::string const& input) DBX_OVERRIDE { return SetValue(input,/*init*/false); };
+	const std::vector<Value>& GetValues() const DBX_OVERRIDE;
 	virtual ~Prop_multival() { delete section; }
 }; //value bevat totale string. setvalue zet elk van de sub properties en checked die.
 
@@ -399,7 +401,7 @@ class Prop_multival_remain:public Prop_multival{
 public:
 	Prop_multival_remain(std::string const& _propname, Changeable::Value when,std::string const& sep):Prop_multival(_propname,when,sep){ }
 
-	bool SetValue(std::string const& input,bool init) override;
+	bool SetValue(std::string const& input,bool init) DBX_OVERRIDE;
 };
 
 
@@ -407,9 +409,9 @@ class Section_line: public Section{
 public:
 	Section_line(std::string const& _sectionname):Section(_sectionname){}
 	virtual ~Section_line() { };
-	bool HandleInputline(std::string const& line) override;
-	void PrintData(FILE* outfile,int everything=-1,bool norem=false) override;
-	std::string GetPropValue(std::string const& _property) const override;
+	bool HandleInputline(std::string const& line) DBX_OVERRIDE;
+	void PrintData(FILE* outfile,int everything=-1,bool norem=false) DBX_OVERRIDE;
+	std::string GetPropValue(std::string const& _property) const DBX_OVERRIDE;
 	std::string data;
 };
 

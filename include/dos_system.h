@@ -68,7 +68,8 @@ class DOS_DTA;
 
 class DOS_File {
 public:
-    DOS_File() {};
+    DOS_File() : name(NULL), drive(0), flags(0), neverclose(false), open(false),
+        attr(0), time(0), date(0), refCtr(0), newtime(false), hdrive(0xff) {};
 	DOS_File(const DOS_File& orig);
 	DOS_File & operator= (const DOS_File & orig);
 	virtual ~DOS_File(){ delete [] name;};
@@ -93,20 +94,20 @@ public:
 	virtual void 	LoadState( std::istream& stream, bool pop );
     virtual void    Flush(void) { }
 
-	char* name = NULL;
-	uint8_t drive = 0;
-	uint32_t flags = 0;
-	bool neverclose = false; /* set for CON/AUX/PRN so MS-DOS always has a console even if all JFT's closed the handles */
-	bool open = false;
+	char* name;
+	uint8_t drive;
+	uint32_t flags;
+	bool neverclose; /* set for CON/AUX/PRN so MS-DOS always has a console even if all JFT's closed the handles */
+	bool open;
 
-	uint16_t attr = 0;
-	uint16_t time = 0;
-	uint16_t date = 0;
-	Bits refCtr = 0;
-	bool newtime = false;
+	uint16_t attr;
+	uint16_t time;
+	uint16_t date;
+	Bits refCtr;
+	bool newtime;
 	/* Some Device Specific Stuff */
 private:
-	uint8_t hdrive = 0xff;
+	uint8_t hdrive;
 };
 
 class DOS_Device : public DOS_File {
@@ -120,20 +121,20 @@ public:
 		open=true;
 		return *this;
 	}
-	DOS_Device():DOS_File() {};
+	DOS_Device():DOS_File(), devnum(0) {};
 	virtual ~DOS_Device() {};
-	bool	Read(uint8_t * data,uint16_t * size) override;
-	bool	Write(const uint8_t * data,uint16_t * size) override;
-	bool	Seek(uint32_t * pos,uint32_t type) override;
-	bool	Close() override;
-	uint16_t	GetInformation(void) override;
+	bool	Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool	Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool	Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+	bool	Close() DBX_OVERRIDE;
+	uint16_t	GetInformation(void) DBX_OVERRIDE;
 	virtual void	SetInformation(uint16_t info);
 	virtual bool	ReadFromControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode);
 	virtual bool	WriteToControlChannel(PhysPt bufptr,uint16_t size,uint16_t * retcode);
 	virtual uint8_t	GetStatus(bool input_flag);
 	void SetDeviceNumber(Bitu num) { devnum=num;}
 private:
-	Bitu devnum = 0;
+	Bitu devnum;
 };
 
 struct ExtDeviceData {
@@ -160,14 +161,14 @@ public:
         return *this;
     }
 
-    bool	Read(uint8_t* data, uint16_t* size) override;
-    bool	Write(const uint8_t* data, uint16_t* size) override;
-    bool	Seek(uint32_t* pos, uint32_t type) override;
-    bool	Close() override;
-    uint16_t	GetInformation(void) override;
-    bool	ReadFromControlChannel(PhysPt bufptr, uint16_t size, uint16_t* retcode) override;
-    bool	WriteToControlChannel(PhysPt bufptr, uint16_t size, uint16_t* retcode) override;
-    uint8_t	GetStatus(bool input_flag) override;
+    bool	Read(uint8_t* data, uint16_t* size) DBX_OVERRIDE;
+    bool	Write(const uint8_t* data, uint16_t* size) DBX_OVERRIDE;
+    bool	Seek(uint32_t* pos, uint32_t type) DBX_OVERRIDE;
+    bool	Close() DBX_OVERRIDE;
+    uint16_t	GetInformation(void) DBX_OVERRIDE;
+    bool	ReadFromControlChannel(PhysPt bufptr, uint16_t size, uint16_t* retcode) DBX_OVERRIDE;
+    bool	WriteToControlChannel(PhysPt bufptr, uint16_t size, uint16_t* retcode) DBX_OVERRIDE;
+    uint8_t	GetStatus(bool input_flag) DBX_OVERRIDE;
     bool CheckSameDevice(uint16_t seg, uint16_t s_off, uint16_t i_off);
     uint16_t CallRWIODeviceFunction(uint8_t command, uint8_t length, uint16_t seg, uint16_t offset, uint16_t size);
 private:
@@ -179,20 +180,28 @@ class LocalFile : public DOS_File {
 public:
 	LocalFile();
 	LocalFile(const char* _name, FILE * handle);
-	bool Read(uint8_t * data,uint16_t * size) override;
-	bool Write(const uint8_t * data,uint16_t * size) override;
-	bool Seek(uint32_t * pos,uint32_t type) override;
-	bool Close() override;
-	bool LockFile(uint8_t mode, uint32_t pos, uint16_t size) override;
-	uint16_t GetInformation(void) override;
-	bool UpdateDateTimeFromHost(void) override;
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+	bool Close() DBX_OVERRIDE;
+	bool LockFile(uint8_t mode, uint32_t pos, uint16_t size) DBX_OVERRIDE;
+	uint16_t GetInformation(void) DBX_OVERRIDE;
+	bool UpdateDateTimeFromHost(void) DBX_OVERRIDE;
 	bool UpdateLocalDateTime(void);
 	void FlagReadOnlyMedium(void);
-	void Flush(void) override;
-	uint32_t GetSeekPos(void) override;
+	void Flush(void) DBX_OVERRIDE;
+	uint32_t GetSeekPos(void) DBX_OVERRIDE;
 	FILE * fhandle;
+#if C_OPENSTEP
+    void SetHostPath(const char *path) { host_path = path; }
+    const std::string &GetHostPath() const { return host_path; }
+    void RenameHostPath(const char *oldpath, const char *newpath);
+#endif
 private:
-	bool read_only_medium = false;
+#if C_OPENSTEP
+    std::string host_path;
+#endif
+	bool read_only_medium;
 	enum { NONE,READ,WRITE } last_action;
 };
 
@@ -235,7 +244,7 @@ public:
 
 	class CFileInfo {
 	public:
-		CFileInfo(void) {
+		CFileInfo(void) : id(MAX_OPENDIRS) {
 			orgname[0] = shortname[0] = 0;
 			isOverlayDir = isDir = false;
 			nextEntry = shortNr = 0;
@@ -249,7 +258,7 @@ public:
 		char		shortname	[DOS_NAMELENGTH_ASCII];
 		bool        isOverlayDir;
 		bool		isDir;
-		uint16_t		id = MAX_OPENDIRS;
+		uint16_t		id;
 		Bitu		nextEntry;
 		Bitu		shortNr;
 		// contents
@@ -276,24 +285,24 @@ private:
 	uint16_t		GetFreeID		(CFileInfo* dir);
 	void		Clear			(void);
 
-	CFileInfo*	dirBase = NULL;
-	char		dirPath				[CROSS_LEN] = {};
-	DOS_Drive*	drive = NULL;
-	char		basePath			[CROSS_LEN] = {};
-	bool		dirFirstTime = false;
-	TDirSort	sortDirType = NOSORT;
-	CFileInfo*	save_dir = NULL;
-	char		save_path			[CROSS_LEN] = {};
-	char		save_expanded		[CROSS_LEN] = {};
+	CFileInfo*	dirBase;
+	char		dirPath				[CROSS_LEN];
+	DOS_Drive*	drive;
+	char		basePath			[CROSS_LEN];
+	bool		dirFirstTime;
+	TDirSort	sortDirType;
+	CFileInfo*	save_dir;
+	char		save_path			[CROSS_LEN];
+	char		save_expanded		[CROSS_LEN];
 
-	uint16_t		srchNr = 0;
-	CFileInfo*	dirSearch			[MAX_OPENDIRS] = {};
-	char		dirSearchName		[MAX_OPENDIRS] = {};
-	CFileInfo*	dirFindFirst		[MAX_OPENDIRS] = {};
-	uint16_t		nextFreeFindFirst = 0;
+	uint16_t		srchNr;
+	CFileInfo*	dirSearch			[MAX_OPENDIRS];
+	char		dirSearchName		[MAX_OPENDIRS];
+	CFileInfo*	dirFindFirst		[MAX_OPENDIRS];
+	uint16_t		nextFreeFindFirst;
 
-	char		label				[CROSS_LEN] = {};
-	bool		updatelabel = false;
+	char		label				[CROSS_LEN];
+	bool		updatelabel;
 };
 
 class DOS_Drive {
@@ -338,9 +347,9 @@ public:
 
 	bool readonly;
 	bool nocachedir;
-	bool partitionMount = false;
-	char curdir[DOS_PATHLENGTH]={0};
-	char info[256]={0};
+	bool partitionMount;
+	char curdir[DOS_PATHLENGTH];
+	char info[256];
 	/* Can be overridden for example in iso images */
 	virtual char const * GetLabel() {return "NOLABEL";}; 
 	virtual void SetLabel(const char *label, bool iscdrom, bool updatable) { (void)label; (void)iscdrom; (void)updatable; };

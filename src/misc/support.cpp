@@ -35,7 +35,11 @@
 #include "support.h"
 #include "video.h"
 #include "menu.h"
+#if C_OPENSTEP
+#include "host.h"
+#else
 #include "SDL.h"
+#endif
 
 extern bool gbk, isDBCSCP(), isKanji1(uint8_t chr), shiftjis_lead_byte(int c);
 
@@ -51,12 +55,12 @@ void lowcase(std::string &str) {
 
 void trim(std::string &str) {
     const char whitespace[] = " \r\t\f\n";
-	const auto empty_pfx = str.find_first_not_of(whitespace);
+	const std::string::size_type empty_pfx = str.find_first_not_of(whitespace);
 	if (empty_pfx == std::string::npos) {
 		str.clear(); // whole string is filled with whitespace
 		return;
 	}
-	const auto empty_sfx = str.find_last_not_of(whitespace);
+	const std::string::size_type empty_sfx = str.find_last_not_of(whitespace);
 	str.erase(empty_sfx + 1);
 	str.erase(0, empty_pfx);
 }
@@ -224,7 +228,7 @@ char * ScanCMDRemain(char * cmd) {
 		while ( *scan && !isspace(*reinterpret_cast<unsigned char*>(scan)) ) scan++;
 		*scan=0;
 		return found;
-	} else return nullptr;
+	} else return NULL;
 }
 
 char * StripWord(char *&line) {
@@ -492,9 +496,9 @@ void E_Exit(const char * format,...) {
 #endif
 	va_list msg;
 	va_start(msg,format);
-	vsnprintf(buf,sizeof(buf),format,msg);
+	vsnprintf(buf,sizeof(buf)-1,format,msg);
 	va_end(msg);
-	buf[sizeof(buf) - 1] = '\0';
+	buf[sizeof(buf) - 2] = '\0';
 	strcat(buf,"\n");
 	LOG_MSG("E_Exit: %s\n",buf);
 #if defined(WIN32)
@@ -505,11 +509,15 @@ void E_Exit(const char * format,...) {
 	endwin();
 #endif
 	fprintf(stderr, "E_Exit: %s\n", buf);
+#if C_OPENSTEP
+    OSVideoQuit();
+#else
 	SDL_Quit();
 	if (sdl_wait_on_error()) {
 #if defined(WIN32)
         DOSBox_ConsolePauseWait();
 #endif
     }
+#endif
 	exit(1);
 }

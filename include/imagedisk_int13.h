@@ -24,27 +24,27 @@
 #if !defined(OSFREE)
 class imageDiskINT13Drive : public imageDisk {
 public:
-	Int13Status Read_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,void * data,unsigned int req_sector_size=0) override;
-	Int13Status Write_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,const void * data,unsigned int req_sector_size=0) override;
-	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) override;
-	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) override;
+	Int13Status Read_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,void * data,unsigned int req_sector_size=0) DBX_OVERRIDE;
+	Int13Status Write_Sector(uint32_t head,uint32_t cylinder,uint32_t sector,const void * data,unsigned int req_sector_size=0) DBX_OVERRIDE;
+	Int13Status Read_AbsoluteSector(uint32_t sectnum, void * data) DBX_OVERRIDE;
+	Int13Status Write_AbsoluteSector(uint32_t sectnum, const void * data) DBX_OVERRIDE;
 
-	void UpdateFloppyType(void) override;
-	void Set_Reserved_Cylinders(Bitu resCyl) override;
-	uint32_t Get_Reserved_Cylinders() override;
-	void Set_Geometry(uint32_t setHeads, uint32_t setCyl, uint32_t setSect, uint32_t setSectSize) override;
-	void Get_Geometry(uint32_t * getHeads, uint32_t *getCyl, uint32_t *getSect, uint32_t *getSectSize) override;
-	uint8_t GetBiosType(void) override;
-	uint32_t getSectSize(void) override;
-	bool detectDiskChange(void) override;
+	void UpdateFloppyType(void) DBX_OVERRIDE;
+	void Set_Reserved_Cylinders(Bitu resCyl) DBX_OVERRIDE;
+	uint32_t Get_Reserved_Cylinders() DBX_OVERRIDE;
+	void Set_Geometry(uint32_t setHeads, uint32_t setCyl, uint32_t setSect, uint32_t setSectSize) DBX_OVERRIDE;
+	void Get_Geometry(uint32_t * getHeads, uint32_t *getCyl, uint32_t *getSect, uint32_t *getSectSize) DBX_OVERRIDE;
+	uint8_t GetBiosType(void) DBX_OVERRIDE;
+	uint32_t getSectSize(void) DBX_OVERRIDE;
+	bool detectDiskChange(void) DBX_OVERRIDE;
 
 	imageDiskINT13Drive(imageDisk *sdisk);
 	virtual ~imageDiskINT13Drive();
 
-	uint8_t bios_disk = 0;
-	bool enable_int13 = false;
-	imageDisk* subdisk = NULL;
-	bool busy = false;
+	uint8_t bios_disk;
+	bool enable_int13;
+	imageDisk* subdisk;
+	bool busy;
 };
 #endif
 

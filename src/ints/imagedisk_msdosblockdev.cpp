@@ -146,7 +146,8 @@ bool imageDiskMSDOSBlockDevice::detectDiskChange(void) {
 	return false;//TODO
 }
 
-imageDiskMSDOSBlockDevice::imageDiskMSDOSBlockDevice() : imageDisk(ID_MSDOSBLOCKDEV) {
+imageDiskMSDOSBlockDevice::imageDiskMSDOSBlockDevice() : imageDisk(ID_MSDOSBLOCKDEV),
+    media_dpb(0), unit_code(0), devseg(0), attr(0), devhdr(0), bpbptr(0) {
 }
 
 imageDiskMSDOSBlockDevice::~imageDiskMSDOSBlockDevice() {

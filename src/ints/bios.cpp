@@ -51,7 +51,11 @@ extern bool PS1AudioCard;
 #include "dma.h"
 #include "shell.h"
 #include "render.h"
+#if C_OPENSTEP
+#include "video.h"
+#else
 #include "sdlmain.h"
+#endif
 #include <time.h>
 #include <sys/stat.h>
 #include "version_string.h"
@@ -88,11 +92,18 @@ static unsigned char ig_cpu_cycles_set = 0;
 static uint32_t ig_cpu_cycles_value = 0;
 static uint8_t ig_cpu_cycles_max_percent = 0;
 
+static std::string bios_decimal(unsigned long value) {
+	char text[32];
+	snprintf(text, sizeof(text), "%lu", value);
+	return text;
+}
+
 struct BIOS_E280_entry {
-	uint64_t	base = 0;
-	uint64_t	length = 0;
-	uint32_t	type = 0;
-	uint32_t	acpi_ext_addr = 0;
+	uint64_t	base;
+	uint64_t	length;
+	uint32_t	type;
+	uint32_t	acpi_ext_addr;
+	BIOS_E280_entry() : base(0), length(0), type(0), acpi_ext_addr(0) {}
 };
 
 #define MAX_E280	16
@@ -196,7 +207,7 @@ unsigned int reset_post_delay = 0;
 Bitu call_irq_default = 0;
 uint16_t biosConfigSeg=0;
 
-static constexpr unsigned int ACPI_PMTIMER_CLOCK_RATE = 3579545; /* 3.579545MHz */
+static const unsigned int ACPI_PMTIMER_CLOCK_RATE = 3579545; /* 3.579545MHz */
 
 pic_tickindex_t ACPI_PMTIMER_BASE_TIME = 0;
 uint32_t ACPI_PMTIMER_BASE_COUNT = 0;
@@ -265,11 +276,11 @@ static IO_Callout_t acpi_iocallout = IO_Callout_t_none;
 
 static unsigned int ACPI_PM1_Enable = 0;
 static unsigned int ACPI_PM1_Status = 0;
-static constexpr unsigned int ACPI_PM1_Enable_TMR_EN = (1u << 0u);
-static constexpr unsigned int ACPI_PM1_Enable_GBL_EN = (1u << 5u);
-static constexpr unsigned int ACPI_PM1_Enable_PWRBTN_EN = (1u << 8u);
-static constexpr unsigned int ACPI_PM1_Enable_SLPBTN_EN = (1u << 9u);
-static constexpr unsigned int ACPI_PM1_Enable_RTC_EN = (1u << 10u);
+static const unsigned int ACPI_PM1_Enable_TMR_EN = (1u << 0u);
+static const unsigned int ACPI_PM1_Enable_GBL_EN = (1u << 5u);
+static const unsigned int ACPI_PM1_Enable_PWRBTN_EN = (1u << 8u);
+static const unsigned int ACPI_PM1_Enable_SLPBTN_EN = (1u << 9u);
+static const unsigned int ACPI_PM1_Enable_RTC_EN = (1u << 10u);
 
 unsigned int ACPI_buffer_global_lock = 0;
 
@@ -852,7 +863,11 @@ void dosbox_integration_trigger_read() {
 		case DOSBOX_ID_REG_USER_MOUSE_STATUS: /* read user mouse status */
 			dosbox_int_register =
 				(user_cursor_locked        ? (1UL << 0UL) : 0UL) |    /* bit 0 = mouse capture lock */
-				(sdl.mouse.locked          ? (1UL << 1UL) : 0UL);     /* bit 1 = mouse captured */
+				#if C_OPENSTEP
+                (mouselocked ? (1UL << 1UL) : 0UL);
+#else
+                (sdl.mouse.locked          ? (1UL << 1UL) : 0UL);
+#endif     /* bit 1 = mouse captured */
 			break;
 
 		case DOSBOX_ID_REG_USER_MOUSE_CURSOR: /* read user mouse cursor position */
@@ -1642,7 +1657,9 @@ unsigned int APMBIOS_connected_already_err() {
     return 0x00;
 }
 
-ISAPnPDevice::ISAPnPDevice() {
+ISAPnPDevice::ISAPnPDevice() : CSN(0), logical_device(0), ident_bp(0),
+    ident_2nd(0), resource_ident(0), resource_data(NULL), resource_data_len(0),
+    resource_data_pos(0), alloc_write(0), alloc_res(NULL), alloc_sz(0) {
     memset(ident,0,sizeof(ident));
 }
 
@@ -1712,27 +1729,27 @@ void ISAPnPDevice::write_Device_ID(const char c1,const char c2,const char c3,con
 }
 
 void ISAPnPDevice::write_Logical_Device_ID(const char c1,const char c2,const char c3,const char c4,const char c5,const char c6,const char c7) {
-    write_begin_SMALLTAG(SmallTags::LogicalDeviceID,5);
+    write_begin_SMALLTAG(LogicalDeviceID,5);
     write_Device_ID(c1,c2,c3,c4,c5,c6,c7);
     write_byte(0x00);
 }
 
 void ISAPnPDevice::write_Compatible_Device_ID(const char c1,const char c2,const char c3,const char c4,const char c5,const char c6,const char c7) {
-    write_begin_SMALLTAG(SmallTags::CompatibleDeviceID,4);
+    write_begin_SMALLTAG(CompatibleDeviceID,4);
     write_Device_ID(c1,c2,c3,c4,c5,c6,c7);
 }
 
 void ISAPnPDevice::write_IRQ_Format(const uint16_t IRQ_mask,const unsigned char IRQ_signal_type) {
     bool write_irq_info = (IRQ_signal_type != 0);
 
-    write_begin_SMALLTAG(SmallTags::IRQFormat,write_irq_info?3:2);
+    write_begin_SMALLTAG(IRQFormat,write_irq_info?3:2);
     write_byte(IRQ_mask & 0xFF);
     write_byte(IRQ_mask >> 8);
     if (write_irq_info) write_byte(IRQ_signal_type & 0x0F);
 }
 
 void ISAPnPDevice::write_DMA_Format(const uint8_t DMA_mask,const unsigned char transfer_type_preference,const bool is_bus_master,const bool byte_mode,const bool word_mode,const unsigned char speed_supported) {
-    write_begin_SMALLTAG(SmallTags::DMAFormat,2);
+    write_begin_SMALLTAG(DMAFormat,2);
     write_byte(DMA_mask);
     write_byte(
         (transfer_type_preference & 0x03) |
@@ -1743,7 +1760,7 @@ void ISAPnPDevice::write_DMA_Format(const uint8_t DMA_mask,const unsigned char t
 }
 
 void ISAPnPDevice::write_IO_Port(const uint16_t min_port,const uint16_t max_port,const uint8_t count,const uint8_t alignment,const bool full16bitdecode) {
-    write_begin_SMALLTAG(SmallTags::IOPortDescriptor,7);
+    write_begin_SMALLTAG(IOPortDescriptor,7);
     write_byte((full16bitdecode ? 0x01 : 0x00));
     write_byte(min_port & 0xFF);
     write_byte(min_port >> 8);
@@ -1754,14 +1771,14 @@ void ISAPnPDevice::write_IO_Port(const uint16_t min_port,const uint16_t max_port
 }
 
 void ISAPnPDevice::write_Dependent_Function_Start(const ISAPnPDevice::DependentFunctionConfig cfg,const bool force) {
-    bool write_cfg_byte = force || (cfg != ISAPnPDevice::DependentFunctionConfig::AcceptableDependentConfiguration);
+    bool write_cfg_byte = force || (cfg != ISAPnPDevice::AcceptableDependentConfiguration);
 
-    write_begin_SMALLTAG(SmallTags::StartDependentFunctions,write_cfg_byte ? 1 : 0);
+    write_begin_SMALLTAG(StartDependentFunctions,write_cfg_byte ? 1 : 0);
     if (write_cfg_byte) write_byte((unsigned char)cfg);
 }
 
 void ISAPnPDevice::write_End_Dependent_Functions() {
-    write_begin_SMALLTAG(SmallTags::EndDependentFunctions,0);
+    write_begin_SMALLTAG(EndDependentFunctions,0);
 }
 
 void ISAPnPDevice::write_nstring(const char *str,const size_t l) {
@@ -1777,12 +1794,12 @@ void ISAPnPDevice::write_Identifier_String(const char *str) {
     const size_t l = strlen(str);
     if (l > 4096) return;
 
-    write_begin_LARGETAG(LargeTags::IdentifierStringANSI,(unsigned int)l);
+    write_begin_LARGETAG(IdentifierStringANSI,(unsigned int)l);
     if (l != 0) write_nstring(str,l);
 }
 
 void ISAPnPDevice::write_ISAPnP_version(unsigned char major,unsigned char minor,unsigned char vendor) {
-    write_begin_SMALLTAG(SmallTags::PlugAndPlayVersionNumber,2);
+    write_begin_SMALLTAG(PlugAndPlayVersionNumber,2);
     write_byte((major << 4) + minor);
     write_byte(vendor);
 }
@@ -1791,7 +1808,7 @@ void ISAPnPDevice::write_END() {
     unsigned char sum = 0;
     size_t i;
 
-    write_begin_SMALLTAG(SmallTags::EndTag,/*length*/1);
+    write_begin_SMALLTAG(EndTag,/*length*/1);
 
     for (i=0;i < alloc_write;i++) sum += alloc_res[i];
     write_byte((0x100 - sum) & 0xFF);
@@ -4091,7 +4108,7 @@ static Bitu INT18_PC98_Handler(void) {
 #endif
 #if defined(USE_TTF)
     if(!finish_prepare){
-        conf_output= static_cast<Section_prop*>(control->GetSection("sdl"))->Get_string("output");
+        conf_output= static_cast<Section_prop*>(control->GetFrontendSection())->Get_string("output");
         if(conf_output == "ttf") { // BIOS screen does not like TTF mode, switch it on later
             toOutput("ttf");
             ttf_switch_off(true);
@@ -8190,8 +8207,9 @@ char *getSetupLine(const char *capt, const char *cont) {
 }
 
 struct setuptime_t {
-    unsigned int year=0;
-    unsigned char month=0,day=0,hour=0,minute=0,second=0;
+    unsigned int year;
+    unsigned char month,day,hour,minute,second;
+    setuptime_t() : year(0), month(0), day(0), hour(0), minute(0), second(0) {}
 };
 
 static unsigned char BCD2BIN(unsigned char x) {
@@ -8420,7 +8438,7 @@ void updateDateTime(int x, int y, int pos)
                 CALLBACK_RunRealInt(0x10);
             }
         }
-        sprintf(str, "%-30s", (std::to_string(CPU_CycleAutoAdjust?CPU_CyclePercUsed:CPU_CycleMax)+(CPU_CycleAutoAdjust?"%":" cycles/ms")).c_str());
+        sprintf(str, "%-30s", (bios_decimal(CPU_CycleAutoAdjust?CPU_CyclePercUsed:CPU_CycleMax)+(CPU_CycleAutoAdjust?"%":" cycles/ms")).c_str());
         for (unsigned int j=0; j<strlen(str); j++) {
             if (machine == MCH_PC98) {
                 bo = ((0x10 * 80u) + (unsigned int)(0x26 + j)) * 2u;
@@ -8530,12 +8548,12 @@ void showBIOSSetup(const char* card, int x, int y) {
         BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("BIOS date:", bios_date_string), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("", ""), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Processor type:", GetCPUType()), true);
-    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Processor speed:", (std::to_string(CPU_CycleAutoAdjust?CPU_CyclePercUsed:CPU_CycleMax)+(CPU_CycleAutoAdjust?"%":" cycles/ms")).c_str()), true);
+    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Processor speed:", (bios_decimal(CPU_CycleAutoAdjust?CPU_CyclePercUsed:CPU_CycleMax)+(CPU_CycleAutoAdjust?"%":" cycles/ms")).c_str()), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Coprocessor:", enable_fpu?"Yes":"No"), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("", ""), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Video card:", card), true);
-    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Video memory:", (std::to_string(vga.mem.memsize/1024)+"K").c_str()), true);
-    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("System memory:", (std::to_string(MEM_TotalPages()*4096/1024)+"K").c_str()), true);
+    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("Video memory:", (bios_decimal(vga.mem.memsize/1024)+"K").c_str()), true);
+    BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("System memory:", (bios_decimal(MEM_TotalPages()*4096/1024)+"K").c_str()), true);
     BIOS_Int10RightJustifiedPrint(x,y,getSetupLine("", ""), true);
     BIOS_Int10RightJustifiedPrint(x,y,"\x0c8\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0cd\x0bc", true);
     if (machine == MCH_PC98)
@@ -8738,16 +8756,16 @@ public:
 	size_t get_tablesize(void) const;
 	unsigned char* finish(void);
 private:
-	size_t				tablesize = 0;
-	unsigned char*			base = NULL;
-	unsigned char*			f = NULL;
+	size_t				tablesize;
+	unsigned char*			base;
+	unsigned char*			f;
 };
 
 size_t ACPISysDescTableWriter::get_tablesize(void) const {
 	return tablesize;
 }
 
-ACPISysDescTableWriter::ACPISysDescTableWriter() {
+ACPISysDescTableWriter::ACPISysDescTableWriter() : tablesize(0), base(NULL), f(NULL) {
 }
 
 ACPISysDescTableWriter::~ACPISysDescTableWriter(void) {
@@ -8883,16 +8901,16 @@ unsigned char *ACPISysDescTableWriter::finish(void) {
 	return NULL;
 }
 
-enum class ACPIRegionSpace {
+namespace ACPIRegionSpace { enum Type {
 	SystemMemory=0,
 	SystemIO=1,
 	PCIConfig=2,
 	EmbeddedControl=3,
 	SMBus=4
-};
+}; }
 
 namespace ACPIMethodFlags {
-	static constexpr unsigned char ArgCount(const unsigned c) {
+	static DBX_CONSTEXPR unsigned char ArgCount(const unsigned c) {
 		return c&3u;
 	}
 	enum {
@@ -8901,10 +8919,10 @@ namespace ACPIMethodFlags {
 	};
 }
 
-static constexpr unsigned int ACPIrtIO_16BitDecode = (1u << 0u);
+static const unsigned int ACPIrtIO_16BitDecode = (1u << 0u);
 
-static constexpr unsigned int ACPIrtMR24_Writeable = (1u << 0u);
-static constexpr unsigned int ACPIrtMR32_Writeable = (1u << 0u);
+static const unsigned int ACPIrtMR24_Writeable = (1u << 0u);
+static const unsigned int ACPIrtMR32_Writeable = (1u << 0u);
 
 namespace ACPIFieldFlag {
 	namespace AccessType {
@@ -8933,7 +8951,7 @@ namespace ACPIFieldFlag {
 	}
 }
 
-enum class ACPIAMLOpcode:unsigned char {
+namespace ACPIAMLOpcode { enum Type {
 	ZeroOp = 0x00, // ACPI 1.0+
 	OneOp = 0x01, // ACPI 1.0+
 
@@ -9086,9 +9104,9 @@ enum class ACPIAMLOpcode:unsigned char {
 	BreakPointOp = 0xCC, // ACPI 1.0+
 
 	OnesOp = 0xFF // ACPI 1.0+
-};
+}; }
 
-enum class ACPIAMLOpcodeEOP5B:unsigned char {
+namespace ACPIAMLOpcodeEOP5B { enum Type {
 	/*0x5B*/MutexOp = 0x01, // ACPI 1.0+
 	/*0x5B*/EventOp = 0x02, // ACPI 1.0+
 
@@ -9124,7 +9142,7 @@ enum class ACPIAMLOpcodeEOP5B:unsigned char {
 	/*0x5B*/IndexFieldOp = 0x86, // ACPI 1.0+
 	/*0x5B*/BankFieldOp = 0x87, // ACPI 1.0+
 	/*0x5B*/DataRegionOp = 0x88 // ACPI 2.0+
-};
+}; }
 
 #include <stack>
 
@@ -9134,12 +9152,13 @@ enum class ACPIAMLOpcodeEOP5B:unsigned char {
  * WARNING: The 1.0 specification [http://hackipedia.org/browse.cgi/Computer/Platform/PC%2c%20IBM%20compatible/BIOS/ACPI%2c%20Advanced%20Configuration%20and%20Power%20Interface/Advanced%20Configuration%20and%20Power%20Interface%20Specification%20%281996%2d12%2d22%29%20v1%2e0%2epdf] seems to have some mistakes in a few opcodes in how they are defined, which probably means if your BIOS is from 1996-1998 it might have those few erroneous AML opcodes. */
 class ACPIAMLWriter {
 	public:
-		static constexpr unsigned int MaxPkgSize = 0xFFFFFFFu;
+		static const unsigned int MaxPkgSize = 0xFFFFFFFu;
 	public:
 		struct pkg_t {
-			unsigned char*	pkg_len = NULL;
-			unsigned char*	pkg_data = NULL;
-			unsigned int	element_count = 0;
+			unsigned char*	pkg_len;
+			unsigned char*	pkg_data;
+			unsigned int	element_count;
+			pkg_t() : pkg_len(NULL), pkg_data(NULL), element_count(0) {}
 		};
 		std::stack<pkg_t> pkg_stack;
 	public:
@@ -9164,7 +9183,7 @@ class ACPIAMLWriter {
 		ACPIAMLWriter &WordOp(const unsigned int v);
 		ACPIAMLWriter &DwordOp(const unsigned long v);
 		ACPIAMLWriter &StringOp(const char *str);
-		ACPIAMLWriter &OpRegionOp(const char *name,const ACPIRegionSpace regionspace);
+		ACPIAMLWriter &OpRegionOp(const char *name,const ACPIRegionSpace::Type regionspace);
 		ACPIAMLWriter &FieldOp(const char *name,const unsigned int pred_size,const unsigned int fieldflag);
 		ACPIAMLWriter &FieldOpEnd(void);
 		ACPIAMLWriter &ScopeOp(const unsigned int pred_size=MaxPkgSize);
@@ -9212,9 +9231,9 @@ class ACPIAMLWriter {
 		ACPIAMLWriter &EndPkg(void);
 		ACPIAMLWriter &CountElement(void);
 	private:
-		unsigned char*		w=NULL,*f=NULL;
-		unsigned char*		buffer_len_pl = NULL;
-		unsigned char*		rt_start = NULL;
+		unsigned char*		w,*f;
+		unsigned char*		buffer_len_pl;
+		unsigned char*		rt_start;
 };
 
 /* StoreOp Operand Supername: Store Operand into Supername */
@@ -9529,7 +9548,7 @@ ACPIAMLWriter &ACPIAMLWriter::StringOp(const char *str) {
 	return *this;
 }
 
-ACPIAMLWriter &ACPIAMLWriter::OpRegionOp(const char *name,const ACPIRegionSpace regionspace) {
+ACPIAMLWriter &ACPIAMLWriter::OpRegionOp(const char *name,const ACPIRegionSpace::Type regionspace) {
 	*w++ = 0x5B;
 	*w++ = 0x80;
 	Name(name);
@@ -9661,7 +9680,7 @@ ACPIAMLWriter &ACPIAMLWriter::BeginPkg(const unsigned int /*pred_length*/) {
 	PkgLength(MaxPkgSize);//placeholder
 	ent.pkg_data = w;
 
-	pkg_stack.push(std::move(ent));
+	pkg_stack.push(ent);
 	return *this;
 }
 
@@ -9684,7 +9703,7 @@ ACPIAMLWriter &ACPIAMLWriter::CountElement(void) {
 	return *this;
 }
 
-ACPIAMLWriter::ACPIAMLWriter() {
+ACPIAMLWriter::ACPIAMLWriter() : w(NULL), f(NULL), buffer_len_pl(NULL), rt_start(NULL) {
 }
 
 ACPIAMLWriter::~ACPIAMLWriter() {
@@ -11396,6 +11415,7 @@ startfunction:
 
         BIOS_Int10RightJustifiedPrint(x,y,msg);
 
+#if C_LIBPNG
         {
             png_bytep rows[1];
             unsigned char *row = NULL;/*png_width*/
@@ -11548,6 +11568,7 @@ startfunction:
             if (png_context) png_destroy_read_struct(&png_context,&png_info,&png_end);
             if (png_fp) fclose(png_fp);
         }
+#endif
 
         if (machine == MCH_PC98 && textsplash) {
             unsigned int bo, lastline = 7;
@@ -13096,7 +13117,7 @@ void write_ID_version_string() {
      *      +1 from a paragraph boundary */
     /* TODO: *DO* allow dynamic relocation however if the dosbox-x.conf indicates that the user
      *       is not interested in IBM BIOS compatibility. Also, it would be really cool if
-     *       dosbox-x.conf could override these strings and the user could enter custom BIOS
+     *       dosbox-x.conf could DBX_OVERRIDE these strings and the user could enter custom BIOS
      *       version and ID strings. Heh heh heh.. :) */
     str_id_at = 0xFE00E;
     str_ver_at = 0xFE061;

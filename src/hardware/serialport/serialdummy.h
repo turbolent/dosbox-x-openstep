@@ -29,15 +29,15 @@ public:
 	CSerialDummy(Bitu id, CommandLine* cmd);
 	virtual ~CSerialDummy();
 
-	void setRTSDTR(bool rts, bool dtr) override;
-	void setRTS(bool val) override;
-	void setDTR(bool val) override;
+	void setRTSDTR(bool rts, bool dtr) DBX_OVERRIDE;
+	void setRTS(bool val) DBX_OVERRIDE;
+	void setDTR(bool val) DBX_OVERRIDE;
 
-	void updatePortConfig(uint16_t, uint8_t lcr) override;
-	void updateMSR() override;
-	void transmitByte(uint8_t val, bool first) override;
-	void setBreak(bool value) override;
-	void handleUpperEvent(uint16_t type) override;
+	void updatePortConfig(uint16_t, uint8_t lcr) DBX_OVERRIDE;
+	void updateMSR() DBX_OVERRIDE;
+	void transmitByte(uint8_t val, bool first) DBX_OVERRIDE;
+	void setBreak(bool value) DBX_OVERRIDE;
+	void handleUpperEvent(uint16_t type) DBX_OVERRIDE;
 
 #ifdef CHECKIT_TESTPLUG
 	uint8_t loopbackdata;

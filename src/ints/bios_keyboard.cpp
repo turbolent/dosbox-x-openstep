@@ -27,7 +27,9 @@
 #include "regs.h"
 #include "inout.h"
 #include "dos_inc.h"
+#if !C_OPENSTEP
 #include "SDL.h"
+#endif
 #include "int10.h"
 #include "jfont.h"
 #include "render.h"
@@ -41,7 +43,10 @@ extern bool kana_input;
 /* SDL by default treats numlock and scrolllock different from all other keys.
  * In recent versions this can disabled by an environment variable which we set in sdlmain.cpp
  * Define the following if this is the case */
-#if SDL_VERSION_ATLEAST(1, 2, 14)
+#if C_OPENSTEP
+/* Native input sends both make and break for lock keys. */
+#define CAN_USE_LOCK 1
+#elif SDL_VERSION_ATLEAST(1, 2, 14)
 #define CAN_USE_LOCK 1
 /* For lower versions of SDL we also use a slight hack to get the startup states of numclock and capslock right.
  * The proper way is in the mapper, but the repeating key is an unwanted side effect for lower versions of SDL */
@@ -879,10 +884,10 @@ irq1_end:
         /* As long as this hack exists... maintain the cursor's invisible state if invisible so it
          * does not reappear unexpectedly when the user presses Insert. Though long term, this should
          * be handled by the shell, not the keyboard ISR */
-        const auto invisible = static_cast<bool>(real_readw(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE) & 0x2000); /* NTS: Written (last|(first<<8)) and (first & 0x20) means invisible */
-        const auto flg = mem_readb(BIOS_KEYBOARD_FLAGS1);
-        const auto ins = static_cast<bool>(flg & BIOS_KEYBOARD_FLAGS1_INSERT_ACTIVE);
-        const auto ssl = static_cast<uint8_t>(ins ? CURSOR_SCAN_LINE_INSERT : CURSOR_SCAN_LINE_NORMAL);
+        const bool invisible = static_cast<bool>(real_readw(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE) & 0x2000); /* NTS: Written (last|(first<<8)) and (first & 0x20) means invisible */
+        const uint8_t flg = mem_readb(BIOS_KEYBOARD_FLAGS1);
+        const bool ins = static_cast<bool>(flg & BIOS_KEYBOARD_FLAGS1_INSERT_ACTIVE);
+        const uint8_t ssl = static_cast<uint8_t>(ins ? CURSOR_SCAN_LINE_INSERT : CURSOR_SCAN_LINE_NORMAL);
         if (CurMode->type == M_TEXT && inshell) {
             if (machine==MCH_MDA||machine==MCH_HERC)
                 INT10_SetCursorShape((ssl + 6) | (invisible?0x20:0x00), CURSOR_SCAN_LINE_END + 6); /* 14 - 8 = 6 */

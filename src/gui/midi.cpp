@@ -22,7 +22,11 @@
 #include <string>
 #include <algorithm>
 
+#if C_OPENSTEP
+#include "host.h"
+#else
 #include "SDL.h"
+#endif
 
 #include "dosbox.h"
 #include "midi.h"
@@ -61,7 +65,7 @@ uint8_t MIDI_evt_len[256] = {
   0,2,3,2, 0,0,1,0, 1,0,1,1, 1,0,1,0   // 0xf0
 };
 
-MidiHandler * handler_list = nullptr;
+MidiHandler * handler_list = NULL;
 
 MidiHandler::MidiHandler(){
 	next = handler_list;
@@ -103,7 +107,7 @@ static struct {
 #include "midi_synth.h"
 #endif
 
-#if !defined(WIN32)
+#if !defined(WIN32) && !C_OPENSTEP
 # include "midi_timidity.h"
 #endif
 
@@ -116,7 +120,7 @@ static struct {
 
 #include "midi_win32.h"
 
-#else
+#elif !C_OPENSTEP
 
 #include "midi_oss.h"
 
@@ -512,7 +516,13 @@ void MIDI_State_LoadMessage()
 void MIDI_RawOutByte(uint8_t data) {
 	if (midi.sysex.start) {
 		uint32_t passed_ticks = GetTicks() - midi.sysex.start;
-		if (passed_ticks < midi.sysex.delay) SDL_Delay((Uint32)(midi.sysex.delay - passed_ticks));
+		if (passed_ticks < midi.sysex.delay) {
+#if C_OPENSTEP
+            OSHostSleep((uint32_t)(midi.sysex.delay - passed_ticks));
+#else
+            SDL_Delay((Uint32)(midi.sysex.delay - passed_ticks));
+#endif
+        }
 	}
 
 	/* Test for a realtime MIDI message */
@@ -685,7 +695,7 @@ public:
 		}
 		if(midi.available) midi.handler->Close();
 		midi.available = false;
-		midi.handler = nullptr;
+		midi.handler = NULL;
 	}
 };
 
@@ -693,7 +703,7 @@ void MIDI_ListHandler(Program *caller, const char *name)
 {
 	if (!*name) return;
 	bool found=false;
-	for (auto *handler = handler_list; handler; handler = handler->next) {
+	for (MidiHandler *handler = handler_list; handler; handler = handler->next) {
 		if (!strcasecmp(handler->GetName(), name)) {
 			handler->ListAll(caller);
 			found=true;
@@ -737,7 +747,7 @@ public:
     {}
 
 private:
-    void getBytes(std::ostream& stream) override
+    void getBytes(std::ostream& stream) DBX_OVERRIDE
     {
 				if( !test ) return;
 
@@ -780,7 +790,7 @@ private:
 				}
     }
 
-    void setBytes(std::istream& stream) override
+    void setBytes(std::istream& stream) DBX_OVERRIDE
     {
 				if( !test ) return;
 

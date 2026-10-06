@@ -57,10 +57,10 @@ public:
 
 //protected:
 	// device-level overrides
-	void device_start() override;
+	void device_start() DBX_OVERRIDE;
 
 	// sound stream update overrides
-	void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) DBX_OVERRIDE;
 
 	void SaveState( std::ostream& stream );
 	void LoadState( std::istream& stream );

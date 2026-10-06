@@ -412,7 +412,7 @@ Bitu DmaController::ReadControllerReg(Bitu reg,Bitu /*len*/) {
 	return 0xffffffff;
 }
 
-DmaChannel::DmaChannel(uint8_t num, bool dma16) {
+DmaChannel::DmaChannel(uint8_t num, bool dma16) : page_bank_increment_wraparound(0), userData(0) {
 	masked = true;
 	masked_by = DMAA_CONTROLLER;
 	callback = NULL;
@@ -933,7 +933,7 @@ namespace
 		{}
 
 	private:
-		void getBytes(std::ostream& stream) override
+		void getBytes(std::ostream& stream) DBX_OVERRIDE
 		{
 			SerializeGlobalPOD::getBytes(stream);
 
@@ -954,7 +954,7 @@ namespace
 			WRITE_POD( &ems_board_mapping, ems_board_mapping );
 		}
 
-		void setBytes(std::istream& stream) override
+		void setBytes(std::istream& stream) DBX_OVERRIDE
 		{
 			SerializeGlobalPOD::setBytes(stream);
 

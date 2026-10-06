@@ -141,7 +141,7 @@ public:
 	void log_ser(bool active, char const* format,...);
 #endif
 
-	double baud_multiplier = 1;
+	double baud_multiplier;
 
 	static bool getBituSubstring(const char* name,Bitu* data, CommandLine* cmd);
 
@@ -254,10 +254,10 @@ public:
 	bool Getchar(uint8_t* data, uint8_t* lsr, bool wait_dsr, Bitu timeout);
 
 	// What type of port is this?
-	SerialTypesE serialType = SERIAL_TYPE_DISABLED;
+	SerialTypesE serialType;
 
 	// How was it created?
-	std::string commandLineString = "";
+	std::string commandLineString;
 
 	DOS_Device* mydosdevice;
 
@@ -448,11 +448,11 @@ public:
 	// Creates a COM device that communicates with the num-th parallel port, i.e. is LPTnum
 	device_COM(class CSerial* sc);
 	virtual ~device_COM();
-	bool Read(uint8_t * data,uint16_t * size) override;
-	bool Write(const uint8_t * data,uint16_t * size) override;
-	bool Seek(uint32_t * pos,uint32_t type) override;
-	bool Close() override;
-	uint16_t GetInformation(void) override;
+	bool Read(uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Write(const uint8_t * data,uint16_t * size) DBX_OVERRIDE;
+	bool Seek(uint32_t * pos,uint32_t type) DBX_OVERRIDE;
+	bool Close() DBX_OVERRIDE;
+	uint16_t GetInformation(void) DBX_OVERRIDE;
 private:
 	CSerial* sclass;
 };

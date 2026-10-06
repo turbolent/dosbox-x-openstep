@@ -6,7 +6,13 @@
 #include <string>
 #include <cstring>
 #include <fstream>
+#if C_OPENSTEP
+#include "host.h"
+#define SAVESTATE_FRONTEND "Native"
+#else
 #include "SDL.h"
+#define SAVESTATE_FRONTEND SDL_STRING
+#endif
 #include "menu.h"
 #include "shell.h"
 #include "cross.h"
@@ -19,7 +25,7 @@
 #ifdef WIN32
 #include "direct.h"
 #endif
-#if defined (__OpenBSD__) || defined (__APPLE__)
+#if C_OPENSTEP || defined (__OpenBSD__) || defined (__APPLE__)
 #else
 #include <malloc.h>
 #endif
@@ -35,7 +41,7 @@
 #include "vs/zlib/contrib/minizip/unzip.c"
 #include "vs/zlib/contrib/minizip/ioapi.c"
 #include "zipcppstdbuf.h"
-#if !defined(HX_DOS)
+#if !defined(HX_DOS) && !C_OPENSTEP
 #include "../libs/tinyfiledialogs/tinyfiledialogs.h"
 #endif
 
@@ -270,9 +276,11 @@ namespace
 }
 
 std::string GetPlatform(bool save) {
-	char platform[30];
+	char platform[64];
 	strcpy(platform, 
-#if defined(HX_DOS)
+#if C_OPENSTEP
+            "OPENSTEP "
+#elif defined(HX_DOS)
 			"DOS "
 #elif defined(__MINGW32__)
 			"MinGW "
@@ -290,7 +298,7 @@ std::string GetPlatform(bool save) {
 			save?"Other ":""
 #endif
 	      );
-	if (!save) strcat(platform, (std::string(SDL_STRING)+", ").c_str());
+	if (!save) strcat(platform, (std::string(SAVESTATE_FRONTEND)+", ").c_str());
 #if defined(_M_X64) || defined (_M_AMD64) || defined (_M_ARM64) || defined (_M_IA64) || defined(__ia64__) || defined(__LP64__) || defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__) || defined(__powerpc64__)
 	strcat(platform, "64");
 #else
@@ -298,6 +306,10 @@ std::string GetPlatform(bool save) {
 #endif
 	strcat(platform, save?"-bit build":"-bit");
 	return std::string(platform);
+}
+
+static std::string SaveSlotNumber(size_t slot) {
+    std::ostringstream text; text << slot; return text.str();
 }
 
 size_t GetGameState_Run(void) { return GetGameState(); }
@@ -310,7 +322,7 @@ void LastAutoSaveSlot_Run(void) { LastAutoSaveSlot(true); }
 
 void ShowStateInfo(bool pressed) {
 	if (!pressed) return;
-	std::string message = "Save to: "+(use_save_file&&savefilename.size()?"File "+savefilename:"Slot "+std::to_string(GetGameState_Run()+1))+"\n"+SaveState::instance().getName(GetGameState_Run(), true);
+	std::string message = "Save to: "+(use_save_file&&savefilename.size()?"File "+savefilename:"Slot "+SaveSlotNumber(GetGameState_Run()+1))+"\n"+SaveState::instance().getName(GetGameState_Run(), true);
 	systemmessagebox("Saved state information", message.c_str(), "ok","info", 1);
 }
 
@@ -421,7 +433,9 @@ int zipOutOpenFile(zipFile zf,const char *zfname,zip_fileinfo &zi,const bool com
 
 void SaveState::save(size_t slot) { //throw (Error)
 	if (slot >= SLOT_COUNT*MAX_PAGE)  return;
-#ifdef C_SDL2
+#if C_OPENSTEP
+        OSAudioPause(0);
+#elif defined(C_SDL2)
         SDL_PauseAudioDevice(SDL2_AudioDevice, 0);
 #else
         SDL_PauseAudio(0);
@@ -434,7 +448,7 @@ void SaveState::save(size_t slot) { //throw (Error)
 	}
 	bool compresssaveparts = static_cast<Section_prop *>(control->GetSection("dosbox"))->Get_bool("compresssaveparts");
 	const char *save_remark = "";
-#if !defined(HX_DOS)
+#if !defined(HX_DOS) && !C_OPENSTEP
 	if (auto_save_state)
 		save_remark = "Auto-save";
 	else if (!noremark_save_state) {
@@ -498,7 +512,7 @@ void SaveState::save(size_t slot) { //throw (Error)
 		if ((errclose=zipOutOpenFile(zf,"DOSBox-X_Version",zi,compresssaveparts)) != ZIP_OK) { save_err = true; goto done; }
 		zip_ostreambuf zos(zf); std::ostream emulatorversion(&zos);
 
-		emulatorversion << "DOSBox-X " << VERSION << " (" << SDL_STRING << ")" << std::endl << GetPlatform(true) << std::endl << UPDATED_STR;
+		emulatorversion << "DOSBox-X " << VERSION << " (" << SAVESTATE_FRONTEND << ")" << std::endl << GetPlatform(true) << std::endl << UPDATED_STR;
 		/* 2025/01/12: Backwards compat: The old code compressed data to zlib, even though the ZIP support code
 		 *             already applies compression. This is to tell the old code that we did not compress the
 		 *             data (the ZIP support code did though). */
@@ -520,7 +534,7 @@ void SaveState::save(size_t slot) { //throw (Error)
 		if ((errclose=zipOutOpenFile(zf,"Memory_Size",zi,compresssaveparts)) != ZIP_OK) { save_err = true; goto done; }
 		zip_ostreambuf zos(zf); std::ostream memorysize(&zos);
 
-		memorysize << std::to_string( MEM_TotalPages());
+		memorysize << MEM_TotalPages();
 
 		if ((errclose=zos.close()) != ZIP_OK) { save_err = true; goto done; }
 	}
@@ -600,7 +614,9 @@ void SaveState::load(size_t slot) const { //throw (Error)
 		notifyError("Unsupported memory size for loading states.", false);
 		return;
 	}
-#ifdef C_SDL2
+#if C_OPENSTEP
+        OSAudioPause(0);
+#elif defined(C_SDL2)
         SDL_PauseAudioDevice(SDL2_AudioDevice, 0);
 #else
         SDL_PauseAudio(0);
@@ -659,7 +675,7 @@ void SaveState::load(size_t slot) const { //throw (Error)
 		}
 		p=strrchr(buffer, '\n'); /* Remove i.e. "Linux" */
 		if (p!=NULL) *p=0;
-		std::string emulatorversion = std::string("DOSBox-X ") + VERSION + std::string(" (") + SDL_STRING + std::string(")");
+		std::string emulatorversion = std::string("DOSBox-X ") + VERSION + std::string(" (") + SAVESTATE_FRONTEND + std::string(")");
 		if (strcasecmp(buffer,emulatorversion.c_str())) {
 			loadstate_detail_saved = strlen(buffer) ? std::string(buffer) : std::string("(none)");
 			loadstate_detail_current = emulatorversion;

@@ -833,7 +833,7 @@ void CPU_CheckSegments(void) {
 
 class TaskStateSegment {
 public:
-	TaskStateSegment() {
+	TaskStateSegment() : selector(0), base(0), limit(0), is386(0), valid(false) {
 	}
 	bool IsValid(void) {
 		return valid;
@@ -891,11 +891,11 @@ public:
 	void LoadState( std::istream& stream );
 
 	TSS_Descriptor desc;
-	Bitu selector = 0;
-	PhysPt base = 0;
-	Bitu limit = 0;
-	Bitu is386 = 0;
-	bool valid = false;
+	Bitu selector;
+	PhysPt base;
+	Bitu limit;
+	Bitu is386;
+	bool valid;
 };
 
 TaskStateSegment cpu_tss;
@@ -3496,12 +3496,12 @@ public:
 	~Weitek_PageHandler() {
 	}
 
-	uint8_t readb(PhysPt addr) override;
-	void writeb(PhysPt addr,uint8_t val) override;
-	uint16_t readw(PhysPt addr) override;
-	void writew(PhysPt addr,uint16_t val) override;
-	uint32_t readd(PhysPt addr) override;
-	void writed(PhysPt addr,uint32_t val) override;
+	uint8_t readb(PhysPt addr) DBX_OVERRIDE;
+	void writeb(PhysPt addr,uint8_t val) DBX_OVERRIDE;
+	uint16_t readw(PhysPt addr) DBX_OVERRIDE;
+	void writew(PhysPt addr,uint16_t val) DBX_OVERRIDE;
+	uint32_t readd(PhysPt addr) DBX_OVERRIDE;
+	void writed(PhysPt addr,uint32_t val) DBX_OVERRIDE;
 };
 
 uint8_t Weitek_PageHandler::readb(PhysPt addr) {
@@ -3530,7 +3530,7 @@ void Weitek_PageHandler::writed(PhysPt addr,uint32_t val) {
 	LOG_MSG("Weitek stub: writed at 0x%lx val=0x%lx",(unsigned long)addr,(unsigned long)val);
 }
 
-Weitek_PageHandler weitek_pagehandler(nullptr);
+Weitek_PageHandler weitek_pagehandler(NULL);
 
 PageHandler* weitek_memio_cb(MEM_CalloutObject &co,Bitu phys_page) {
     (void)co; // UNUSED
@@ -3744,7 +3744,7 @@ public:
 			cpu.cr4 = 0;
 		}
 	}
-	bool Change_Config(Section* newconfig) override {
+	bool Change_Config(Section* newconfig) DBX_OVERRIDE {
 		const Section_prop * section=static_cast<Section_prop *>(newconfig);
 		CPU_AutoDetermineMode=CPU_AUTODETERMINE_NONE;
 		//CPU_CycleLeft=0;//needed ?
@@ -3789,7 +3789,7 @@ public:
 		Prop_multival* p = section->Get_multival("cycles");
 		std::string type = p->GetSection()->Get_string("type");
 		std::string str ;
-		CommandLine cmd(nullptr,p->GetSection()->Get_string("parameters"));
+		CommandLine cmd(NULL,p->GetSection()->Get_string("parameters"));
 		if (type=="max") {
 			RDTSC_rebase();
 			CPU_CycleMax=0;
@@ -4478,7 +4478,7 @@ CPU_Decoder* CPU_IndexDecoderType(uint16_t decoder_idx)
 	    case 102: return &CPU_Core_Dynrec_Trap_Run;
 #endif
 	    case 200: return &HLT_Decode;
-	    default: return nullptr;
+	    default: return NULL;
     }
 }
 
@@ -4948,7 +4948,7 @@ SerializeCPU() : SerializeGlobalPOD("CPU")
 {}
 
 private:
-void getBytes(std::ostream& stream) override
+void getBytes(std::ostream& stream) DBX_OVERRIDE
 {
     uint16_t decoder_idx;
 
@@ -5004,7 +5004,7 @@ void getBytes(std::ostream& stream) override
 	POD_Save_CPU_Paging(stream);
 }
 
-void setBytes(std::istream& stream) override
+void setBytes(std::istream& stream) DBX_OVERRIDE
 {
     uint16_t decoder_idx;
     uint16_t decoder_old;
